@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Poppins', sans-serif;
+  }
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.gradient-animation::before {
+  content: "";
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background-image: linear-gradient(25deg, rgba(91, 187, 242, 0.961), rgba(203, 182, 182, 0.65), rgba(155, 106, 137, 0.927), rgba(182, 203, 182, 0.65), rgba(93, 137, 162, 0.65));
+  background-size: 400% 400%;
+  animation: gradient 10s ease infinite;
+  z-index: 1;
+  margin: 0 !important;
+  border: none !important;
+  opacity: 0.4;
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --brand-color: #579dca;
+  --sidebar-color: #404040;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Custom button styles using our brand color */
+.btn-brand {
+  @apply bg-brand text-white hover:bg-brand-dark transition-colors duration-300;
+}
+
+.btn-outline-brand {
+  @apply border border-brand text-brand hover:bg-brand hover:text-white transition-colors duration-300;
+}
+
+/* Custom sidebar styles */
+.sidebar-brand {
+  background-color: var(--sidebar-color);
+  color: white;
+}
+
+/* Card styles */
+.card {
+  @apply bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden transition-all duration-300 hover:shadow-lg;
+}
+
+.card-header {
+  @apply px-6 py-4 border-b border-gray-200 dark:border-gray-700;
+}
+
+.card-body {
+  @apply px-6 py-4;
+}
+
+.card-footer {
+  @apply px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-700;
+}
+
+.card-title {
+  @apply text-lg font-semibold text-gray-900 dark:text-white;
+}
+
+.card-subtitle {
+  @apply text-sm text-gray-500 dark:text-gray-400;
+}
+
+.card-icon {
+  @apply flex-shrink-0 bg-brand bg-opacity-10 rounded-md p-3;
+}
+
+.card-icon svg {
+  @apply h-6 w-6 text-brand;
+}
+
+.card-metric {
+  @apply text-3xl font-semibold text-gray-900 dark:text-white;
+}
+
+.card-metric-label {
+  @apply text-sm font-medium text-gray-500 dark:text-gray-400;
+}
+
+.card-grid {
+  @apply grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3;
+}
+
+.card-list {
+  @apply space-y-4;
+}
+
+.card-list-item {
+  @apply card hover:shadow-md transition-shadow duration-200;
+}
