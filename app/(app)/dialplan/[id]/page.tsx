@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Plus, Save } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import Button from '@/app/components/ui/Button';
+import { Button } from '@/app/components/ui/button';
 import { 
   getProjectDetails, 
   getContextsForProject, 

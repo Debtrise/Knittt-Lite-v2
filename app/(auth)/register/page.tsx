@@ -127,9 +127,9 @@ export default function RegisterPage() {
           </div>
 
           <div className="text-center">
-            <p className="text-sm text-gray-300 font-poppins">
+            <p className="text-sm text-white bg-[#333333] px-3 py-2 rounded font-poppins">
               Already have an account?{' '}
-              <Link href="/login" className="font-medium text-white hover:text-gray-200">
+              <Link href="/login" className="font-medium text-blue-300 hover:text-blue-200">
                 Sign in
               </Link>
             </p>

@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { Phone, List, Clock, User, PhoneIncoming, PhoneForwarded, PhoneOff, PhoneCall } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import Input from '@/app/components/ui/Input';
-import Button from '@/app/components/ui/Button';
+import { Button } from '@/app/components/ui/button';
 import { makeCall, getDIDs, getCalls, getCallDetails, updateCallStatus } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
 

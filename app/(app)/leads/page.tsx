@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { Upload, User, CheckCircle, XCircle, PhoneOutgoing, Filter, Trash2, Edit, AlertTriangle } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import Button from '@/app/components/ui/Button';
+import { Button } from '@/app/components/ui/button';
 import Input from '@/app/components/ui/Input';
 import { getLeads, uploadLeads, deleteLead, bulkDeleteLeads } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
@@ -263,13 +263,13 @@ export default function LeadsPage() {
 
         {/* Delete All Confirmation Modal */}
         {showDeleteAllConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full">
+          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
               <div className="flex items-center mb-4 text-red-600">
                 <AlertTriangle className="h-6 w-6 mr-2" />
                 <h3 className="text-lg font-medium">Delete All Leads</h3>
               </div>
-              <p className="mb-4 text-gray-700">
+              <p className="mb-4 text-gray-900">
                 Are you sure you want to delete <strong>all{filterStatus ? ` ${filterStatus}` : ''} leads</strong>? This action cannot be undone.
               </p>
               <div className="flex justify-end space-x-3">

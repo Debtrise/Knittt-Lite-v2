@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Phone, MapPin, Tag, Clock, ArrowLeft, Trash2, Calendar, Clock1 } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import Button from '@/app/components/ui/Button';
+import { Button } from '@/app/components/ui/button';
 import { getDIDDetails, deleteDID } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
 import Link from 'next/link';
@@ -58,7 +58,9 @@ export default function DIDDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [didDetails, setDIDDetails] = useState<DIDDetailsResponse | null>(null);
 
-  const didId = typeof params.id === 'string' ? parseInt(params.id, 10) : 0;
+  // Properly unwrap params using React.use()
+  const unwrappedParams = use(params);
+  const didId = typeof unwrappedParams.id === 'string' ? parseInt(unwrappedParams.id, 10) : 0;
 
   useEffect(() => {
     if (!isAuthenticated) {

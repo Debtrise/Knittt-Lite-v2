@@ -8,7 +8,7 @@ import DashboardLayout from '@/app/components/layout/Dashboard';
 import { getAgentStatus, getDailyReport, getTenant, updateTenant, uploadLeads } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
 import Input from '@/app/components/ui/Input';
-import Button from '@/app/components/ui/Button';
+import { Button } from '@/app/components/ui/button';
 
 type AgentStatus = {
   ingroup: string;

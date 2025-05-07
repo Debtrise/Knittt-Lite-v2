@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { BarChart, Calendar, PhoneCall, Phone, PhoneForwarded, Clock } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import Button from '@/app/components/ui/Button';
+import { Button } from '@/app/components/ui/button';
 import { getDailyReport } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
 
@@ -213,12 +213,12 @@ export default function ReportsPage() {
                 <div className="relative pt-1">
                   <div className="flex mb-2 items-center justify-between">
                     <div>
-                      <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full bg-brand bg-opacity-10 text-brand">
+                      <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full bg-brand bg-opacity-10 text-brand text-shadow-light">
                         Under 1 Minute
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-semibold inline-block text-brand">
+                      <span className="text-xs font-semibold inline-block text-brand text-shadow-light">
                         {calculatePercentage(report.answeredCalls - report.callsOver1Min, report.answeredCalls)}
                       </span>
                     </div>
@@ -231,12 +231,12 @@ export default function ReportsPage() {
                 <div className="relative pt-1">
                   <div className="flex mb-2 items-center justify-between">
                     <div>
-                      <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full bg-brand bg-opacity-10 text-brand">
+                      <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full bg-brand bg-opacity-10 text-brand text-shadow-light">
                         1-5 Minutes
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-semibold inline-block text-brand">
+                      <span className="text-xs font-semibold inline-block text-brand text-shadow-light">
                         {calculatePercentage(report.callsOver1Min - report.callsOver5Min, report.answeredCalls)}
                       </span>
                     </div>
@@ -249,12 +249,12 @@ export default function ReportsPage() {
                 <div className="relative pt-1">
                   <div className="flex mb-2 items-center justify-between">
                     <div>
-                      <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full bg-brand bg-opacity-10 text-brand">
+                      <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full bg-brand bg-opacity-10 text-brand text-shadow-light">
                         5-15 Minutes
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-semibold inline-block text-brand">
+                      <span className="text-xs font-semibold inline-block text-brand text-shadow-light">
                         {calculatePercentage(report.callsOver5Min - report.callsOver15Min, report.answeredCalls)}
                       </span>
                     </div>
@@ -267,12 +267,12 @@ export default function ReportsPage() {
                 <div className="relative pt-1">
                   <div className="flex mb-2 items-center justify-between">
                     <div>
-                      <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full bg-brand bg-opacity-10 text-brand">
+                      <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full bg-brand bg-opacity-10 text-brand text-shadow-light">
                         Over 15 Minutes
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-semibold inline-block text-brand">
+                      <span className="text-xs font-semibold inline-block text-brand text-shadow-light">
                         {calculatePercentage(report.callsOver15Min, report.answeredCalls)}
                       </span>
                     </div>
@@ -297,7 +297,7 @@ export default function ReportsPage() {
                         <dd className="mt-1">
                           <div className="flex justify-between items-baseline">
                             <div className="text-2xl font-semibold text-gray-900">{report.connectionRate}</div>
-                            <div className="bg-brand bg-opacity-10 text-brand inline-flex items-baseline px-2.5 py-0.5 rounded-full text-sm font-medium md:mt-2 lg:mt-0">
+                            <div className="bg-brand bg-opacity-10 text-brand inline-flex items-baseline px-2.5 py-0.5 rounded-full text-sm font-medium md:mt-2 lg:mt-0 text-shadow-light">
                               {report.answeredCalls} of {report.totalCalls} calls connected
                             </div>
                           </div>
@@ -313,7 +313,7 @@ export default function ReportsPage() {
                         <dd className="mt-1">
                           <div className="flex justify-between items-baseline">
                             <div className="text-2xl font-semibold text-gray-900">{report.transferRate}</div>
-                            <div className="bg-brand bg-opacity-10 text-brand inline-flex items-baseline px-2.5 py-0.5 rounded-full text-sm font-medium md:mt-2 lg:mt-0">
+                            <div className="bg-brand bg-opacity-10 text-brand inline-flex items-baseline px-2.5 py-0.5 rounded-full text-sm font-medium md:mt-2 lg:mt-0 text-shadow-light">
                               {report.transfers} transfers completed
                             </div>
                           </div>

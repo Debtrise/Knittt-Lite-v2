@@ -305,4 +305,95 @@ export const getDailyReport = async (date?: string) => {
   return response.data;
 };
 
+// SMS Campaign APIs
+export const createSmsCampaign = async (campaignData: {
+  name: string;
+  messageTemplate: string;
+  rateLimit: number;
+}) => {
+  const response = await axios.post('http://34.122.156.88:3100/campaigns', campaignData);
+  return response.data;
+};
+
+export const listSmsCampaigns = async () => {
+  const response = await axios.get('http://34.122.156.88:3100/campaigns');
+  // The API returns a paginated response with campaigns in a sub-property
+  if (response.data && response.data.campaigns) {
+    return response.data.campaigns;
+  }
+  // Fall back to the original response if structure changes
+  return response.data;
+};
+
+export const getSmsCampaignDetails = async (campaignId: number) => {
+  const response = await axios.get(`http://34.122.156.88:3100/campaigns/${campaignId}`);
+  return response.data;
+};
+
+export const uploadSmsCampaignContacts = async (campaignId: number, formData: FormData) => {
+  // Make sure the file field is named 'contacts' as expected by the API
+  const response = await axios.post(
+    `http://34.122.156.88:3100/campaigns/${campaignId}/upload`, 
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+  
+  // The API returns a message and updated campaign object
+  if (response.data && response.data.campaign) {
+    return response.data;
+  }
+  return response.data;
+};
+
+export const uploadSmsLeads = async (formData: FormData) => {
+  try {
+    // Create a temporary campaign first to upload the leads to
+    const tempCampaign = await createSmsCampaign({
+      name: `Leads Repository ${new Date().toLocaleDateString()}`,
+      messageTemplate: 'Temporary campaign for lead storage',
+      rateLimit: 60
+    });
+    
+    // Then upload the contacts to this campaign
+    const uploadResponse = await uploadSmsCampaignContacts(tempCampaign.id, formData);
+    
+    // Return the upload response which includes the updated campaign info
+    return uploadResponse;
+  } catch (error) {
+    console.error('Error in uploadSmsLeads:', error);
+    throw error;
+  }
+};
+
+export const startSmsCampaign = async (campaignId: number) => {
+  const response = await axios.post(`http://34.122.156.88:3100/campaigns/${campaignId}/start`);
+  // Return the campaign from the response if it's in the documented format
+  if (response.data && response.data.campaign) {
+    return response.data.campaign;
+  }
+  return response.data;
+};
+
+export const pauseSmsCampaign = async (campaignId: number) => {
+  const response = await axios.post(`http://34.122.156.88:3100/campaigns/${campaignId}/pause`);
+  // Return the campaign from the response if it's in the documented format
+  if (response.data && response.data.campaign) {
+    return response.data.campaign;
+  }
+  return response.data;
+};
+
+export const updateSmsCampaignRateLimit = async (campaignId: number, rateLimit: number) => {
+  const response = await axios.patch(`http://34.122.156.88:3100/campaigns/${campaignId}/rate-limit`, { rateLimit });
+  // Return the campaign from the response if it's in the documented format
+  if (response.data && response.data.campaign) {
+    return response.data.campaign;
+  }
+  return response.data;
+};
+
 export default api; 

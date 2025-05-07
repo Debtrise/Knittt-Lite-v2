@@ -10,7 +10,7 @@ const Sidebar = ({ navigation, pathname, handleLogout }) => {
             <h1 className="text-xl font-bold text-gray-900">Dialer App</h1>
           </div>
           
-          <nav className="flex-1 px-2 py-4 space-y-1">
+          <nav className="flex-1 px-2 py-4 space-y-1 bg-white">
             {navigation.map((item) => (
               <Link
                 key={item.name}
@@ -27,7 +27,7 @@ const Sidebar = ({ navigation, pathname, handleLogout }) => {
             ))}
           </nav>
 
-          <div className="p-4 border-t">
+          <div className="p-4 border-t bg-white">
             <button
               onClick={handleLogout}
               className="flex items-center w-full px-4 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-100"

@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import Input from '@/app/components/ui/Input';
-import Button from '@/app/components/ui/Button';
+import { Button } from '@/app/components/ui/button';
 import { login } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
 
@@ -101,9 +101,9 @@ export default function LoginPage() {
           </div>
           
           <div className="text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-white bg-[#333333] px-3 py-2 rounded">
               Don&apos;t have an account?{' '}
-              <Link href="/register" className="font-medium text-blue-600 hover:text-blue-500">
+              <Link href="/register" className="font-medium text-blue-300 hover:text-blue-200">
                 Register here
               </Link>
             </p>
