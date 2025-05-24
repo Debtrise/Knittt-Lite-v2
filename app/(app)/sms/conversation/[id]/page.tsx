@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { ArrowLeft, Send } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
-import Input from '@/app/components/ui/Input';
+import { Input } from '@/app/components/ui/Input';
 import {
   getContactConversation,
   sendContactReply
@@ -15,6 +15,8 @@ import { useAuthStore } from '@/app/store/authStore';
 import { SmsContact, SmsMessage } from '@/app/types/sms';
 
 export default function ConversationPage({ params }: { params: { id: string } }) {
+  // Properly unwrap params using React.use()
+  const resolvedParams = React.use(params);
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const [contact, setContact] = useState<SmsContact | null>(null);
@@ -24,7 +26,7 @@ export default function ConversationPage({ params }: { params: { id: string } })
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  const contactId = parseInt(params.id, 10);
+  const contactId = parseInt(resolvedParams.id, 10);
 
   useEffect(() => {
     if (!isAuthenticated) {

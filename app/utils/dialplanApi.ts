@@ -89,6 +89,7 @@ export const createNode = async (contextId: number, data: {
 export const updateNode = async (id: number, data: { 
   name?: string; 
   label?: string; 
+  nodeTypeId?: number;
   position?: { x: number; y: number };
   properties?: Record<string, any>;
 }) => {

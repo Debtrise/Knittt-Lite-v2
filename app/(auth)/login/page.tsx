@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import Input from '@/app/components/ui/Input';
+import { Input } from '@/app/components/ui/Input';
 import { Button } from '@/app/components/ui/button';
-import { login } from '@/app/utils/api';
+import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
 
 type LoginFormData = {
@@ -30,19 +30,21 @@ export default function LoginPage() {
     setIsLoading(true);
     
     try {
-      const response = await login(data.username, data.password);
-      setAuth(response.token, {
-        userId: response.userId,
-        username: response.username,
-        tenantId: response.tenantId,
-        role: response.role,
+      const response = await api.auth.login(data.username, data.password);
+      const { token, userId, username, tenantId, role } = response.data;
+      
+      setAuth(token, {
+        userId,
+        username,
+        tenantId,
+        role,
       });
       
       toast.success('Login successful');
       router.push('/dashboard');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
-      toast.error('Invalid username or password');
+      toast.error(error.response?.data?.error || 'Invalid username or password');
     } finally {
       setIsLoading(false);
     }
@@ -75,6 +77,9 @@ export default function LoginPage() {
                 className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-600 bg-white text-gray-900 placeholder-gray-500 rounded-t-md focus:outline-none focus:ring-2 focus:ring-[#265871] focus:border-[#265871] focus:z-10 sm:text-sm font-poppins"
                 placeholder="Username"
               />
+              {errors.username && (
+                <p className="mt-1 text-sm text-red-500">{errors.username.message}</p>
+              )}
             </div>
             <div>
               <label htmlFor="password" className="sr-only">
@@ -87,6 +92,9 @@ export default function LoginPage() {
                 className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-600 bg-white text-gray-900 placeholder-gray-500 rounded-b-md focus:outline-none focus:ring-2 focus:ring-[#265871] focus:border-[#265871] focus:z-10 sm:text-sm font-poppins"
                 placeholder="Password"
               />
+              {errors.password && (
+                <p className="mt-1 text-sm text-red-500">{errors.password.message}</p>
+              )}
             </div>
           </div>
 

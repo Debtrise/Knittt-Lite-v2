@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/app/store/authStore';
-import { Phone, Users, BarChart, Layers, Settings, FileText, User, LogOut, Menu, X, GitBranch, MessageSquare } from 'lucide-react';
+import { Phone, Users, BarChart, Layers, Settings, FileText, User, LogOut, Menu, X, GitBranch, MessageSquare, Route, Link2 } from 'lucide-react';
 
 type NavItem = {
   name: string;
@@ -20,12 +20,14 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const navigation: NavItem[] = [
     { name: 'Dashboard', href: '/dashboard', icon: <BarChart className="w-6 h-6" /> },
     { name: 'Leads', href: '/leads', icon: <Users className="w-6 h-6" /> },
+    { name: 'Journeys', href: '/journeys', icon: <Route className="w-6 h-6" /> },
     { name: 'Calls', href: '/calls', icon: <Phone className="w-6 h-6" /> },
     { name: 'DIDs', href: '/dids', icon: <Layers className="w-6 h-6" /> },
-    { name: 'Dialplan', href: '/dialplan', icon: <GitBranch className="w-6 h-6" /> },
-    { name: 'SMS', href: '/sms', icon: <MessageSquare className="w-6 h-6" /> },
+    { name: 'Templates', href: '/templates', icon: <FileText className="w-6 h-6" /> },
+    { name: 'Webhooks', href: '/webhooks', icon: <Link2 className="w-6 h-6" /> },
     { name: 'Reports', href: '/reports', icon: <FileText className="w-6 h-6" /> },
     { name: 'Settings', href: '/settings', icon: <Settings className="w-6 h-6" />, adminOnly: true },
+    { name: 'Users', href: '/settings/users', icon: <Users className="w-6 h-6" />, adminOnly: true },
   ];
 
   const filteredNavigation = user?.role === 'admin' 

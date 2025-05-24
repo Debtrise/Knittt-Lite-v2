@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { Settings, Users, Phone, Activity, AlertCircle } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
-import Input from '@/app/components/ui/Input';
+import { Input } from '@/app/components/ui/Input';
 import { getAgentStatus, updateTenantSettings, getTenant, updateTenant } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
 import api from '@/app/utils/api';

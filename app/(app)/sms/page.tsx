@@ -3,19 +3,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { MessageSquare, Trash2, Plus, Play, Pause, Upload, Clock, Edit } from 'lucide-react';
+import { MessageSquare, Trash2, Plus, Play, Pause, Upload, Clock, Edit, Phone, Settings } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
-import Input from '@/app/components/ui/Input';
+import { Input } from '@/app/components/ui/Input';
 import {
   listSmsCampaigns,
   createSmsCampaign,
   pauseSmsCampaign,
   startSmsCampaign,
-  updateSmsCampaignRateLimit
+  updateSmsCampaignRateLimit,
+  configureAutoReply,
+  listTwilioNumbers,
+  addTwilioNumber,
+  uploadTwilioNumbers,
+  deleteTwilioNumber,
+  bulkDeleteTwilioNumbers
 } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
-import { SmsCampaign, CreateSmsCampaignData } from '@/app/types/sms';
+import { SmsCampaign, CreateSmsCampaignData, TwilioNumber } from '@/app/types/sms';
 
 export default function SmsPage() {
   const router = useRouter();
@@ -24,10 +30,23 @@ export default function SmsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [showTwilioForm, setShowTwilioForm] = useState(false);
+  const [isAddingTwilio, setIsAddingTwilio] = useState(false);
+  const [twilioNumbers, setTwilioNumbers] = useState<TwilioNumber[]>([]);
+  const [selectedTwilioNumbers, setSelectedTwilioNumbers] = useState<number[]>([]);
   const [newCampaign, setNewCampaign] = useState<CreateSmsCampaignData>({
     name: '',
     messageTemplate: '',
     rateLimit: 60,
+  });
+  const [newTwilioNumber, setNewTwilioNumber] = useState({
+    phoneNumber: '',
+    accountSid: '',
+    authToken: '',
+  });
+  const [autoReplySettings, setAutoReplySettings] = useState({
+    autoReplyEnabled: false,
+    replyTemplate: '',
   });
 
   useEffect(() => {
@@ -37,22 +56,30 @@ export default function SmsPage() {
     }
 
     fetchCampaigns();
+    fetchTwilioNumbers();
   }, [isAuthenticated, router]);
 
   const fetchCampaigns = async () => {
     setIsLoading(true);
     try {
       const data = await listSmsCampaigns();
-      // Handle both array response and paginated response format
-      const campaignsList = Array.isArray(data) ? data : 
-        (data.campaigns ? data.campaigns : []);
-      setCampaigns(campaignsList);
+      setCampaigns(data.campaigns || []);
     } catch (error) {
       console.error('Error fetching SMS campaigns:', error);
       toast.error('Failed to load SMS campaigns');
       setCampaigns([]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchTwilioNumbers = async () => {
+    try {
+      const data = await listTwilioNumbers();
+      setTwilioNumbers(data || []);
+    } catch (error) {
+      console.error('Error fetching Twilio numbers:', error);
+      toast.error('Failed to load Twilio numbers');
     }
   };
 
@@ -83,10 +110,96 @@ export default function SmsPage() {
     }
   };
 
+  const handleAddTwilioNumber = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newTwilioNumber.phoneNumber || !newTwilioNumber.accountSid || !newTwilioNumber.authToken) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    setIsAddingTwilio(true);
+    try {
+      const number = await addTwilioNumber(newTwilioNumber);
+      setTwilioNumbers([...twilioNumbers, number]);
+      toast.success('Twilio number added successfully');
+      setShowTwilioForm(false);
+      setNewTwilioNumber({
+        phoneNumber: '',
+        accountSid: '',
+        authToken: '',
+      });
+    } catch (error) {
+      console.error('Error adding Twilio number:', error);
+      toast.error('Failed to add Twilio number');
+    } finally {
+      setIsAddingTwilio(false);
+    }
+  };
+
+  const handleUploadTwilioNumbers = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('numbers', file);
+
+    try {
+      const result = await uploadTwilioNumbers(formData);
+      toast.success(`Uploaded ${result.message}`);
+      fetchTwilioNumbers();
+    } catch (error) {
+      console.error('Error uploading Twilio numbers:', error);
+      toast.error('Failed to upload Twilio numbers');
+    }
+  };
+
+  const handleDeleteSingleTwilioNumber = async (numberId: number) => {
+    if (window.confirm('Are you sure you want to delete this Twilio number? This might affect active campaigns. Reassign contacts?')) {
+      const reassign = window.confirm('Reassign contacts to another number?');
+      try {
+        const result = await deleteTwilioNumber(numberId, { reassign });
+        toast.success(result.message || 'Twilio number deleted');
+        fetchTwilioNumbers();
+      } catch (error) {
+        console.error('Error deleting Twilio number:', error);
+        toast.error('Failed to delete Twilio number');
+      }
+    }
+  };
+
+  const handleToggleTwilioSelection = (numberId: number) => {
+    setSelectedTwilioNumbers(prev => 
+      prev.includes(numberId) 
+        ? prev.filter(id => id !== numberId) 
+        : [...prev, numberId]
+    );
+  };
+
+  const handleBulkDeleteSelectedTwilioNumbers = async () => {
+    if (selectedTwilioNumbers.length === 0) {
+      toast.error('No numbers selected for deletion.');
+      return;
+    }
+    if (window.confirm(`Are you sure you want to delete ${selectedTwilioNumbers.length} Twilio number(s)? This might affect active campaigns.`)) {
+      const reassign = window.confirm('Reassign contacts to other numbers?');
+      const force = window.confirm('Force delete even if used by active campaigns? This is a destructive action.')
+      try {
+        const result = await bulkDeleteTwilioNumbers(selectedTwilioNumbers, { reassign, force });
+        toast.success(result.message || 'Selected Twilio numbers deleted');
+        setSelectedTwilioNumbers([]);
+        fetchTwilioNumbers();
+      } catch (error) {
+        console.error('Error bulk deleting Twilio numbers:', error);
+        toast.error('Failed to bulk delete Twilio numbers');
+      }
+    }
+  };
+
   const handleStartCampaign = async (id: number) => {
     try {
       await startSmsCampaign(id);
-      fetchCampaigns(); // Refresh list to see status change
+      fetchCampaigns();
       toast.success('Campaign started');
     } catch (error) {
       console.error('Error starting campaign:', error);
@@ -97,7 +210,7 @@ export default function SmsPage() {
   const handlePauseCampaign = async (id: number) => {
     try {
       await pauseSmsCampaign(id);
-      fetchCampaigns(); // Refresh list to see status change
+      fetchCampaigns();
       toast.success('Campaign paused');
     } catch (error) {
       console.error('Error pausing campaign:', error);
@@ -108,7 +221,7 @@ export default function SmsPage() {
   const handleRateLimitChange = async (id: number, rateLimit: number) => {
     try {
       await updateSmsCampaignRateLimit(id, rateLimit);
-      fetchCampaigns(); // Refresh list to see changes
+      fetchCampaigns();
       toast.success('Rate limit updated');
     } catch (error) {
       console.error('Error updating rate limit:', error);
@@ -116,11 +229,23 @@ export default function SmsPage() {
     }
   };
 
-  const handleViewCampaign = (id: number) => {
-    router.push(`/sms/${id}`);
+  const handleAutoReplyChange = async (id: number, settings: { autoReplyEnabled: boolean; replyTemplate: string }) => {
+    try {
+      await configureAutoReply(id, settings);
+      fetchCampaigns();
+      toast.success('Auto-reply settings updated');
+    } catch (error) {
+      console.error('Error updating auto-reply settings:', error);
+      toast.error('Failed to update auto-reply settings');
+    }
   };
 
-  const formatDate = (dateString: string) => {
+  const handleViewCampaign = (id: number) => {
+    router.push(`/sms/${id}/settings`);
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
     const options: Intl.DateTimeFormatOptions = {
       year: 'numeric',
       month: 'short',
@@ -149,6 +274,13 @@ export default function SmsPage() {
               Upload Leads
             </Button>
             <Button
+              onClick={() => setShowTwilioForm(!showTwilioForm)}
+              variant="secondary"
+            >
+              <Phone className="w-4 h-4 mr-2" />
+              {showTwilioForm ? 'Hide Twilio Numbers' : 'Manage Twilio Numbers'}
+            </Button>
+            <Button
               onClick={() => setShowCreateForm(!showCreateForm)}
               variant="primary"
             >
@@ -161,6 +293,152 @@ export default function SmsPage() {
             </Button>
           </div>
         </div>
+
+        {showTwilioForm && (
+          <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+            <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
+              <div>
+                <h3 className="text-lg leading-6 font-medium text-gray-900">Manage Twilio Numbers</h3>
+                <p className="mt-1 max-w-2xl text-sm text-gray-500">
+                  Add new Twilio numbers or upload them via CSV. Select numbers to bulk delete.
+                </p>
+              </div>
+              {selectedTwilioNumbers.length > 0 && (
+                <Button
+                  variant="destructive"
+                  onClick={handleBulkDeleteSelectedTwilioNumbers}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Selected ({selectedTwilioNumbers.length})
+                </Button>
+              )}
+            </div>
+            <div className="border-t border-gray-200 px-4 py-5 sm:p-6">
+              <form onSubmit={handleAddTwilioNumber} className="space-y-6 mb-6">
+                <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                  <div className="sm:col-span-2">
+                    <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700">
+                      Phone Number
+                    </label>
+                    <div className="mt-1">
+                      <Input
+                        type="text"
+                        id="phoneNumber"
+                        value={newTwilioNumber.phoneNumber}
+                        onChange={(e) => setNewTwilioNumber({...newTwilioNumber, phoneNumber: e.target.value})}
+                        placeholder="+1234567890"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label htmlFor="accountSid" className="block text-sm font-medium text-gray-700">
+                      Account SID
+                    </label>
+                    <div className="mt-1">
+                      <Input
+                        type="text"
+                        id="accountSid"
+                        value={newTwilioNumber.accountSid}
+                        onChange={(e) => setNewTwilioNumber({...newTwilioNumber, accountSid: e.target.value})}
+                        placeholder="AC..."
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label htmlFor="authToken" className="block text-sm font-medium text-gray-700">
+                      Auth Token
+                    </label>
+                    <div className="mt-1">
+                      <Input
+                        type="password"
+                        id="authToken"
+                        value={newTwilioNumber.authToken}
+                        onChange={(e) => setNewTwilioNumber({...newTwilioNumber, authToken: e.target.value})}
+                        placeholder="Auth Token"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Upload Numbers via CSV
+                    </label>
+                    <div className="mt-1">
+                      <input
+                        type="file"
+                        accept=".csv"
+                        onChange={handleUploadTwilioNumbers}
+                        className="block w-full text-sm text-gray-500
+                          file:mr-4 file:py-2 file:px-4
+                          file:rounded-md file:border-0
+                          file:text-sm file:font-semibold
+                          file:bg-brand file:text-white
+                          hover:file:bg-brand/90"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex space-x-3">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setShowTwilioForm(false)}
+                    >
+                      Cancel Add
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      isLoading={isAddingTwilio}
+                    >
+                      Add Number
+                    </Button>
+                  </div>
+                </div>
+              </form>
+
+              {twilioNumbers.length > 0 && (
+                <div className="mt-6">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3">Existing Twilio Numbers</h4>
+                  <div className="space-y-2">
+                    {twilioNumbers.map((number) => (
+                      <div key={number.id} className={`flex items-center justify-between p-3 rounded-lg ${
+                        selectedTwilioNumbers.includes(number.id) ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'
+                      }`}>
+                        <div className="flex items-center">
+                           <input 
+                            type="checkbox"
+                            checked={selectedTwilioNumbers.includes(number.id)}
+                            onChange={() => handleToggleTwilioSelection(number.id)}
+                            className="h-4 w-4 text-brand focus:ring-brand border-gray-300 rounded mr-3"
+                          />
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{number.phoneNumber}</p>
+                            <p className="text-xs text-gray-500 mt-1">Status: {number.status} | Messages: {number.messagesCount}</p>
+                            <p className="text-xs text-gray-500">Last Used: {formatDate(number.lastUsed)}</p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteSingleTwilioNumber(number.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {showCreateForm && (
           <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
@@ -225,6 +503,42 @@ export default function SmsPage() {
                       Use {'{name}'}, {'{phone}'}, {'{email}'} as placeholders for contact data. Custom fields from your CSV can be used as {'{field_name}'}.
                     </p>
                   </div>
+
+                  <div className="sm:col-span-6">
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        id="autoReplyEnabledCreate"
+                        checked={autoReplySettings.autoReplyEnabled}
+                        onChange={(e) => setAutoReplySettings({
+                          ...autoReplySettings,
+                          autoReplyEnabled: e.target.checked
+                        })}
+                        className="h-4 w-4 text-brand focus:ring-brand border-gray-300 rounded"
+                      />
+                      <label htmlFor="autoReplyEnabledCreate" className="text-sm font-medium text-gray-700">
+                        Enable Auto-Reply (Initial Setting)
+                      </label>
+                    </div>
+                    {autoReplySettings.autoReplyEnabled && (
+                      <div className="mt-3">
+                         <label htmlFor="replyTemplateCreate" className="block text-sm font-medium text-gray-700">
+                          Initial Auto-Reply Message
+                        </label>
+                        <textarea
+                          id="replyTemplateCreate"
+                          rows={3}
+                          value={autoReplySettings.replyTemplate}
+                          onChange={(e) => setAutoReplySettings({
+                            ...autoReplySettings,
+                            replyTemplate: e.target.value
+                          })}
+                          className="shadow-sm focus:ring-brand focus:border-brand block w-full sm:text-sm border border-gray-300 rounded-md"
+                          placeholder="Thank you for your message. We'll get back to you soon."
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex justify-end">
@@ -250,126 +564,121 @@ export default function SmsPage() {
         )}
 
         {isLoading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand mx-auto"></div>
+            <p className="mt-4 text-gray-500">Loading campaigns...</p>
           </div>
         ) : campaigns.length === 0 ? (
-          <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-            <div className="px-4 py-12 text-center sm:px-6">
-              <MessageSquare className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No SMS campaigns</h3>
-              <p className="mt-1 text-sm text-gray-500">Get started by creating a new campaign and uploading leads.</p>
-              <div className="mt-6 flex justify-center space-x-3">
-                <Button
-                  onClick={() => router.push('/sms/upload')}
-                  variant="secondary"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload Leads
-                </Button>
-                <Button
-                  onClick={() => setShowCreateForm(true)}
-                  variant="primary"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  New Campaign
-                </Button>
-              </div>
+          <div className="text-center py-12">
+            <MessageSquare className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No campaigns</h3>
+            <p className="mt-1 text-sm text-gray-500">Get started by creating a new campaign.</p>
+            <div className="mt-6">
+              <Button
+                onClick={() => setShowCreateForm(true)}
+                variant="primary"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                New Campaign
+              </Button>
             </div>
           </div>
         ) : (
-          <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+          <div className="bg-white shadow overflow-hidden sm:rounded-md">
             <ul className="divide-y divide-gray-200">
               {campaigns.map((campaign) => (
-                <li key={campaign.id} className="px-4 py-4 sm:px-6 hover:bg-gray-50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 bg-brand bg-opacity-10 rounded-md p-2">
-                        <MessageSquare className="h-6 w-6 text-brand" />
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-brand">{campaign.name}</div>
-                        <div className="text-sm text-gray-500">
-                          Created: {formatDate(campaign.createdAt)}
+                <li key={campaign.id}>
+                  <div className="px-4 py-4 sm:px-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <p className="text-sm font-medium text-brand truncate">{campaign.name}</p>
+                        <div className="ml-2 flex-shrink-0 flex">
+                          <p className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            campaign.status === 'active' ? 'bg-green-100 text-green-800' :
+                            campaign.status === 'paused' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {campaign.status}
+                          </p>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex space-x-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleViewCampaign(campaign.id)}
-                      >
-                        <Edit className="h-4 w-4" />
-                        <span className="ml-1">Details</span>
-                      </Button>
-                      {campaign.status === 'active' ? (
+                      <div className="ml-2 flex-shrink-0 flex space-x-2">
                         <Button
+                          onClick={() => handleViewCampaign(campaign.id)}
                           variant="secondary"
                           size="sm"
-                          onClick={() => handlePauseCampaign(campaign.id)}
                         >
-                          <Pause className="h-4 w-4" />
-                          <span className="ml-1">Pause</span>
+                          <MessageSquare className="w-4 h-4 mr-1" />
+                          View
                         </Button>
-                      ) : campaign.status !== 'completed' && (
                         <Button
-                          variant="primary"
+                          onClick={() => router.push(`/sms/${campaign.id}/conversations`)}
+                          variant="secondary"
                           size="sm"
-                          onClick={() => handleStartCampaign(campaign.id)}
                         >
-                          <Play className="h-4 w-4" />
-                          <span className="ml-1">Start</span>
+                          <MessageSquare className="w-4 h-4 mr-1" />
+                          Conversations
                         </Button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    <div className="sm:col-span-1">
-                      <div className="text-sm text-gray-500">Status</div>
-                      <div className="mt-1 text-sm text-gray-900">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                          ${campaign.status === 'active' ? 'bg-green-100 text-green-800' :
-                            campaign.status === 'paused' ? 'bg-yellow-100 text-yellow-800' :
-                            campaign.status === 'completed' ? 'bg-gray-100 text-gray-800' :
-                            'bg-blue-100 text-blue-800'}`}
-                        >
-                          {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="sm:col-span-1">
-                      <div className="text-sm text-gray-500">Contacts</div>
-                      <div className="mt-1 text-sm text-gray-900">
-                        {campaign.sentCount} / {campaign.totalContacts} sent
-                        {campaign.failedCount > 0 && (
-                          <span className="text-red-600 ml-1">
-                            ({campaign.failedCount} failed)
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="sm:col-span-1">
-                      <div className="text-sm text-gray-500">Rate Limit</div>
-                      <div className="mt-1 text-sm text-gray-900 flex items-center">
-                        <span>{campaign.rateLimit} per hour</span>
-                        <span className="ml-2">
+                        {campaign.status === 'active' ? (
                           <Button
-                            variant="ghost"
+                            onClick={() => handlePauseCampaign(campaign.id)}
+                            variant="secondary"
                             size="sm"
-                            onClick={() => {
-                              const newRate = prompt('Enter new rate limit (messages per hour):', campaign.rateLimit.toString());
-                              if (newRate) {
-                                const rateNum = parseInt(newRate, 10);
-                                if (!isNaN(rateNum) && rateNum > 0) {
-                                  handleRateLimitChange(campaign.id, rateNum);
-                                }
-                              }
-                            }}
                           >
-                            <Clock className="h-4 w-4" />
+                            <Pause className="w-4 h-4 mr-1" />
+                            Pause
                           </Button>
-                        </span>
+                        ) : (
+                          <Button
+                            onClick={() => handleStartCampaign(campaign.id)}
+                            variant="secondary"
+                            size="sm"
+                          >
+                            <Play className="w-4 h-4 mr-1" />
+                            Start
+                          </Button>
+                        )}
+                        <Button
+                          onClick={() => router.push(`/sms/${campaign.id}/settings`)}
+                          variant="secondary"
+                          size="sm"
+                        >
+                          <Settings className="w-4 h-4 mr-1" />
+                          Settings
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-2 sm:flex sm:justify-between">
+                      <div className="sm:flex">
+                        <p className="flex items-center text-sm text-gray-500">
+                          <Clock className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
+                          Rate: {campaign.rateLimit}/hr
+                        </p>
+                      </div>
+                      <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+                        <p>
+                          Created {formatDate(campaign.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-2 grid grid-cols-4 gap-4">
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-gray-900">{campaign.totalContacts}</p>
+                        <p className="text-xs text-gray-500">Total Contacts</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-gray-900">{campaign.sentCount}</p>
+                        <p className="text-xs text-gray-500">Sent</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-gray-900">{campaign.failedCount}</p>
+                        <p className="text-xs text-gray-500">Failed</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-gray-900">
+                          {campaign.autoReplyEnabled ? 'Enabled' : 'Disabled'}
+                        </p>
+                        <p className="text-xs text-gray-500">Auto-Reply</p>
                       </div>
                     </div>
                   </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Node } from 'reactflow';
 import { NodeType, ParamDefinition } from '@/app/types/dialplan';
-import Input from '@/app/components/ui/Input';
+import { Input } from '@/app/components/ui/Input';
 import { Button } from '@/app/components/ui/button';
 import { XCircle } from 'lucide-react';
 

@@ -227,16 +227,33 @@ const FlowEditor: React.FC<FlowEditorProps> = ({
         try {
           // Create default properties based on node type
           const defaultProperties: Record<string, any> = {};
-          nodeType.properties.forEach(prop => {
-            if (prop.default !== undefined) {
-              defaultProperties[prop.name] = prop.default;
-            } else if (prop.required) {
-              // For required props, set some reasonable defaults based on type
-              if (prop.type === 'string') defaultProperties[prop.name] = '';
-              else if (prop.type === 'number') defaultProperties[prop.name] = 0;
-              else if (prop.type === 'boolean') defaultProperties[prop.name] = false;
-            }
-          });
+          
+          // Handle paramDefs format
+          if (nodeType.paramDefs && nodeType.paramDefs.length > 0) {
+            nodeType.paramDefs.forEach(param => {
+              if (param.default !== undefined) {
+                defaultProperties[param.id] = param.default;
+              } else if (param.required) {
+                // For required props, set some reasonable defaults based on type
+                if (param.type === 'string') defaultProperties[param.id] = '';
+                else if (param.type === 'number') defaultProperties[param.id] = 0;
+                else if (param.type === 'boolean') defaultProperties[param.id] = false;
+              }
+            });
+          } 
+          // Handle properties schema format
+          else if (nodeType.properties && Object.keys(nodeType.properties).length > 0) {
+            Object.entries(nodeType.properties).forEach(([key, schema]) => {
+              if (schema.default !== undefined) {
+                defaultProperties[key] = schema.default;
+              } else if (schema.required) {
+                // For required props, set some reasonable defaults based on type
+                if (schema.type === 'string') defaultProperties[key] = '';
+                else if (schema.type === 'integer' || schema.type === 'number') defaultProperties[key] = 0;
+                else if (schema.type === 'boolean') defaultProperties[key] = false;
+              }
+            });
+          }
           
           // Create node in the backend
           const result = await createNode(contextId, {
@@ -292,14 +309,25 @@ const FlowEditor: React.FC<FlowEditorProps> = ({
     }
   }, [readOnly]);
 
-  const handleNodeUpdate = async (nodeId: string, data: { name?: string; properties?: Record<string, any> }) => {
+  const handleNodeUpdate = async (nodeId: string, data: { 
+    name?: string; 
+    properties?: Record<string, any>;
+    nodeTypeId?: number;
+  }) => {
     if (readOnly) return;
     
     try {
+      // Find new node type if nodeTypeId is provided
+      let updatedNodeType = null;
+      if (data.nodeTypeId) {
+        updatedNodeType = availableNodeTypes.find(type => type.id === data.nodeTypeId);
+      }
+      
       // Update node in the backend
       const updatedData = await updateNode(parseInt(nodeId, 10), {
         name: data.name,
         properties: data.properties,
+        nodeTypeId: data.nodeTypeId,
       });
       
       // Update node in the UI
@@ -307,13 +335,16 @@ const FlowEditor: React.FC<FlowEditorProps> = ({
         if (node.id === nodeId) {
           return {
             ...node,
+            type: updatedNodeType ? updatedNodeType.category.toLowerCase() : node.type,
             data: {
               ...node.data,
               label: data.name || node.data.label,
+              nodeType: updatedNodeType || node.data.nodeType,
               properties: data.properties || node.data.properties,
               dialplanNode: {
                 ...node.data.dialplanNode,
                 name: data.name || node.data.dialplanNode.name,
+                nodeTypeId: data.nodeTypeId || node.data.dialplanNode.nodeTypeId,
                 properties: data.properties || node.data.dialplanNode.properties,
               }
             }
@@ -393,13 +424,13 @@ const FlowEditor: React.FC<FlowEditorProps> = ({
       </div>
       
       {selectedNode && !isDragging && (
-        <NodePropertiesPanel
-          node={selectedNode}
-          onClose={() => setSelectedNode(null)}
-          onUpdate={handleNodeUpdate}
-          onConnectionUpdate={handleConnectionUpdate}
-          readOnly={readOnly}
-        />
+        <div className="w-80 border-l border-gray-200 overflow-y-auto">
+          <NodePropertiesPanel
+            selectedNode={selectedNode}
+            nodeTypes={availableNodeTypes}
+            onUpdateNodeProperties={(nodeId, properties) => handleNodeUpdate(nodeId, { properties })}
+          />
+        </div>
       )}
     </div>
   );

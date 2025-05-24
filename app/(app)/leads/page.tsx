@@ -7,8 +7,8 @@ import toast from 'react-hot-toast';
 import { Upload, User, CheckCircle, XCircle, PhoneOutgoing, Filter, Trash2, Edit, AlertTriangle } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
-import Input from '@/app/components/ui/Input';
-import { getLeads, uploadLeads, deleteLead, bulkDeleteLeads } from '@/app/utils/api';
+import { Input } from '@/app/components/ui/Input';
+import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
 
 type Lead = {
@@ -38,6 +38,7 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalLeads, setTotalLeads] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [uploadIsLoading, setUploadIsLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('');
@@ -73,7 +74,7 @@ export default function LeadsPage() {
   const fetchLeads = async (page: number) => {
     setIsLoading(true);
     try {
-      const response = await getLeads({
+      const response = await api.leads.list({
         page,
         limit: 10,
         ...(filterStatus ? { status: filterStatus } : {})
@@ -81,6 +82,7 @@ export default function LeadsPage() {
       setLeads(response.leads);
       setTotalPages(response.totalPages);
       setCurrentPage(response.currentPage);
+      setTotalLeads(response.totalCount);
       
       // Extract unique statuses from the data for filter options
       if (!filterStatus) {
@@ -99,17 +101,17 @@ export default function LeadsPage() {
     setUploadIsLoading(true);
     
     try {
-      await uploadLeads(data.fileContent, {
+      const response = await api.leads.upload(data.fileContent, {
         sortOrder: data.sortOrder,
         autoDelete: data.autoDelete,
       });
       
-      toast.success('Leads uploaded successfully');
+      toast.success(response.message || 'Leads uploaded successfully');
       setIsUploading(false);
       fetchLeads(1); // Refresh leads
-    } catch (error) {
+    } catch (error: any) {
       console.error('Upload error:', error);
-      toast.error('Failed to upload leads');
+      toast.error(error.response?.data?.error || 'Failed to upload leads');
     } finally {
       setUploadIsLoading(false);
     }
@@ -154,12 +156,12 @@ export default function LeadsPage() {
     if (!confirm('Are you sure you want to delete this lead?')) return;
     
     try {
-      await deleteLead(id);
+      await api.leads.delete(id.toString());
       toast.success('Lead deleted successfully');
       fetchLeads(currentPage);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting lead:', error);
-      toast.error('Failed to delete lead');
+      toast.error(error.response?.data?.error || 'Failed to delete lead');
     }
   };
 
@@ -173,13 +175,13 @@ export default function LeadsPage() {
     
     setIsDeleting(true);
     try {
-      await bulkDeleteLeads(selectedLeads);
+      await api.leads.bulkDelete(selectedLeads);
       toast.success(`${selectedLeads.length} leads deleted successfully`);
       setSelectedLeads([]);
       fetchLeads(currentPage);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting leads:', error);
-      toast.error('Failed to delete leads');
+      toast.error(error.response?.data?.error || 'Failed to delete leads');
     } finally {
       setIsDeleting(false);
     }
@@ -200,36 +202,21 @@ export default function LeadsPage() {
   };
 
   const handleDeleteAll = async () => {
+    if (!confirm('Are you sure you want to delete all leads?')) return;
+    
     setIsDeletingAll(true);
     try {
-      // First get all lead IDs with current filters
-      const filter = filterStatus ? { status: filterStatus } : undefined;
-      const allLeadsResponse = await getLeads({
-        ...filter,
-        limit: 1000 // Get a large batch
-      });
-      
-      const leadIds = allLeadsResponse.leads.map(lead => lead.id);
-      
-      if (leadIds.length === 0) {
-        toast.info('No leads to delete');
-        setShowDeleteAllConfirm(false);
-        setIsDeletingAll(false);
-        return;
-      }
-      
-      // Use bulk delete with all IDs
-      await bulkDeleteLeads(leadIds);
-      
-      toast.success(`${leadIds.length} leads deleted successfully`);
-      setSelectedLeads([]);
+      const response = await api.leads.list({ page: 1, limit: 1000 });
+      const leadIds = response.leads.map(lead => lead.id);
+      await api.leads.bulkDelete(leadIds);
+      toast.success('All leads deleted successfully');
       fetchLeads(1);
-      setShowDeleteAllConfirm(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting all leads:', error);
-      toast.error('Failed to delete leads');
+      toast.error(error.response?.data?.error || 'Failed to delete all leads');
     } finally {
       setIsDeletingAll(false);
+      setShowDeleteAllConfirm(false);
     }
   };
 
@@ -241,7 +228,12 @@ export default function LeadsPage() {
     <DashboardLayout>
       <div className="py-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-semibold text-gray-900">Leads</h1>
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">Leads</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Total Leads: {totalLeads}
+            </p>
+          </div>
           <div className="flex space-x-3">
             <Button 
               onClick={() => setShowDeleteAllConfirm(true)}

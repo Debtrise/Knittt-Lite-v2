@@ -39,16 +39,30 @@
 }
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: rgb(255, 255, 255);
+  --foreground: #1a1a1a;
+  
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #93c5fd;
+  
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
+  
+  --popover: white;
+  --popover-foreground: #1a1a1a;
+  
   --brand-color: #579dca;
   --sidebar-color: #404040;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #ffffff;
+    --foreground: #555555;
   }
 }
 

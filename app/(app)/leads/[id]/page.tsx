@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { User, Phone, Clock, Mail, File, BarChart, Trash2, ArrowLeft } from 'lucide-react';
@@ -55,9 +55,8 @@ export default function LeadDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [leadDetails, setLeadDetails] = useState<LeadDetailsResponse | null>(null);
 
-  // Properly unwrap params using React.use()
-  const unwrappedParams = use(params);
-  const leadId = typeof unwrappedParams.id === 'string' ? parseInt(unwrappedParams.id, 10) : 0;
+  // Get leadId from params directly
+  const leadId = typeof params.id === 'string' ? parseInt(params.id, 10) : 0;
 
   useEffect(() => {
     if (!isAuthenticated) {

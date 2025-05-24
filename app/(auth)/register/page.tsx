@@ -5,13 +5,16 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { register as registerUser } from '@/app/utils/api';
+import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
 
 type RegisterFormData = {
   username: string;
   password: string;
   confirmPassword: string;
+  email: string;
+  tenantId: string;
+  role: string;
 };
 
 export default function RegisterPage() {
@@ -35,19 +38,19 @@ export default function RegisterPage() {
     setIsLoading(true);
     
     try {
-      const response = await registerUser(data.username, data.password);
-      setAuth(response.token, {
-        userId: response.userId,
-        username: response.username,
-        tenantId: response.tenantId,
-        role: response.role,
+      const response = await api.auth.register({
+        username: data.username,
+        password: data.password,
+        email: data.email,
+        tenantId: data.tenantId,
+        role: data.role,
       });
       
       toast.success('Registration successful');
-      router.push('/dashboard');
-    } catch (error) {
+      router.push('/login');
+    } catch (error: any) {
       console.error('Registration error:', error);
-      toast.error('Registration failed. Please try again.');
+      toast.error(error.response?.data?.error || 'Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -80,6 +83,30 @@ export default function RegisterPage() {
                 className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-600 bg-white text-gray-900 placeholder-gray-500 rounded-t-md focus:outline-none focus:ring-2 focus:ring-[#265871] focus:border-[#265871] focus:z-10 sm:text-sm font-poppins"
                 placeholder="Username"
               />
+              {errors.username && (
+                <p className="mt-1 text-sm text-red-500">{errors.username.message}</p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="email" className="sr-only">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                {...register('email', { 
+                  required: 'Email is required',
+                  pattern: {
+                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                    message: 'Invalid email address'
+                  }
+                })}
+                className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-600 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#265871] focus:border-[#265871] focus:z-10 sm:text-sm font-poppins"
+                placeholder="Email"
+              />
+              {errors.email && (
+                <p className="mt-1 text-sm text-red-500">{errors.email.message}</p>
+              )}
             </div>
             <div>
               <label htmlFor="password" className="sr-only">
@@ -98,6 +125,9 @@ export default function RegisterPage() {
                 className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-600 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#265871] focus:border-[#265871] focus:z-10 sm:text-sm font-poppins"
                 placeholder="Password"
               />
+              {errors.password && (
+                <p className="mt-1 text-sm text-red-500">{errors.password.message}</p>
+              )}
             </div>
             <div>
               <label htmlFor="confirmPassword" className="sr-only">
@@ -110,9 +140,44 @@ export default function RegisterPage() {
                   required: 'Please confirm your password',
                   validate: value => value === watch('password') || 'Passwords do not match'
                 })}
-                className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-600 bg-white text-gray-900 placeholder-gray-500 rounded-b-md focus:outline-none focus:ring-2 focus:ring-[#265871] focus:border-[#265871] focus:z-10 sm:text-sm font-poppins"
+                className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-600 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#265871] focus:border-[#265871] focus:z-10 sm:text-sm font-poppins"
                 placeholder="Confirm Password"
               />
+              {errors.confirmPassword && (
+                <p className="mt-1 text-sm text-red-500">{errors.confirmPassword.message}</p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="tenantId" className="sr-only">
+                Tenant ID
+              </label>
+              <input
+                id="tenantId"
+                type="text"
+                {...register('tenantId', { required: 'Tenant ID is required' })}
+                className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-600 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#265871] focus:border-[#265871] focus:z-10 sm:text-sm font-poppins"
+                placeholder="Tenant ID"
+              />
+              {errors.tenantId && (
+                <p className="mt-1 text-sm text-red-500">{errors.tenantId.message}</p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="role" className="sr-only">
+                Role
+              </label>
+              <select
+                id="role"
+                {...register('role', { required: 'Role is required' })}
+                className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-600 bg-white text-gray-900 placeholder-gray-500 rounded-b-md focus:outline-none focus:ring-2 focus:ring-[#265871] focus:border-[#265871] focus:z-10 sm:text-sm font-poppins"
+              >
+                <option value="">Select a role</option>
+                <option value="agent">Agent</option>
+                <option value="admin">Admin</option>
+              </select>
+              {errors.role && (
+                <p className="mt-1 text-sm text-red-500">{errors.role.message}</p>
+              )}
             </div>
           </div>
 

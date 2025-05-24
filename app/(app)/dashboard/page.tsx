@@ -3,12 +3,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { PhoneOutgoing, Users, Phone, Clock, Sliders, Upload } from 'lucide-react';
+import { PhoneOutgoing, Users, Phone, Clock, Sliders, Upload, Route } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import { getAgentStatus, getDailyReport, getTenant, updateTenant, uploadLeads } from '@/app/utils/api';
+import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
-import Input from '@/app/components/ui/Input';
+import { Input } from '@/app/components/ui/Input';
 import { Button } from '@/app/components/ui/button';
+import Link from 'next/link';
 
 type AgentStatus = {
   ingroup: string;
@@ -67,6 +68,14 @@ export default function DashboardPage() {
   const [hasHeaders, setHasHeaders] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Import journey statistics
+  const [stats, setStats] = useState({
+    leads: { total: 0, new: 0, contacted: 0, converted: 0 },
+    calls: { total: 0, connected: 0, failed: 0 },
+    sms: { campaigns: 0, sent: 0, responses: 0 },
+    journeys: { active: 0, totalLeads: 0, completed: 0 }
+  });
+
   const fetchAgentStatus = async () => {
     console.log('Fetching agent status for group:', currentGroup);
     if (!currentGroup) {
@@ -77,9 +86,14 @@ export default function DashboardPage() {
     setIsRefreshing(true);
     try {
       console.log('Making API call with group:', currentGroup);
-      const status = await getAgentStatus(currentGroup);
-      console.log('API response:', status);
-      setAgentStatus(Array.isArray(status) ? status : []);
+      const response = await api.system.getAgentStatus({
+        url: tenantConfig?.apiConfig?.url || '',
+        ingroup: currentGroup,
+        user: user?.username || '',
+        pass: '' // This should be handled securely
+      });
+      console.log('API response:', response.data);
+      setAgentStatus(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Error fetching agent status:', error);
       toast.error('Failed to fetch agent status');
@@ -100,8 +114,8 @@ export default function DashboardPage() {
       try {
         // Fetch tenant config first
         if (user?.tenantId) {
-          const tenantId = parseInt(user.tenantId, 10);
-          const tenantData = await getTenant(tenantId);
+          const response = await api.tenants.get(user.tenantId);
+          const tenantData = response.data;
           console.log('Retrieved tenant data:', tenantData);
           setTenantConfig(tenantData);
           setDialerSpeed(tenantData.dialerConfig?.speed || 1);
@@ -116,9 +130,14 @@ export default function DashboardPage() {
             // Only fetch agent status and daily report after we have the group
             try {
               console.log('Fetching agent status for group:', group);
-              const statusData = await getAgentStatus(group);
-              console.log('Agent status response:', statusData);
-              setAgentStatus(Array.isArray(statusData) ? statusData : []);
+              const statusResponse = await api.system.getAgentStatus({
+                url: tenantData.apiConfig?.url || '',
+                ingroup: group,
+                user: user.username,
+                pass: '' // This should be handled securely
+              });
+              console.log('Agent status response:', statusResponse.data);
+              setAgentStatus(Array.isArray(statusResponse.data) ? statusResponse.data : []);
             } catch (statusError) {
               console.error('Error fetching agent status:', statusError);
               toast.error('Failed to fetch agent status');
@@ -126,8 +145,8 @@ export default function DashboardPage() {
             }
             
             try {
-              const reportData = await getDailyReport();
-              setDailyReport(reportData);
+              const reportResponse = await api.system.getDailyReport(new Date().toISOString().split('T')[0]);
+              setDailyReport(reportResponse.data);
             } catch (reportError) {
               console.error('Error fetching daily report:', reportError);
               toast.error('Failed to fetch daily report');
@@ -136,6 +155,37 @@ export default function DashboardPage() {
             console.warn('No group found in tenant configuration');
             toast.warning('No agent group configured. Please update in Settings.');
           }
+        }
+
+        // Fetch dashboard stats
+        try {
+          const statsResponse = await api.dashboard.getStats();
+          const dashboardStats = statsResponse.data;
+          setStats({
+            leads: {
+              total: dashboardStats.todaysLeads || 0,
+              new: 0, // These would need to be calculated from other endpoints
+              contacted: 0,
+              converted: 0
+            },
+            calls: {
+              total: dashboardStats.todaysCalls || 0,
+              connected: 0, // These would need to be calculated from other endpoints
+              failed: 0
+            },
+            sms: {
+              campaigns: 0, // These would need to be calculated from other endpoints
+              sent: dashboardStats.todaysSms || 0,
+              responses: 0
+            },
+            journeys: {
+              active: dashboardStats.activeJourneys || 0,
+              totalLeads: 0, // These would need to be calculated from other endpoints
+              completed: 0
+            }
+          });
+        } catch (error) {
+          console.error('Error fetching dashboard stats:', error);
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -172,7 +222,6 @@ export default function DashboardPage() {
     
     setUpdatingSpeed(true);
     try {
-      const tenantId = parseInt(user.tenantId, 10);
       const updatedConfig = {
         ...tenantConfig,
         dialerConfig: {
@@ -181,7 +230,7 @@ export default function DashboardPage() {
         }
       };
       
-      await updateTenant(tenantId, updatedConfig);
+      await api.tenants.update(user.tenantId, updatedConfig);
       toast.success('Dialer speed updated successfully');
       setTenantConfig(updatedConfig);
     } catch (error) {
@@ -225,21 +274,17 @@ export default function DashboardPage() {
         format: 'phone,first_name,last_name,address,city,state,zip',
       };
       
-      // Call API to upload leads
-      await uploadLeads(fileContent, options);
-      
-      toast.success('Leads uploaded successfully');
+      const response = await api.leads.upload(fileContent, options);
+      toast.success(response.data.message || 'Leads uploaded successfully');
+      setShowUploadForm(false);
       setCsvFile(null);
       setLeadSource('');
-      setShowUploadForm(false);
-      
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading leads:', error);
-      toast.error('Failed to upload leads');
+      toast.error(error.response?.data?.error || 'Failed to upload leads');
     } finally {
       setIsUploading(false);
     }
@@ -606,6 +651,39 @@ export default function DashboardPage() {
                 </div>
               </>
             )}
+
+            {/* Journey Stats Card */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium text-gray-900">Journeys</h3>
+                <Link href="/journeys">
+                  <Button variant="ghost" size="icon">
+                    <Route className="h-5 w-5" />
+                  </Button>
+                </Link>
+              </div>
+              <div className="mt-2 grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-2xl font-bold">{stats.journeys.active}</p>
+                  <p className="text-sm text-gray-500">Active Journeys</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats.journeys.totalLeads}</p>
+                  <p className="text-sm text-gray-500">Active Leads</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{stats.journeys.completed}</p>
+                  <p className="text-sm text-gray-500">Completed</p>
+                </div>
+              </div>
+              <div className="mt-4">
+                <Link href="/journeys">
+                  <Button variant="outline" className="w-full">
+                    View Journeys
+                  </Button>
+                </Link>
+              </div>
+            </div>
           </div>
         )}
       </div>

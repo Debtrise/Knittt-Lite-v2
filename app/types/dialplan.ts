@@ -67,6 +67,193 @@ export interface ParamDefinition {
   description?: string;
 }
 
+// Journey Node Action Types
+export type JourneyActionType = 
+  'call' | 
+  'sms' | 
+  'email' | 
+  'status_change' | 
+  'tag_update' | 
+  'webhook' | 
+  'wait_for_event' | 
+  'conditional_branch' | 
+  'lead_assignment' | 
+  'data_update' | 
+  'journey_transfer' | 
+  'delay';
+
+// Journey Node Action Configuration Interfaces
+export interface CommonActionConfig {
+  respectBusinessHours?: boolean;
+  timeoutAfter?: number;
+  maxRetries?: number;
+  notifyOnError?: string[];
+  errorHandler?: {
+    action: 'retry' | 'skip' | 'end_journey';
+    delay?: number;
+  };
+  logLevel?: 'error' | 'warning' | 'info' | 'debug' | 'verbose';
+}
+
+export interface CallActionConfig extends CommonActionConfig {
+  transferNumber: string;
+  scriptId?: string;
+  fallbackDID?: string;
+  useLocalDID?: boolean;
+  maxAttempts?: number;
+  voicemailDetection?: boolean;
+  voicemailMessage?: string;
+  callerId?: string;
+  variables?: Record<string, any>;
+  recordCall?: boolean;
+}
+
+export interface SmsActionConfig extends CommonActionConfig {
+  message?: string;
+  templateId?: string;
+  from?: string;
+  media?: string[];
+  trackClicks?: boolean;
+  optOutMessage?: boolean;
+  scheduleTime?: string | null;
+  variables?: Record<string, any>;
+}
+
+export interface EmailActionConfig extends CommonActionConfig {
+  subject: string;
+  templateId: string;
+  from?: string;
+  fromName?: string;
+  cc?: string[];
+  bcc?: string[];
+  attachments?: string[];
+  trackOpens?: boolean;
+  trackClicks?: boolean;
+  replyTo?: string;
+  variables?: Record<string, any>;
+}
+
+export interface StatusChangeActionConfig extends CommonActionConfig {
+  newStatus: string;
+  onlyIfCurrent?: string[];
+  recordNote?: boolean;
+  noteText?: string;
+  updateLastAttempt?: boolean;
+}
+
+export interface TagUpdateActionConfig extends CommonActionConfig {
+  operation: 'add' | 'remove' | 'set';
+  tags: string[];
+  recordNote?: boolean;
+  noteText?: string;
+}
+
+export interface WebhookActionConfig extends CommonActionConfig {
+  url: string;
+  method?: string;
+  headers?: Record<string, string>;
+  body?: Record<string, any>;
+  timeout?: number;
+  retries?: number;
+  successCodes?: number[];
+  validateResponse?: boolean;
+  updateLeadData?: boolean;
+  dataMapping?: Record<string, string>;
+}
+
+export interface WaitForEventActionConfig extends CommonActionConfig {
+  eventType: string;
+  timeout?: {
+    days: number;
+    action: 'skip_step' | 'end_journey';
+  };
+  conditions?: Record<string, any>;
+  captureData?: boolean;
+  dataMapping?: Record<string, string>;
+}
+
+export interface ConditionalBranchConfig extends CommonActionConfig {
+  branches: Array<{
+    name?: string;
+    conditions: Record<string, any>;
+    nextStepId: number;
+  }>;
+  defaultNextStepId?: number;
+}
+
+export interface LeadAssignmentConfig extends CommonActionConfig {
+  assignmentType: 'user' | 'team';
+  assignToId: string;
+  notifyAssignee?: boolean;
+  notificationMethod?: 'email' | 'sms' | 'system';
+  assignmentNote?: string;
+  priority?: string;
+  dueDate?: {
+    days: number;
+    businessDaysOnly?: boolean;
+  };
+}
+
+export interface DataUpdateConfig extends CommonActionConfig {
+  updates: Array<{
+    field: string;
+    value: any;
+    operation?: 'set' | 'increment' | 'decrement';
+  }>;
+  conditions?: Record<string, any>;
+  recordNote?: boolean;
+}
+
+export interface JourneyTransferConfig extends CommonActionConfig {
+  targetJourneyId: number;
+  exitCurrentJourney?: boolean;
+  transferContextData?: boolean;
+  specificContextFields?: string[];
+  startAtStep?: number | null;
+}
+
+export interface DelayActionConfig extends CommonActionConfig {
+  minutes?: number;
+  hours?: number;
+  days?: number;
+  businessHoursOnly?: boolean;
+  exactDateTime?: string | null;
+  overrideStepDelay?: boolean;
+}
+
+// Journey Step Delay Types
+export type DelayType = 'immediate' | 'fixed_time' | 'delay_after_previous' | 'delay_after_enrollment' | 'specific_days';
+
+export interface ImmediateDelayConfig {}
+
+export interface FixedTimeDelayConfig {
+  time: string; // HH:MM format (24-hour)
+}
+
+export interface DelayAfterPreviousConfig {
+  minutes?: number;
+  hours?: number;
+  days?: number;
+}
+
+export interface DelayAfterEnrollmentConfig {
+  minutes?: number;
+  hours?: number;
+  days?: number;
+}
+
+export interface SpecificDaysDelayConfig {
+  days: Array<'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'>;
+  time: string; // HH:MM format (24-hour)
+}
+
+export type DelayConfig = 
+  ImmediateDelayConfig | 
+  FixedTimeDelayConfig | 
+  DelayAfterPreviousConfig | 
+  DelayAfterEnrollmentConfig | 
+  SpecificDaysDelayConfig;
+
 // Connection Types
 export interface DialplanConnection {
   id: number;
