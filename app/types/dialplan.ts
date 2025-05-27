@@ -60,10 +60,11 @@ export interface NodeType {
 export interface ParamDefinition {
   id: string;
   name: string;
-  type: 'string' | 'number' | 'boolean' | 'select';
+  type: 'string' | 'number' | 'boolean' | 'select' | 'template_select' | 'transfer_group_select' | 'recording_select' | 'ivr_options';
   required: boolean;
   default?: any;
   options?: string[]; // For select type
+  templateType?: 'sms' | 'email' | 'script' | 'voicemail' | 'transfer'; // For template_select type
   description?: string;
 }
 

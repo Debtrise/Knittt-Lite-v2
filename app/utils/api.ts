@@ -28,23 +28,7 @@ const smsApi = axios.create({
 
 // Add a request interceptor to add the auth token to all requests
 const addAuthToken = (config: any) => {
-  // Get token from authStore instead of localStorage directly
-  let token = null;
-  
-  // Check for localStorage in case we're in a browser environment
-  if (typeof window !== 'undefined') {
-    // Try to get from persisted storage first
-    const authStorage = localStorage.getItem('auth-storage');
-    if (authStorage) {
-      try {
-        const parsed = JSON.parse(authStorage);
-        token = parsed.state?.token;
-      } catch (e) {
-        console.error('Error parsing auth storage', e);
-      }
-    }
-  }
-  
+  const token = useAuthStore.getState().token;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -58,26 +42,9 @@ smsApi.interceptors.request.use(addAuthToken);
 api.interceptors.response.use(
   response => response,
   error => {
-    // Handle common error scenarios
-    if (error.response) {
-      switch (error.response.status) {
-        case 401:
-          // Handle unauthorized - could trigger logout
-          console.error('Unauthorized access');
-          break;
-        case 403:
-          console.error('Access forbidden');
-          break;
-        case 404:
-          console.error('Resource not found');
-          break;
-        case 409:
-          console.error('Resource conflict');
-          break;
-        case 500:
-          console.error('Internal server error');
-          break;
-      }
+    if (error.response?.status === 401) {
+      useAuthStore.getState().logout();
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }
@@ -409,6 +376,310 @@ export const getDailyReport = async (date: string) => {
       connectionRate: "0.00",
       transferRate: "0.00"
     };
+  }
+};
+
+// New comprehensive reporting APIs
+export const generateCallSummaryReport = async (data: {
+  startDate: string;
+  endDate: string;
+  groupBy: 'hour' | 'day' | 'week' | 'month';
+  filters?: {
+    status?: string;
+    agentId?: number;
+    didId?: number;
+  };
+}) => {
+  try {
+    const response = await api.post('/reports/call-summary', data);
+    return response.data;
+  } catch (error) {
+    console.error('Error generating call summary report:', error);
+    throw error;
+  }
+};
+
+export const generateSmsSummaryReport = async (data: {
+  startDate: string;
+  endDate: string;
+  groupBy: 'hour' | 'day' | 'month';
+  filters?: {
+    direction?: 'outbound' | 'inbound';
+    status?: string;
+    fromNumber?: string;
+  };
+}) => {
+  try {
+    const response = await api.post('/reports/sms-summary', data);
+    return response.data;
+  } catch (error) {
+    console.error('Error generating SMS summary report:', error);
+    throw error;
+  }
+};
+
+export const generateAgentPerformanceReport = async (data: {
+  startDate: string;
+  endDate: string;
+  agentIds?: number[];
+}) => {
+  try {
+    const response = await api.post('/reports/agent-performance', data);
+    return response.data;
+  } catch (error) {
+    console.error('Error generating agent performance report:', error);
+    throw error;
+  }
+};
+
+export const generateLeadConversionReport = async (data: {
+  startDate: string;
+  endDate: string;
+  sources?: string[];
+  brands?: string[];
+}) => {
+  try {
+    const response = await api.post('/reports/lead-conversion', data);
+    return response.data;
+  } catch (error) {
+    console.error('Error generating lead conversion report:', error);
+    throw error;
+  }
+};
+
+export const generateJourneyAnalyticsReport = async (data: {
+  startDate: string;
+  endDate: string;
+  journeyIds?: number[];
+}) => {
+  try {
+    const response = await api.post('/reports/journey-analytics', data);
+    return response.data;
+  } catch (error) {
+    console.error('Error generating journey analytics report:', error);
+    throw error;
+  }
+};
+
+export const generateCustomReport = async (data: {
+  query: string;
+  parameters: Record<string, any>;
+}) => {
+  try {
+    const response = await api.post('/reports/custom', data);
+    return response.data;
+  } catch (error) {
+    console.error('Error generating custom report:', error);
+    throw error;
+  }
+};
+
+export const exportReport = async (data: {
+  reportData: Record<string, any>;
+  format: 'csv' | 'excel' | 'pdf';
+  filename: string;
+}) => {
+  try {
+    const response = await api.post('/reports/export', data, {
+      responseType: 'blob'
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error exporting report:', error);
+    throw error;
+  }
+};
+
+// Report Templates APIs
+export const listReportTemplates = async () => {
+  try {
+    const response = await api.get('/report-templates');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching report templates:', error);
+    return [];
+  }
+};
+
+export const getReportTemplate = async (id: string) => {
+  try {
+    const response = await api.get(`/report-templates/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching report template:', error);
+    throw error;
+  }
+};
+
+export const createReportTemplate = async (data: {
+  name: string;
+  type: 'call_summary' | 'sms_summary' | 'agent_performance' | 'lead_conversion' | 'journey_analytics' | 'custom';
+  config: Record<string, any>;
+  schedule?: {
+    enabled: boolean;
+    frequency: 'daily' | 'weekly' | 'monthly';
+    time: string;
+    timezone: string;
+    format: 'pdf' | 'csv' | 'excel';
+    recipients: string[];
+  };
+}) => {
+  try {
+    const response = await api.post('/report-templates', data);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating report template:', error);
+    throw error;
+  }
+};
+
+export const updateReportTemplate = async (id: string, data: any) => {
+  try {
+    const response = await api.put(`/report-templates/${id}`, data);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating report template:', error);
+    throw error;
+  }
+};
+
+export const deleteReportTemplate = async (id: string) => {
+  try {
+    const response = await api.delete(`/report-templates/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting report template:', error);
+    throw error;
+  }
+};
+
+export const executeReportTemplate = async (id: string, data: {
+  exportFormat: 'csv' | 'excel' | 'pdf';
+}) => {
+  try {
+    const response = await api.post(`/report-templates/${id}/execute`, data);
+    return response.data;
+  } catch (error) {
+    console.error('Error executing report template:', error);
+    throw error;
+  }
+};
+
+export const scheduleReport = async (id: string, data: {
+  enabled: boolean;
+  frequency: 'daily' | 'weekly' | 'monthly';
+  time: string;
+  recipients: string[];
+}) => {
+  try {
+    const response = await api.post(`/report-templates/${id}/schedule`, data);
+    return response.data;
+  } catch (error) {
+    console.error('Error scheduling report:', error);
+    throw error;
+  }
+};
+
+// Report Executions APIs
+export const getReportExecutionStatus = async (id: string) => {
+  try {
+    const response = await api.get(`/report-executions/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching report execution status:', error);
+    throw error;
+  }
+};
+
+export const listReportExecutions = async (options?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  templateId?: string;
+}) => {
+  try {
+    const { page = 1, limit = 50, status, templateId } = options || {};
+    const params = { page, limit, ...(status ? { status } : {}), ...(templateId ? { templateId } : {}) };
+    const response = await api.get('/report-executions', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching report executions:', error);
+    return { data: [], total: 0, page: 1, limit: 50 };
+  }
+};
+
+// Enhanced Dashboard & Statistics APIs
+export const getDashboardHistory = async (hours: number = 24) => {
+  try {
+    const response = await api.get(`/dashboard/history?hours=${hours}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching dashboard history:', error);
+    return {};
+  }
+};
+
+export const getTodaysStats = async () => {
+  try {
+    const response = await api.get('/reports/today-stats');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching today\'s stats:', error);
+    // Return default data structure when endpoint is not available
+    return {
+      totalCalls: 0,
+      smsSent: 0,
+      activeAgents: 0,
+      conversions: 0
+    };
+  }
+};
+
+export const getHourlyBreakdown = async () => {
+  try {
+    const response = await api.get('/reports/hourly-breakdown');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching hourly breakdown:', error);
+    // Return default data structure when endpoint is not available
+    return {};
+  }
+};
+
+// Utility APIs
+export const getAgentStatusReport = async (params: {
+  url: string;
+  ingroup: string;
+  user: string;
+  pass: string;
+}) => {
+  try {
+    const response = await api.get('/agent-status', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching agent status:', error);
+    throw error;
+  }
+};
+
+// System Status APIs
+export const getDialPlanCapabilities = async () => {
+  try {
+    const response = await api.get('/system/dialplan-capabilities');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching dialplan capabilities:', error);
+    return {};
+  }
+};
+
+export const getModuleStatus = async () => {
+  try {
+    const response = await api.get('/system/module-status');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching module status:', error);
+    return {};
   }
 };
 
@@ -961,8 +1232,19 @@ export const sendBulkReplies = async (data: {
 
 // Dashboard APIs
 export const getDashboardStats = async () => {
-  const response = await smsApi.get('/dashboard/stats');
-  return response.data;
+  try {
+    const response = await api.get('/reports/dashboard-stats');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    // Return default data structure when endpoint is not available
+    return {
+      totalCalls: 0,
+      smsSent: 0,
+      activeAgents: 0,
+      conversions: 0
+    };
+  }
 };
 
 // Try a simpler approach with direct endpoint
@@ -1061,8 +1343,14 @@ export const updateJourney = async (id: number, journeyData: {
 };
 
 export const deleteJourney = async (id: number, options?: { force?: boolean }) => {
-  const params = options || {};
-  const response = await api.delete(`/journeys/${id}`, { params });
+  // Build query string for DELETE request
+  const queryParams = new URLSearchParams();
+  if (options?.force) {
+    queryParams.append('force', 'true');
+  }
+  
+  const url = `/journeys/${id}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await api.delete(url);
   return response.data;
 };
 
@@ -1104,8 +1392,14 @@ export const updateJourneyStep = async (journeyId: number, stepId: number, stepD
 };
 
 export const deleteJourneyStep = async (journeyId: number, stepId: number, options?: { force?: boolean }) => {
-  const params = options || {};
-  const response = await api.delete(`/journeys/${journeyId}/steps/${stepId}`, { params });
+  // Build query string for DELETE request
+  const queryParams = new URLSearchParams();
+  if (options?.force) {
+    queryParams.append('force', 'true');
+  }
+  
+  const url = `/journeys/${journeyId}/steps/${stepId}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  const response = await api.delete(url);
   return response.data;
 };
 

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/app/store/authStore';
-import { Phone, Users, BarChart, Layers, Settings, FileText, User, LogOut, Menu, X, GitBranch, MessageSquare, Route, Link2 } from 'lucide-react';
+import { Phone, Users, BarChart, Layers, Settings, FileText, User, LogOut, Menu, X, GitBranch, MessageSquare, Route, Link2, Mic } from 'lucide-react';
 
 type NavItem = {
   name: string;
@@ -23,6 +23,8 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
     { name: 'Journeys', href: '/journeys', icon: <Route className="w-6 h-6" /> },
     { name: 'Calls', href: '/calls', icon: <Phone className="w-6 h-6" /> },
     { name: 'DIDs', href: '/dids', icon: <Layers className="w-6 h-6" /> },
+    { name: 'Transfer Groups', href: '/settings/transfer-groups', icon: <GitBranch className="w-6 h-6" /> },
+    { name: 'Recordings', href: '/recordings', icon: <Mic className="w-6 h-6" /> },
     { name: 'Templates', href: '/templates', icon: <FileText className="w-6 h-6" /> },
     { name: 'Webhooks', href: '/webhooks', icon: <Link2 className="w-6 h-6" /> },
     { name: 'Reports', href: '/reports', icon: <FileText className="w-6 h-6" /> },
@@ -106,6 +108,22 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
                     <p className="text-sm font-medium text-gray-300">{user?.role}</p>
                   </div>
                 </div>
+                <div className="mt-3 space-y-2">
+                  <Link
+                    href="/settings/profile"
+                    className="flex items-center text-sm font-medium text-gray-300 hover:text-white"
+                  >
+                    <User className="mr-2 h-4 w-4" />
+                    Profile
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center text-sm font-medium text-brand hover:text-white"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Logout
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -145,23 +163,32 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
             </nav>
           </div>
           <div className="flex-shrink-0 flex border-t border-gray-700 p-4">
-            <div className="flex-shrink-0 w-full group block">
+            <div className="flex-shrink-0 group block">
               <div className="flex items-center">
                 <div>
-                  <User className="inline-block h-9 w-9 rounded-full text-gray-300 bg-gray-600 p-2" />
+                  <User className="inline-block h-10 w-10 rounded-full text-gray-300 bg-gray-600 p-2" />
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm font-medium text-white">{user?.username}</p>
-                  <p className="text-xs font-medium text-gray-300">{user?.role}</p>
+                  <p className="text-base font-medium text-white">{user?.username}</p>
+                  <p className="text-sm font-medium text-gray-300">{user?.role}</p>
                 </div>
               </div>
-              <button
-                onClick={handleLogout}
-                className="mt-3 flex items-center text-sm font-medium text-brand hover:text-white"
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                Logout
-              </button>
+              <div className="mt-3 space-y-2">
+                <Link
+                  href="/settings/profile"
+                  className="flex items-center text-sm font-medium text-gray-300 hover:text-white"
+                >
+                  <User className="mr-2 h-4 w-4" />
+                  Profile
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center text-sm font-medium text-brand hover:text-white"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </button>
+              </div>
             </div>
           </div>
         </div>

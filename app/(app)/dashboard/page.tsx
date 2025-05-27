@@ -88,9 +88,9 @@ export default function DashboardPage() {
       console.log('Making API call with group:', currentGroup);
       const response = await api.system.getAgentStatus({
         url: tenantConfig?.apiConfig?.url || '',
-        ingroup: currentGroup,
-        user: user?.username || '',
-        pass: '' // This should be handled securely
+        ingroups: currentGroup,
+        user: tenantConfig?.apiConfig?.user || user.username,
+        pass: tenantConfig?.apiConfig?.password || ''
       });
       console.log('API response:', response.data);
       setAgentStatus(Array.isArray(response.data) ? response.data : []);
@@ -132,9 +132,9 @@ export default function DashboardPage() {
               console.log('Fetching agent status for group:', group);
               const statusResponse = await api.system.getAgentStatus({
                 url: tenantData.apiConfig?.url || '',
-                ingroup: group,
-                user: user.username,
-                pass: '' // This should be handled securely
+                ingroups: group,
+                user: tenantData.apiConfig?.user || user.username,
+                pass: tenantData.apiConfig?.password || ''
               });
               console.log('Agent status response:', statusResponse.data);
               setAgentStatus(Array.isArray(statusResponse.data) ? statusResponse.data : []);

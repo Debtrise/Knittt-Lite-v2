@@ -15,15 +15,23 @@ export const getActionTypeParams = (actionType: JourneyActionType): ParamDefinit
           id: 'transferNumber',
           name: 'Transfer Number',
           type: 'string',
-          required: true,
-          description: 'Agent transfer number'
+          required: false,
+          description: 'Direct transfer number (leave empty to use transfer group)'
+        },
+        {
+          id: 'transferGroupId',
+          name: 'Transfer Group',
+          type: 'transfer_group_select',
+          required: false,
+          description: 'Select a transfer group for routing'
         },
         {
           id: 'scriptId',
-          name: 'Script ID',
-          type: 'string',
+          name: 'Call Script',
+          type: 'template_select',
+          templateType: 'script',
           required: false,
-          description: 'ID of script to use'
+          description: 'Select a script template for the call'
         },
         {
           id: 'fallbackDID',
@@ -58,10 +66,11 @@ export const getActionTypeParams = (actionType: JourneyActionType): ParamDefinit
         },
         {
           id: 'voicemailMessage',
-          name: 'Voicemail Message',
-          type: 'string',
+          name: 'Voicemail Script',
+          type: 'template_select',
+          templateType: 'voicemail',
           required: false,
-          description: 'Voicemail script ID'
+          description: 'Select a voicemail script template'
         },
         {
           id: 'callerId',
@@ -85,6 +94,65 @@ export const getActionTypeParams = (actionType: JourneyActionType): ParamDefinit
           required: false,
           default: true,
           description: 'Whether to respect tenant business hours'
+        },
+        {
+          id: 'ivrEnabled',
+          name: 'Enable IVR',
+          type: 'boolean',
+          required: false,
+          default: false,
+          description: 'Enable Interactive Voice Response system'
+        },
+        {
+          id: 'ivrPromptText',
+          name: 'IVR Prompt Text',
+          type: 'string',
+          required: false,
+          description: 'Text-to-speech prompt for IVR (e.g., "Press 1 for sales, 2 for support")'
+        },
+        {
+          id: 'ivrPromptRecordingId',
+          name: 'IVR Prompt Recording',
+          type: 'recording_select',
+          required: false,
+          description: 'Recording ID for IVR prompt (alternative to text)'
+        },
+        {
+          id: 'ivrTimeout',
+          name: 'IVR Timeout (seconds)',
+          type: 'number',
+          required: false,
+          default: 10,
+          description: 'Seconds to wait for user input'
+        },
+        {
+          id: 'ivrMaxRetries',
+          name: 'IVR Max Retries',
+          type: 'number',
+          required: false,
+          default: 3,
+          description: 'Maximum retries for invalid input'
+        },
+        {
+          id: 'ivrInvalidInputText',
+          name: 'Invalid Input Text',
+          type: 'string',
+          required: false,
+          description: 'Text-to-speech for invalid input (e.g., "Invalid selection, please try again")'
+        },
+        {
+          id: 'ivrInvalidInputRecordingId',
+          name: 'Invalid Input Recording',
+          type: 'recording_select',
+          required: false,
+          description: 'Recording ID for invalid input message'
+        },
+        {
+          id: 'ivrOptions',
+          name: 'IVR Menu Options',
+          type: 'ivr_options',
+          required: false,
+          description: 'Configure IVR menu options and actions'
         }
       ];
       
@@ -95,21 +163,22 @@ export const getActionTypeParams = (actionType: JourneyActionType): ParamDefinit
           name: 'Message',
           type: 'string',
           required: false,
-          description: 'SMS text (supports variables)'
+          description: 'SMS text (supports variables) - leave empty to use template'
         },
         {
           id: 'templateId',
-          name: 'Template ID',
-          type: 'string',
+          name: 'SMS Template',
+          type: 'template_select',
+          templateType: 'sms',
           required: false,
-          description: 'Template ID (alternative to message)'
+          description: 'Select an SMS template (alternative to message)'
         },
         {
           id: 'from',
           name: 'From Number',
           type: 'string',
           required: false,
-          description: 'Sender phone number'
+          description: 'Sender phone number (leave empty for default)'
         },
         {
           id: 'trackClicks',
@@ -135,36 +204,37 @@ export const getActionTypeParams = (actionType: JourneyActionType): ParamDefinit
           id: 'subject',
           name: 'Subject',
           type: 'string',
-          required: true,
-          description: 'Email subject'
+          required: false,
+          description: 'Email subject (leave empty to use template subject)'
         },
         {
           id: 'templateId',
-          name: 'Template ID',
-          type: 'string',
+          name: 'Email Template',
+          type: 'template_select',
+          templateType: 'email',
           required: true,
-          description: 'Email template ID'
+          description: 'Select an email template'
         },
         {
           id: 'from',
           name: 'From Email',
           type: 'string',
           required: false,
-          description: 'Sender email'
+          description: 'Sender email (leave empty for default)'
         },
         {
           id: 'fromName',
           name: 'From Name',
           type: 'string',
           required: false,
-          description: 'Sender name'
+          description: 'Sender name (leave empty for default)'
         },
         {
           id: 'replyTo',
           name: 'Reply-To',
           type: 'string',
           required: false,
-          description: 'Reply-to address'
+          description: 'Reply-to address (leave empty for default)'
         },
         {
           id: 'trackOpens',

@@ -7,6 +7,8 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
 import { FileText } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { toast } from 'react-hot-toast';
+import api from '@/app/lib/api';
 
 const EmailEditor = dynamic(() => import('react-email-editor'), { ssr: false });
 
@@ -44,11 +46,22 @@ export default function NewTemplatePage() {
   };
 
   const finishSave = (templateContent: string) => {
-    // TODO: Replace with real API call
-    setTimeout(() => {
-      setSaving(false);
-      router.push('/templates');
-    }, 800);
+    api.templates.create({
+      name,
+      content: templateContent,
+      type,
+    })
+      .then(() => {
+        toast.success('Template created successfully');
+        router.push('/templates');
+      })
+      .catch(error => {
+        console.error('Error creating template:', error);
+        toast.error('Failed to create template');
+      })
+      .finally(() => {
+        setSaving(false);
+      });
   };
 
   return (

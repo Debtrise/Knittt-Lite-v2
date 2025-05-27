@@ -11,6 +11,7 @@ import { Input } from '@/app/components/ui/Input';
 import { getAgentStatus, updateTenantSettings, getTenant, updateTenant } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
 import api from '@/app/utils/api';
+import { recordings } from '@/app/lib/api';
 
 type AgentStatus = {
   ingroup: string;
@@ -94,6 +95,9 @@ type SettingsFormData = {
     username: string;
     password: string;
   };
+  elevenLabsConfig: {
+    apiKey: string;
+  };
 };
 
 export default function SettingsPage() {
@@ -106,6 +110,8 @@ export default function SettingsPage() {
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [elevenLabsConfig, setElevenLabsConfig] = useState<{ apiKey: string } | null>(null);
+  const [isLoadingElevenLabs, setIsLoadingElevenLabs] = useState(true);
   
   const form = useForm<SettingsFormData>({
     defaultValues: {
@@ -139,7 +145,10 @@ export default function SettingsPage() {
         context: '',
         username: '',
         password: ''
-      }
+      },
+      elevenLabsConfig: {
+        apiKey: '',
+      },
     }
   });
 
@@ -173,6 +182,7 @@ export default function SettingsPage() {
 
     const fetchData = async () => {
       setIsLoading(true);
+      setIsLoadingElevenLabs(true);
       try {
         // Fetch tenant data
         if (user?.tenantId) {
@@ -223,6 +233,16 @@ export default function SettingsPage() {
               setValue('amiConfig.password', data.amiConfig.password || '');
             }
           }
+
+          // Fetch Eleven Labs configuration
+          try {
+            const config = await recordings.getConfig();
+            setElevenLabsConfig(config.data);
+            setValue('elevenLabsConfig.apiKey', config.data.apiKey || '');
+          } catch (error) {
+            console.error('Error fetching Eleven Labs config:', error);
+            setElevenLabsConfig(null);
+          }
         }
 
         // Fetch initial agent status if groups are configured
@@ -234,6 +254,7 @@ export default function SettingsPage() {
         toast.error('Failed to load settings');
       } finally {
         setIsLoading(false);
+        setIsLoadingElevenLabs(false);
       }
     };
 
@@ -284,6 +305,12 @@ export default function SettingsPage() {
         schedule: data.schedule,
         amiConfig: data.amiConfig,
       });
+
+      // Update Eleven Labs configuration if changed
+      if (data.elevenLabsConfig.apiKey !== elevenLabsConfig?.apiKey) {
+        await recordings.configure({ apiKey: data.elevenLabsConfig.apiKey });
+        toast.success('Eleven Labs configuration updated successfully');
+      }
 
       toast.success('Settings updated successfully');
       
@@ -708,6 +735,46 @@ export default function SettingsPage() {
                 isLoading={isSubmitting}
               >
                 Save AMI Settings
+              </Button>
+            </div>
+          </form>
+        </div>
+
+        {/* Eleven Labs Configuration Section */}
+        <div className="mt-6 bg-white shadow rounded-lg p-6">
+          <div className="flex items-center mb-4">
+            <Settings className="h-5 w-5 text-brand mr-2" />
+            <h2 className="text-lg font-medium text-gray-900">Eleven Labs Configuration</h2>
+          </div>
+
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <p className="text-sm text-blue-800">
+              Configure your Eleven Labs API key to enable text-to-speech functionality for recordings.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                API Key
+              </label>
+              <Input
+                type="password"
+                {...register('elevenLabsConfig.apiKey', { required: 'API Key is required' })}
+                placeholder="Enter your Eleven Labs API key"
+              />
+              {errors.elevenLabsConfig?.apiKey && (
+                <p className="mt-1 text-sm text-red-600">{errors.elevenLabsConfig.apiKey.message}</p>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                variant="primary"
+                isLoading={isSubmitting}
+              >
+                Save Eleven Labs Settings
               </Button>
             </div>
           </form>

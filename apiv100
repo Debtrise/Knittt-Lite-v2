@@ -1,0 +1,878 @@
+/api
+Authentication
+All API endpoints (except public webhooks) require JWT authentication.
+Login
+httpPOST /api/login
+Content-Type: application/json
+
+{
+  "username": "string",
+  "password": "string"
+}
+Response:
+json{
+  "token": "jwt_token",
+  "userId": "number",
+  "username": "string",
+  "tenantId": "string",
+  "role": "admin|agent"
+}
+Register
+httpPOST /api/register
+Content-Type: application/json
+
+{
+  "username": "string",
+  "password": "string",
+  "email": "string",
+  "tenantId": "string",
+  "role": "admin|agent"
+}
+Core APIs
+Tenant Management
+Get Tenant
+httpGET /api/tenants/:id
+Authorization: Bearer {token}
+Update Tenant
+httpPUT /api/tenants/:id
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "string",
+  "apiConfig": {
+    "source": "string",
+    "endpoint": "string",
+    "user": "string",
+    "password": "string",
+    "ingroup": "string",
+    "url": "string"
+  },
+  "amiConfig": {
+    "host": "string",
+    "port": "number",
+    "username": "string",
+    "password": "string",
+    "trunk": "string",
+    "context": "string"
+  },
+  "schedule": {
+    "monday": { "enabled": "boolean", "start": "HH:mm", "end": "HH:mm" },
+    ...
+  },
+  "timezone": "string"
+}
+Lead Management
+Upload Leads (CSV)
+httpPOST /api/leads/upload
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "fileContent": "csv_string",
+  "options": {}
+}
+List Leads
+httpGET /api/leads?page=1&limit=50&status=pending&phone=xxx&name=xxx&email=xxx&brand=xxx&source=xxx
+Authorization: Bearer {token}
+Get Lead Details
+httpGET /api/leads/:id
+Authorization: Bearer {token}
+Response includes lead info and call history with stats
+Delete Lead
+httpDELETE /api/leads/:id
+Authorization: Bearer {token}
+Bulk Delete Leads
+httpPOST /api/leads/delete
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "ids": [1, 2, 3]
+}
+Call Management
+Make Call
+httpPOST /api/make-call
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "to": "phone_number",
+  "transfer_number": "transfer_to",
+  "from": "caller_id",
+  "leadId": "number",
+  "trunk": "string",
+  "context": "string",
+  "exten": "string",
+  "priority": "number",
+  "timeout": "number",
+  "async": "true|false",
+  "variables": {}
+}
+Update Call Status
+httpPUT /api/calls/:id/status
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "status": "initiated|answered|transferred|completed|failed|connected"
+}
+Get Call Details
+httpGET /api/calls/:id
+Authorization: Bearer {token}
+List Calls
+httpGET /api/calls?page=1&limit=50&status=xxx&leadId=xxx
+Authorization: Bearer {token}
+DID Management
+List DIDs
+httpGET /api/dids?page=1&limit=50&isActive=true&areaCode=xxx&state=xxx
+Authorization: Bearer {token}
+Get DID Details
+httpGET /api/dids/:id
+Authorization: Bearer {token}
+Response includes DID info and usage history with stats
+Create DID
+httpPOST /api/dids
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "phoneNumber": "string",
+  "description": "string",
+  "areaCode": "string",
+  "state": "string"
+}
+Update DID
+httpPUT /api/dids/:id
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "description": "string",
+  "isActive": "boolean",
+  "state": "string"
+}
+Delete DID
+httpDELETE /api/dids/:id
+Authorization: Bearer {token}
+Journey Management APIs
+Journeys
+List Journeys
+httpGET /api/journeys
+Authorization: Bearer {token}
+Response includes journey list with active/completed lead counts
+Get Journey Details
+httpGET /api/journeys/:id
+Authorization: Bearer {token}
+Response includes journey info, steps, and step completion counts
+Create Journey
+httpPOST /api/journeys
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "string",
+  "description": "string",
+  "isActive": "boolean",
+  "triggerCriteria": {
+    "leadStatus": ["pending"],
+    "leadTags": [],
+    "leadAgeDays": { "min": 0, "max": null },
+    "brands": [],
+    "sources": [],
+    "autoEnroll": false
+  }
+}
+Update Journey
+httpPUT /api/journeys/:id
+Authorization: Bearer {token}
+Content-Type: application/json
+Delete Journey
+httpDELETE /api/journeys/:id?force=true
+Authorization: Bearer {token}
+Journey Steps
+Get Journey Steps
+httpGET /api/journeys/:id/steps
+Authorization: Bearer {token}
+Create Journey Step
+httpPOST /api/journeys/:id/steps
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "string",
+  "description": "string",
+  "stepOrder": "number",
+  "actionType": "call|sms|email|status_change|tag_update|webhook|wait_for_event|conditional_branch|lead_assignment|data_update|journey_transfer|delay",
+  "actionConfig": {},
+  "delayType": "immediate|fixed_time|delay_after_previous|delay_after_enrollment|specific_days",
+  "delayConfig": {},
+  "conditions": {},
+  "isActive": "boolean",
+  "isExitPoint": "boolean"
+}
+Update Journey Step
+httpPUT /api/journeys/:journeyId/steps/:id
+Authorization: Bearer {token}
+Content-Type: application/json
+Delete Journey Step
+httpDELETE /api/journeys/:journeyId/steps/:id?force=true
+Authorization: Bearer {token}
+Lead Journey Management
+Get Leads in Journey
+httpGET /api/journeys/:id/leads?page=1&limit=50&status=active
+Authorization: Bearer {token}
+Enroll Leads in Journey
+httpPOST /api/journeys/:id/enroll
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "leadIds": [1, 2, 3],
+  "restart": false
+}
+Get Lead's Journeys
+httpGET /api/leads/:id/journeys
+Authorization: Bearer {token}
+Update Lead Journey Status
+httpPUT /api/leads/:leadId/journeys/:journeyId/status
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "status": "active|paused|completed|failed|exited"
+}
+Execute Journey Step Manually
+httpPOST /api/leads/:leadId/journeys/:journeyId/execute
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "stepId": "number"
+}
+Journey Statistics
+Get Journey Statistics
+httpGET /api/stats/journeys
+Authorization: Bearer {token}
+Get Upcoming Executions
+httpGET /api/executions/upcoming?limit=50
+Authorization: Bearer {token}
+SMS Management APIs (Twilio)
+Configuration
+Get Twilio Config
+httpGET /api/twilio/config
+Authorization: Bearer {token}
+Save Twilio Config
+httpPOST /api/twilio/config
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "accountSid": "string",
+  "authToken": "string",
+  "defaultFromNumber": "string",
+  "settings": {},
+  "rateLimits": {}
+}
+Test Twilio Connection
+httpPOST /api/twilio/test
+Authorization: Bearer {token}
+Phone Numbers
+List SMS Numbers
+httpGET /api/twilio/numbers
+Authorization: Bearer {token}
+Sync Numbers from Twilio
+httpPOST /api/twilio/numbers/sync
+Authorization: Bearer {token}
+SMS Messaging
+Send SMS
+httpPOST /api/sms/send
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "to": "phone_number",
+  "body": "message",
+  "from": "from_number",
+  "leadId": "number",
+  "metadata": {}
+}
+Send Templated SMS
+httpPOST /api/sms/send-template
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "to": "phone_number",
+  "templateId": "number",
+  "variables": {},
+  "leadId": "number",
+  "from": "from_number",
+  "metadata": {}
+}
+Send Bulk SMS
+httpPOST /api/sms/send-bulk
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "recipients": [
+    {
+      "phone": "string",
+      "leadId": "number",
+      "variables": {},
+      "metadata": {}
+    }
+  ],
+  "body": "string",
+  "templateId": "number",
+  "from": "string",
+  "throttle": "number"
+}
+SMS Conversations
+Get SMS Conversation
+httpGET /api/sms/conversation/:leadId?page=1&limit=50&markAsRead=true
+Authorization: Bearer {token}
+List All Conversations
+httpGET /api/sms/conversations?page=1&limit=50&status=active
+Authorization: Bearer {token}
+Get SMS History
+httpGET /api/sms/messages?page=1&limit=50&direction=outbound&status=delivered&leadId=xxx&startDate=xxx&endDate=xxx
+Authorization: Bearer {token}
+Get SMS Message Details
+httpGET /api/sms/messages/:id
+Authorization: Bearer {token}
+SMS Webhooks (Public)
+Receive Incoming SMS
+httpPOST /api/webhooks/twilio/sms
+Receive Status Updates
+httpPOST /api/webhooks/twilio/status
+Template Management APIs
+Template Categories
+List Categories
+httpGET /api/templates/categories?type=sms
+Authorization: Bearer {token}
+Create Category
+httpPOST /api/templates/categories
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "string",
+  "description": "string",
+  "type": "sms|email|transfer|script|voicemail"
+}
+Templates
+List Templates
+httpGET /api/templates?type=sms&categoryId=xxx&isActive=true&page=1&limit=50
+Authorization: Bearer {token}
+Get Template
+httpGET /api/templates/:id
+Authorization: Bearer {token}
+Create Template
+httpPOST /api/templates
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "string",
+  "description": "string",
+  "type": "sms|email|transfer|script|voicemail",
+  "categoryId": "number",
+  "subject": "string (for email)",
+  "content": "string",
+  "htmlContent": "string (for email)",
+  "isActive": "boolean"
+}
+Update Template
+httpPUT /api/templates/:id
+Authorization: Bearer {token}
+Content-Type: application/json
+Delete Template
+httpDELETE /api/templates/:id
+Authorization: Bearer {token}
+Render Template Preview
+httpPOST /api/templates/:id/render
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "variables": {},
+  "context": {}
+}
+Clone Template
+httpPOST /api/templates/:id/clone
+Authorization: Bearer {token}
+Transfer Groups
+List Transfer Groups
+httpGET /api/transfer-groups?isActive=true&page=1&limit=50
+Authorization: Bearer {token}
+Get Transfer Group
+httpGET /api/transfer-groups/:id
+Authorization: Bearer {token}
+Create Transfer Group
+httpPOST /api/transfer-groups
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "string",
+  "description": "string",
+  "type": "roundrobin|simultaneous|priority|percentage",
+  "brand": "string",
+  "ingroup": "string",
+  "isActive": "boolean",
+  "settings": {
+    "ringTimeout": 30,
+    "voicemailEnabled": false,
+    "callRecording": true
+  }
+}
+Update Transfer Group
+httpPUT /api/transfer-groups/:id
+Authorization: Bearer {token}
+Content-Type: application/json
+Delete Transfer Group
+httpDELETE /api/transfer-groups/:id
+Authorization: Bearer {token}
+Transfer Numbers
+Add Transfer Number
+httpPOST /api/transfer-groups/:groupId/numbers
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "phoneNumber": "string",
+  "name": "string",
+  "priority": "number",
+  "weight": "number",
+  "isActive": "boolean",
+  "businessHours": {},
+  "metadata": {}
+}
+Update Transfer Number
+httpPUT /api/transfer-groups/:groupId/numbers/:id
+Authorization: Bearer {token}
+Content-Type: application/json
+Remove Transfer Number
+httpDELETE /api/transfer-groups/:groupId/numbers/:id
+Authorization: Bearer {token}
+Get Next Transfer Number
+httpGET /api/transfer-groups/:id/next-number
+Authorization: Bearer {token}
+Email Configuration
+Get Email Config
+httpGET /api/email/config
+Authorization: Bearer {token}
+Save Email Config
+httpPOST /api/email/config
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "provider": "smtp|sendgrid|mailgun|ses",
+  "settings": {},
+  "fromEmail": "string",
+  "fromName": "string",
+  "replyToEmail": "string",
+  "dailyLimit": "number"
+}
+Test Email Config
+httpPOST /api/email/test
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "to": "email_address"
+}
+Send Templated Email
+httpPOST /api/email/send
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "to": "email_address",
+  "templateId": "number",
+  "variables": {},
+  "attachments": []
+}
+Get Template Usage History
+httpGET /api/templates/:id/usage?page=1&limit=50
+Authorization: Bearer {token}
+Webhook Management APIs
+Webhook Endpoints
+List Webhooks
+httpGET /api/webhooks?page=1&limit=50&isActive=true
+Authorization: Bearer {token}
+Get Webhook Details
+httpGET /api/webhooks/:id
+Authorization: Bearer {token}
+Create Webhook
+httpPOST /api/webhooks
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "string",
+  "description": "string",
+  "brand": "string",
+  "source": "string",
+  "fieldMapping": {
+    "phone": "phone_field_path",
+    "name": "name_field_path",
+    "email": "email_field_path"
+  },
+  "validationRules": {
+    "requirePhone": true,
+    "requireName": false,
+    "requireEmail": false,
+    "allowDuplicatePhone": false
+  },
+  "autoTagRules": [],
+  "requiredHeaders": {},
+  "autoEnrollJourneyId": "number"
+}
+Update Webhook
+httpPUT /api/webhooks/:id
+Authorization: Bearer {token}
+Content-Type: application/json
+Delete Webhook
+httpDELETE /api/webhooks/:id
+Authorization: Bearer {token}
+Test Webhook
+httpPOST /api/webhooks/:id/test
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  // Test payload
+}
+Get Webhook Events
+httpGET /api/webhooks/:id/events?page=1&limit=50&status=success
+Authorization: Bearer {token}
+Public Webhook Receiver
+Receive Webhook Data
+httpPOST /api/webhook-receiver/:endpointKey
+Content-Type: application/json
+Authorization: Bearer {securityToken} (if configured)
+
+{
+  // Lead data payload
+}
+Recording Management APIs (Eleven Labs)
+Eleven Labs Configuration
+Get Config
+httpGET /api/elevenlabs/config
+Authorization: Bearer {token}
+Configure Eleven Labs
+httpPOST /api/elevenlabs/config
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "apiKey": "string"
+}
+Get Available Voices
+httpGET /api/elevenlabs/voices
+Authorization: Bearer {token}
+Get Character Usage
+httpGET /api/elevenlabs/usage
+Authorization: Bearer {token}
+Recordings
+List Recordings
+httpGET /api/recordings?type=ivr&isActive=true&page=1&limit=50
+Authorization: Bearer {token}
+Get Recording Details
+httpGET /api/recordings/:id
+Authorization: Bearer {token}
+Create Recording
+httpPOST /api/recordings
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "string",
+  "description": "string",
+  "type": "ivr|voicemail|prompt|announcement",
+  "scriptText": "string",
+  "templateId": "number",
+  "templateVariables": {},
+  "elevenLabsVoiceId": "string",
+  "elevenLabsSettings": {}
+}
+Update Recording
+httpPUT /api/recordings/:id
+Authorization: Bearer {token}
+Content-Type: application/json
+Delete Recording
+httpDELETE /api/recordings/:id
+Authorization: Bearer {token}
+Generate Audio
+httpPOST /api/recordings/:id/generate
+Authorization: Bearer {token}
+Upload Audio File
+httpPOST /api/recordings/upload
+Authorization: Bearer {token}
+Content-Type: multipart/form-data
+
+{
+  "audio": file,
+  "name": "string",
+  "description": "string",
+  "type": "ivr|voicemail|prompt|announcement"
+}
+Recording Templates
+List Templates
+httpGET /api/recording-templates?category=xxx&page=1&limit=50
+Authorization: Bearer {token}
+Get Template
+httpGET /api/recording-templates/:id
+Authorization: Bearer {token}
+Create Template
+httpPOST /api/recording-templates
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "string",
+  "description": "string",
+  "category": "string",
+  "scriptTemplate": "string",
+  "suggestedVoiceId": "string"
+}
+Update Template
+httpPUT /api/recording-templates/:id
+Authorization: Bearer {token}
+Content-Type: application/json
+Delete Template
+httpDELETE /api/recording-templates/:id
+Authorization: Bearer {token}
+Create Recording from Template
+httpPOST /api/recording-templates/:id/create-recording
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "string",
+  "description": "string",
+  "type": "ivr",
+  "variables": {},
+  "voiceId": "string"
+}
+Recording Analytics
+Get Analytics
+httpGET /api/recordings/:id/analytics?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+Authorization: Bearer {token}
+Get Usage History
+httpGET /api/recordings/:id/usage?page=1&limit=50
+Authorization: Bearer {token}
+Track Usage
+httpPOST /api/recordings/:id/track-usage
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "usedIn": "journey|manual_call|campaign|test",
+  "entityType": "string",
+  "entityId": "number",
+  "leadId": "number",
+  "playDuration": "number",
+  "userAction": "string"
+}
+Reporting & Analytics APIs
+Report Generation
+Generate Call Summary Report
+httpPOST /api/reports/call-summary
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "startDate": "YYYY-MM-DD",
+  "endDate": "YYYY-MM-DD",
+  "groupBy": "hour|day|week|month",
+  "filters": {
+    "status": "string",
+    "agentId": "number",
+    "didId": "number"
+  }
+}
+Generate SMS Summary Report
+httpPOST /api/reports/sms-summary
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "startDate": "YYYY-MM-DD",
+  "endDate": "YYYY-MM-DD",
+  "groupBy": "hour|day|month",
+  "filters": {
+    "direction": "outbound|inbound",
+    "status": "string",
+    "fromNumber": "string"
+  }
+}
+Generate Agent Performance Report
+httpPOST /api/reports/agent-performance
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "startDate": "YYYY-MM-DD",
+  "endDate": "YYYY-MM-DD",
+  "agentIds": []
+}
+Generate Lead Conversion Report
+httpPOST /api/reports/lead-conversion
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "startDate": "YYYY-MM-DD",
+  "endDate": "YYYY-MM-DD",
+  "sources": [],
+  "brands": []
+}
+Generate Journey Analytics Report
+httpPOST /api/reports/journey-analytics
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "startDate": "YYYY-MM-DD",
+  "endDate": "YYYY-MM-DD",
+  "journeyIds": []
+}
+Generate Custom Report (Admin Only)
+httpPOST /api/reports/custom
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "query": "SQL query",
+  "parameters": {}
+}
+Export Report
+httpPOST /api/reports/export
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "reportData": {},
+  "format": "csv|excel|pdf",
+  "filename": "string"
+}
+Report Templates
+List Report Templates
+httpGET /api/report-templates
+Authorization: Bearer {token}
+Get Report Template
+httpGET /api/report-templates/:id
+Authorization: Bearer {token}
+Create Report Template
+httpPOST /api/report-templates
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "string",
+  "type": "call_summary|sms_summary|agent_performance|lead_conversion|journey_analytics|custom",
+  "config": {},
+  "schedule": {
+    "enabled": false,
+    "frequency": "daily|weekly|monthly",
+    "time": "HH:mm",
+    "timezone": "timezone",
+    "format": "pdf|csv|excel",
+    "recipients": []
+  }
+}
+Update Report Template
+httpPUT /api/report-templates/:id
+Authorization: Bearer {token}
+Content-Type: application/json
+Delete Report Template
+httpDELETE /api/report-templates/:id
+Authorization: Bearer {token}
+Execute Report Template
+httpPOST /api/report-templates/:id/execute
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "exportFormat": "csv|excel|pdf"
+}
+Schedule Report
+httpPOST /api/report-templates/:id/schedule
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "enabled": true,
+  "frequency": "daily|weekly|monthly",
+  "time": "HH:mm",
+  "recipients": ["email@example.com"]
+}
+Report Executions
+Get Report Execution Status
+httpGET /api/report-executions/:id
+Authorization: Bearer {token}
+List Report Executions
+httpGET /api/report-executions?page=1&limit=50&status=completed&templateId=xxx
+Authorization: Bearer {token}
+Dashboard & Statistics
+Get Dashboard Stats
+httpGET /api/dashboard/stats
+Authorization: Bearer {token}
+Get Dashboard History
+httpGET /api/dashboard/history?hours=24
+Authorization: Bearer {token}
+Get Today's Stats
+httpGET /api/stats/today
+Authorization: Bearer {token}
+Get Hourly Breakdown
+httpGET /api/stats/hourly
+Authorization: Bearer {token}
+Utility APIs
+Agent Status
+httpGET /api/agent-status?url=xxx&ingroup=xxx&user=xxx&pass=xxx
+Authorization: Bearer {token}
+Daily Report
+httpGET /api/reports/daily?date=YYYY-MM-DD
+Authorization: Bearer {token}
+System Status
+Get DialPlan Capabilities
+httpGET /api/system/dialplan-capabilities
+Authorization: Bearer {token}
+Get Module Status
+httpGET /api/system/module-status
+Authorization: Bearer {token}
+Error Responses
+All API endpoints return standard HTTP status codes:
+
+200 - Success
+201 - Created
+400 - Bad Request
+401 - Unauthorized
+403 - Forbidden
+404 - Not Found
+500 - Internal Server Error
+
+Error Response Format:
+json{
+  "error": "Error message description"
+}
+Rate Limits
+
+SMS: Configurable per tenant (default: 60/min, 1000/hour, 10000/day)
+Email: Configurable daily limit per tenant (default: 1000/day)
+Webhook processing: No hard limits, but bulk operations are throttled
+
+Notes
+
+All dates should be in ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss.sssZ)
+Phone numbers should be in E.164 format (+1XXXXXXXXXX)
+Pagination is available on most list endpoints using page and limit parameters
+Authentication tokens expire after 1 day
+File uploads have a 10MB limit for audio files
+Webhook endpoints require unique endpoint keys
+Template variables use double curly brace syntax: {{variableName}}

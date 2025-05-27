@@ -3,299 +3,1207 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { BarChart, Calendar, PhoneCall, Phone, PhoneForwarded, Clock, Route, Users, CheckCircle, RefreshCw } from 'lucide-react';
+import { 
+  BarChart, Calendar, PhoneCall, Phone, PhoneForwarded, Clock, Route, Users, CheckCircle, RefreshCw,
+  MessageSquare, TrendingUp, FileText, Settings, Download, Play, Pause, Trash2, Edit, Plus,
+  Filter, Search, ChevronDown, ChevronRight, Eye, Mail, Database, PieChart, Activity
+} from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
-import { getDailyReport, getJourneyStatistics, getJourneyStatsByBrand, getJourneyStatsBySource } from '@/app/utils/api';
+import { 
+  getDailyReport, 
+  getJourneyStatistics, 
+  getJourneyStatsByBrand, 
+  getJourneyStatsBySource,
+  generateCallSummaryReport,
+  generateSmsSummaryReport,
+  generateAgentPerformanceReport,
+  generateLeadConversionReport,
+  generateJourneyAnalyticsReport,
+  generateCustomReport,
+  exportReport,
+  listReportTemplates,
+  createReportTemplate,
+  executeReportTemplate,
+  listReportExecutions,
+  getDashboardStats,
+  getTodaysStats,
+  getHourlyBreakdown
+} from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
 
-type DailyReport = {
-  date: string;
-  totalCalls: number;
-  answeredCalls: number;
-  transfers: number;
-  callsOver1Min: number;
-  callsOver5Min: number;
-  callsOver15Min: number;
-  connectionRate: string;
-  transferRate: string;
-};
+type ReportType = 'dashboard' | 'call-summary' | 'sms-summary' | 'agent-performance' | 'lead-conversion' | 'journey-analytics' | 'custom' | 'templates';
 
-type ReportType = 'daily' | 'journey' | 'brand' | 'source';
+interface ReportTemplate {
+  id: string;
+  name: string;
+  type: string;
+  config: Record<string, any>;
+  schedule?: {
+    enabled: boolean;
+    frequency: string;
+    time: string;
+    timezone: string;
+    format: string;
+    recipients: string[];
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ReportExecution {
+  id: string;
+  templateId: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  startedAt: string;
+  completedAt?: string;
+  downloadUrl?: string;
+  error?: string;
+}
 
 export default function ReportsPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
-  const [report, setReport] = useState<DailyReport | null>(null);
-  const [reportType, setReportType] = useState<ReportType>('daily');
-  const [journeyStats, setJourneyStats] = useState<any>(null);
-  const [brandStats, setBrandStats] = useState<any>(null);
-  const [sourceStats, setSourceStats] = useState<any>(null);
+  const [reportType, setReportType] = useState<ReportType>('dashboard');
+  
+  // Dashboard data
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
+  const [todaysStats, setTodaysStats] = useState<any>(null);
+  const [hourlyBreakdown, setHourlyBreakdown] = useState<any>(null);
+  
+  // Report data
+  const [reportData, setReportData] = useState<any>(null);
+  const [reportTemplates, setReportTemplates] = useState<ReportTemplate[]>([]);
+  const [reportExecutions, setReportExecutions] = useState<ReportExecution[]>([]);
+  
+  // Form states
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0]
+  });
+  const [filters, setFilters] = useState<Record<string, any>>({});
+  const [groupBy, setGroupBy] = useState<'hour' | 'day' | 'week' | 'month'>('day');
+  
+  // UI states
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate | null>(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
+    fetchInitialData();
+  }, [isAuthenticated, router]);
 
-    fetchReport(selectedDate);
-  }, [isAuthenticated, router, selectedDate]);
+  useEffect(() => {
+    if (reportType === 'dashboard') {
+      fetchDashboardData();
+    } else if (reportType === 'templates') {
+      fetchReportTemplates();
+      fetchReportExecutions();
+    }
+  }, [reportType]);
 
-  const fetchReport = async (date: string) => {
+  const fetchInitialData = async () => {
     setIsLoading(true);
     try {
-      switch (reportType) {
-        case 'daily':
-          const dailyData = await getDailyReport(date);
-          setReport(dailyData);
-          break;
-        case 'journey':
-          const journeyData = await getJourneyStatistics();
-          setJourneyStats(journeyData);
-          break;
-        case 'brand':
-          const brandData = await getJourneyStatsByBrand();
-          setBrandStats(brandData);
-          break;
-        case 'source':
-          const sourceData = await getJourneyStatsBySource();
-          setSourceStats(sourceData);
-          break;
-      }
+      await fetchDashboardData();
     } catch (error) {
-      console.error('Error fetching report:', error);
-      toast.error('Failed to load report data');
+      console.error('Error fetching initial data:', error);
+      toast.error('Failed to load initial data');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const options: Intl.DateTimeFormatOptions = { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    };
-    return new Date(dateString).toLocaleDateString(undefined, options);
+  const fetchDashboardData = async () => {
+    try {
+      const [dashStats, todayStats, hourlyStats] = await Promise.all([
+        getDashboardStats(),
+        getTodaysStats(),
+        getHourlyBreakdown()
+      ]);
+      
+      setDashboardStats(dashStats);
+      setTodaysStats(todayStats);
+      setHourlyBreakdown(hourlyStats);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    }
   };
 
-  const calculatePercentage = (part: number, total: number): string => {
-    if (total === 0) return '0%';
-    return `${Math.round((part / total) * 100)}%`;
+  const fetchReportTemplates = async () => {
+    try {
+      const templates = await listReportTemplates();
+      setReportTemplates(templates);
+    } catch (error) {
+      console.error('Error fetching report templates:', error);
+    }
+  };
+
+  const fetchReportExecutions = async () => {
+    try {
+      const executions = await listReportExecutions({ limit: 20 });
+      setReportExecutions(executions.data || []);
+    } catch (error) {
+      console.error('Error fetching report executions:', error);
+    }
+  };
+
+  const generateReport = async () => {
+    setIsLoading(true);
+    try {
+      let data;
+      
+      switch (reportType) {
+        case 'call-summary':
+          data = await generateCallSummaryReport({
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate,
+            groupBy,
+            filters
+          });
+          break;
+        case 'sms-summary':
+          data = await generateSmsSummaryReport({
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate,
+            groupBy: groupBy as 'hour' | 'day' | 'month',
+            filters
+          });
+          break;
+        case 'agent-performance':
+          data = await generateAgentPerformanceReport({
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate,
+            agentIds: filters.agentIds
+          });
+          break;
+        case 'lead-conversion':
+          data = await generateLeadConversionReport({
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate,
+            sources: filters.sources,
+            brands: filters.brands
+          });
+          break;
+        case 'journey-analytics':
+          data = await generateJourneyAnalyticsReport({
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate,
+            journeyIds: filters.journeyIds
+          });
+          break;
+        case 'custom':
+          if (!filters.query) {
+            toast.error('Please enter a SQL query');
+            return;
+          }
+          data = await generateCustomReport({
+            query: filters.query,
+            parameters: filters.parameters || {}
+          });
+          break;
+        default:
+          return;
+      }
+      
+      setReportData(data);
+      toast.success('Report generated successfully');
+    } catch (error) {
+      console.error('Error generating report:', error);
+      toast.error('Failed to generate report');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleExportReport = async (format: 'csv' | 'excel' | 'pdf') => {
+    if (!reportData) {
+      toast.error('No report data to export');
+      return;
+    }
+
+    try {
+      const filename = `${reportType}-report-${new Date().toISOString().split('T')[0]}.${format}`;
+      const blob = await exportReport({
+        reportData,
+        format,
+        filename
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('Report exported successfully');
+    } catch (error) {
+      console.error('Error exporting report:', error);
+      toast.error('Failed to export report');
+    }
   };
 
   const renderReportTypeSelector = () => (
-    <div className="flex space-x-4 mb-6">
-      <Button
-        variant={reportType === 'daily' ? 'primary' : 'outline'}
-        onClick={() => setReportType('daily')}
-      >
-        Daily Report
-      </Button>
-      <Button
-        variant={reportType === 'journey' ? 'primary' : 'outline'}
-        onClick={() => setReportType('journey')}
-      >
-        Journey Stats
-      </Button>
-      <Button
-        variant={reportType === 'brand' ? 'primary' : 'outline'}
-        onClick={() => setReportType('brand')}
-      >
-        Brand Analysis
-      </Button>
-      <Button
-        variant={reportType === 'source' ? 'primary' : 'outline'}
-        onClick={() => setReportType('source')}
-      >
-        Source Analysis
-      </Button>
+    <div className="flex flex-wrap gap-2 mb-6">
+      {[
+        { key: 'dashboard', label: 'Dashboard', icon: Activity },
+        { key: 'call-summary', label: 'Call Summary', icon: PhoneCall },
+        { key: 'sms-summary', label: 'SMS Summary', icon: MessageSquare },
+        { key: 'agent-performance', label: 'Agent Performance', icon: Users },
+        { key: 'lead-conversion', label: 'Lead Conversion', icon: TrendingUp },
+        { key: 'journey-analytics', label: 'Journey Analytics', icon: Route },
+        { key: 'custom', label: 'Custom Reports', icon: Database },
+        { key: 'templates', label: 'Templates', icon: FileText }
+      ].map(({ key, label, icon: Icon }) => (
+        <Button
+          key={key}
+          variant={reportType === key ? 'primary' : 'outline'}
+          onClick={() => setReportType(key as ReportType)}
+          className="flex items-center gap-2"
+        >
+          <Icon className="w-4 h-4" />
+          {label}
+        </Button>
+      ))}
     </div>
   );
 
-  const renderJourneyStats = () => (
-    <div className="mt-6">
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-        <div className="px-4 py-5 sm:px-6">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
-            Journey Statistics
-          </h3>
-          <p className="mt-1 max-w-2xl text-sm text-gray-500">
-            Overview of journey performance and engagement.
-          </p>
-        </div>
-        <div className="border-t border-gray-200 px-4 py-5 sm:p-6">
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="bg-gray-50 overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0 bg-brand rounded-md p-3">
-                    <Route className="h-6 w-6 text-white" />
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Active Journeys</dt>
-                      <dd className="mt-1 text-3xl font-semibold text-gray-900">{journeyStats?.activeJourneys || 0}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="bg-gray-50 overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0 bg-brand rounded-md p-3">
-                    <Users className="h-6 w-6 text-white" />
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Active Lead Journeys</dt>
-                      <dd className="mt-1 text-3xl font-semibold text-gray-900">{journeyStats?.activeLeadJourneys || 0}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="bg-gray-50 overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0 bg-brand rounded-md p-3">
-                    <CheckCircle className="h-6 w-6 text-white" />
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Completed Journeys</dt>
-                      <dd className="mt-1 text-3xl font-semibold text-gray-900">{journeyStats?.completedLeadJourneys || 0}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="bg-gray-50 overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0 bg-brand rounded-md p-3">
-                    <Clock className="h-6 w-6 text-white" />
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Pending Executions</dt>
-                      <dd className="mt-1 text-3xl font-semibold text-gray-900">{journeyStats?.pendingExecutions || 0}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+  const renderDateRangeSelector = () => (
+    <div className="flex items-center gap-4 mb-4">
+      <div className="flex items-center gap-2">
+        <label className="text-sm font-medium text-gray-700">From:</label>
+        <input
+          type="date"
+          className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          value={dateRange.startDate}
+          onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <label className="text-sm font-medium text-gray-700">To:</label>
+        <input
+          type="date"
+          className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          value={dateRange.endDate}
+          onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <label className="text-sm font-medium text-gray-700">Group by:</label>
+        <select
+          className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          value={groupBy}
+          onChange={(e) => setGroupBy(e.target.value as any)}
+        >
+          <option value="hour">Hour</option>
+          <option value="day">Day</option>
+          <option value="week">Week</option>
+          <option value="month">Month</option>
+        </select>
       </div>
     </div>
   );
 
-  const renderBrandStats = () => (
-    <div className="mt-6">
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-        <div className="px-4 py-5 sm:px-6">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
-            Brand Performance Analysis
-          </h3>
-          <p className="mt-1 max-w-2xl text-sm text-gray-500">
-            Journey performance breakdown by brand.
-          </p>
-        </div>
-        <div className="border-t border-gray-200 px-4 py-5 sm:p-6">
-          <div className="space-y-6">
-            {brandStats?.brandBreakdown?.map((brand: any) => (
-              <div key={brand.name} className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="text-lg font-medium text-gray-900">{brand.name}</h4>
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500">Active Journeys</dt>
-                    <dd className="mt-1 text-2xl font-semibold text-gray-900">{brand.activeJourneys}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500">Total Leads</dt>
-                    <dd className="mt-1 text-2xl font-semibold text-gray-900">{brand.totalLeads}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500">Completion Rate</dt>
-                    <dd className="mt-1 text-2xl font-semibold text-gray-900">{brand.completionRate}%</dd>
-                  </div>
-                </div>
+  const renderFilters = () => {
+    if (!showFilters) return null;
+
+    return (
+      <div className="bg-gray-50 p-4 rounded-lg mb-4">
+        <h3 className="text-lg font-medium mb-3">Filters</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {reportType === 'call-summary' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="Call status"
+                  value={filters.status || ''}
+                  onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                />
               </div>
-            ))}
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Agent ID</label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="Agent ID"
+                  value={filters.agentId || ''}
+                  onChange={(e) => setFilters(prev => ({ ...prev, agentId: parseInt(e.target.value) || undefined }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">DID ID</label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="DID ID"
+                  value={filters.didId || ''}
+                  onChange={(e) => setFilters(prev => ({ ...prev, didId: parseInt(e.target.value) || undefined }))}
+                />
+              </div>
+            </>
+          )}
+          
+          {reportType === 'sms-summary' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Direction</label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  value={filters.direction || ''}
+                  onChange={(e) => setFilters(prev => ({ ...prev, direction: e.target.value }))}
+                >
+                  <option value="">All</option>
+                  <option value="outbound">Outbound</option>
+                  <option value="inbound">Inbound</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">From Number</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  placeholder="From number"
+                  value={filters.fromNumber || ''}
+                  onChange={(e) => setFilters(prev => ({ ...prev, fromNumber: e.target.value }))}
+                />
+              </div>
+            </>
+          )}
+
+          {reportType === 'custom' && (
+            <div className="col-span-full">
+              <label className="block text-sm font-medium text-gray-700 mb-1">SQL Query</label>
+              <textarea
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                rows={4}
+                placeholder="Enter your SQL query here..."
+                value={filters.query || ''}
+                onChange={(e) => setFilters(prev => ({ ...prev, query: e.target.value }))}
+              />
+            </div>
+          )}
         </div>
       </div>
-    </div>
-  );
-
-  const renderSourceStats = () => (
-    <div className="mt-6">
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-        <div className="px-4 py-5 sm:px-6">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
-            Source Performance Analysis
-          </h3>
-          <p className="mt-1 max-w-2xl text-sm text-gray-500">
-            Journey performance breakdown by lead source.
-          </p>
-        </div>
-        <div className="border-t border-gray-200 px-4 py-5 sm:p-6">
-          <div className="space-y-6">
-            {sourceStats?.sourceBreakdown?.map((source: any) => (
-              <div key={source.name} className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="text-lg font-medium text-gray-900">{source.name}</h4>
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500">Active Journeys</dt>
-                    <dd className="mt-1 text-2xl font-semibold text-gray-900">{source.activeJourneys}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500">Total Leads</dt>
-                    <dd className="mt-1 text-2xl font-semibold text-gray-900">{source.totalLeads}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500">Completion Rate</dt>
-                    <dd className="mt-1 text-2xl font-semibold text-gray-900">{source.completionRate}%</dd>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const handleRefresh = () => {
-    fetchReport(selectedDate);
+    );
   };
 
-  const renderEmptyState = (type: string) => (
-    <div className="mt-6 bg-white shadow overflow-hidden sm:rounded-lg">
-      <div className="px-4 py-12 text-center sm:px-6">
-        <BarChart className="mx-auto h-12 w-12 text-gray-400" />
-        <h3 className="mt-2 text-sm font-medium text-gray-900">No {type} data available</h3>
-        <p className="mt-1 text-sm text-gray-500">
-          {type === 'daily' 
-            ? 'Try selecting a different date or check if there were any calls on this day.'
-            : 'No data has been collected yet. Check back later.'}
-        </p>
-        <div className="mt-6">
-          <Button
-            onClick={handleRefresh}
-            variant="outline"
-            className="inline-flex items-center"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh Data
-          </Button>
+  const renderDashboard = () => (
+    <div className="space-y-6">
+      {/* Today's Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-blue-100">
+              <PhoneCall className="h-6 w-6 text-blue-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Total Calls</p>
+              <p className="text-2xl font-semibold text-gray-900">{todaysStats?.totalCalls || 0}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-green-100">
+              <MessageSquare className="h-6 w-6 text-green-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">SMS Sent</p>
+              <p className="text-2xl font-semibold text-gray-900">{todaysStats?.smsSent || 0}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-purple-100">
+              <Users className="h-6 w-6 text-purple-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Active Agents</p>
+              <p className="text-2xl font-semibold text-gray-900">{todaysStats?.activeAgents || 0}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-white p-6 rounded-lg shadow">
+          <div className="flex items-center">
+            <div className="p-3 rounded-full bg-orange-100">
+              <TrendingUp className="h-6 w-6 text-orange-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Conversions</p>
+              <p className="text-2xl font-semibold text-gray-900">{todaysStats?.conversions || 0}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Hourly Breakdown Chart */}
+      {hourlyBreakdown && (
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Hourly Activity</h3>
+          <div className="h-64 flex items-end justify-between space-x-2">
+            {Array.from({ length: 24 }, (_, i) => {
+              const hour = i.toString().padStart(2, '0');
+              const value = hourlyBreakdown[hour] || 0;
+              const maxValue = Math.max(...Object.values(hourlyBreakdown || {}));
+              const height = maxValue > 0 ? (value / maxValue) * 100 : 0;
+              
+              return (
+                <div key={i} className="flex flex-col items-center">
+                  <div
+                    className="bg-blue-500 rounded-t w-6"
+                    style={{ height: `${height}%` }}
+                    title={`${hour}:00 - ${value} activities`}
+                  />
+                  <span className="text-xs text-gray-500 mt-1">{hour}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderReportData = () => {
+    if (!reportData) return null;
+
+    // Special handling for journey analytics reports
+    if (reportType === 'journey-analytics' && reportData.journeys) {
+      return renderJourneyAnalyticsVisualization();
+    }
+
+    // Special handling for call summary reports
+    if (reportType === 'call-summary' && reportData.summary) {
+      return renderCallSummaryVisualization();
+    }
+
+    return (
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-medium text-gray-900">Report Results</h3>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => handleExportReport('csv')}
+                className="flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                CSV
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleExportReport('excel')}
+                className="flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Excel
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleExportReport('pdf')}
+                className="flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                PDF
+              </Button>
+            </div>
+          </div>
+        </div>
+        <div className="p-6">
+          <pre className="bg-gray-50 p-4 rounded-lg overflow-auto text-sm">
+            {JSON.stringify(reportData, null, 2)}
+          </pre>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCallSummaryVisualization = () => {
+    const { summary, data, topDIDs, hourlyDistribution } = reportData;
+    
+    return (
+      <div className="space-y-6">
+        {/* Export Controls */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">Call Summary Report</h3>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportReport('csv')}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportReport('excel')}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Excel
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportReport('pdf')}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  PDF
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-blue-100">
+                <PhoneCall className="h-6 w-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Total Calls</p>
+                <p className="text-2xl font-semibold text-gray-900">{summary.totalCalls.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-green-100">
+                <Phone className="h-6 w-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Answered Calls</p>
+                <p className="text-2xl font-semibold text-gray-900">{summary.answeredCalls.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-purple-100">
+                <PhoneForwarded className="h-6 w-6 text-purple-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Transferred</p>
+                <p className="text-2xl font-semibold text-gray-900">{summary.transferredCalls.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-orange-100">
+                <Clock className="h-6 w-6 text-orange-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Avg Duration</p>
+                <p className="text-2xl font-semibold text-gray-900">{Math.round(summary.avgDuration)}s</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Key Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-blue-600">{summary.connectionRate}%</div>
+              <div className="text-sm text-gray-600 mt-1">Connection Rate</div>
+              <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full" 
+                  style={{ width: `${Math.min(parseFloat(summary.connectionRate), 100)}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-purple-600">{summary.transferRate}%</div>
+              <div className="text-sm text-gray-600 mt-1">Transfer Rate</div>
+              <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
+                <div 
+                  className="bg-purple-600 h-2 rounded-full" 
+                  style={{ width: `${Math.min(summary.transferRate, 100)}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-green-600">{summary.uniqueLeads.toLocaleString()}</div>
+              <div className="text-sm text-gray-600 mt-1">Unique Leads</div>
+              <div className="text-sm text-gray-500 mt-2">
+                {summary.totalCalls > 0 ? (summary.uniqueLeads / summary.totalCalls * 100).toFixed(1) : 0}% of total calls
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Call Status Breakdown */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900">Call Status Breakdown</h3>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{summary.answeredCalls}</div>
+                <div className="text-sm text-green-600">Answered</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {summary.totalCalls > 0 ? ((summary.answeredCalls / summary.totalCalls) * 100).toFixed(1) : 0}%
+                </div>
+              </div>
+              <div className="text-center p-4 bg-red-50 rounded-lg">
+                <div className="text-2xl font-bold text-red-600">{summary.failedCalls}</div>
+                <div className="text-sm text-red-600">Failed</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {summary.totalCalls > 0 ? ((summary.failedCalls / summary.totalCalls) * 100).toFixed(1) : 0}%
+                </div>
+              </div>
+              <div className="text-center p-4 bg-purple-50 rounded-lg">
+                <div className="text-2xl font-bold text-purple-600">{summary.transferredCalls}</div>
+                <div className="text-sm text-purple-600">Transferred</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {summary.totalCalls > 0 ? ((summary.transferredCalls / summary.totalCalls) * 100).toFixed(1) : 0}%
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Hourly Distribution Chart */}
+        {hourlyDistribution && hourlyDistribution.length > 0 && (
+          <div className="bg-white rounded-lg shadow">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">Hourly Call Distribution</h3>
+            </div>
+            <div className="p-6">
+              <div className="h-64 flex items-end justify-between space-x-2">
+                {hourlyDistribution.map((item) => {
+                  const maxCalls = Math.max(...hourlyDistribution.map(h => parseInt(h.calls)));
+                  const height = maxCalls > 0 ? (parseInt(item.calls) / maxCalls) * 100 : 0;
+                  
+                  return (
+                    <div key={item.hour} className="flex flex-col items-center flex-1">
+                      <div
+                        className="bg-blue-500 rounded-t w-full min-w-8"
+                        style={{ height: `${height}%` }}
+                        title={`Hour ${item.hour}: ${item.calls} calls`}
+                      />
+                      <span className="text-xs text-gray-500 mt-1">{item.hour}:00</span>
+                      <span className="text-xs text-gray-400">{item.calls}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Top DIDs Performance */}
+        {topDIDs && topDIDs.length > 0 && (
+          <div className="bg-white rounded-lg shadow">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">Top Performing DIDs</h3>
+            </div>
+            <div className="p-6">
+              <div className="space-y-4">
+                {topDIDs.map((did, index) => {
+                  const maxCalls = Math.max(...topDIDs.map(d => parseInt(d.callCount)));
+                  const percentage = maxCalls > 0 ? (parseInt(did.callCount) / maxCalls) * 100 : 0;
+                  
+                  return (
+                    <div key={did.from} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <span className="text-sm font-medium text-blue-600">#{index + 1}</span>
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900">{did.from}</div>
+                          <div className="text-sm text-gray-500">{did.callCount} calls</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="w-32 bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-blue-600 h-2 rounded-full" 
+                            style={{ width: `${percentage}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-sm font-medium text-gray-900 w-16 text-right">
+                          {((parseInt(did.callCount) / summary.totalCalls) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Daily Breakdown Table */}
+        {data && data.length > 0 && (
+          <div className="bg-white rounded-lg shadow">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">Daily Breakdown</h3>
+            </div>
+            <div className="p-6">
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 px-4 font-medium text-gray-900">Date</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-900">Total Calls</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-900">Answered</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-900">Failed</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-900">Transferred</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-900">Avg Duration</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-900">Total Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.map((day, index) => (
+                      <tr key={day.date} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                        <td className="py-3 px-4 font-medium text-gray-900">
+                          {new Date(day.date).toLocaleDateString()}
+                        </td>
+                        <td className="py-3 px-4 text-gray-900">{parseInt(day.totalCalls).toLocaleString()}</td>
+                        <td className="py-3 px-4 text-gray-900">{parseInt(day.answeredCalls).toLocaleString()}</td>
+                        <td className="py-3 px-4 text-gray-900">{parseInt(day.failedCalls).toLocaleString()}</td>
+                        <td className="py-3 px-4 text-gray-900">{parseInt(day.transferredCalls).toLocaleString()}</td>
+                        <td className="py-3 px-4 text-gray-900">{parseFloat(day.avgDuration).toFixed(1)}s</td>
+                        <td className="py-3 px-4 text-gray-900">
+                          {Math.floor(parseInt(day.totalDuration) / 60)}m {parseInt(day.totalDuration) % 60}s
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderJourneyAnalyticsVisualization = () => {
+    const journeys = reportData.journeys || [];
+    
+    return (
+      <div className="space-y-6">
+        {/* Export Controls */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">Journey Analytics Report</h3>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportReport('csv')}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportReport('excel')}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Excel
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportReport('pdf')}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  PDF
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-blue-100">
+                <Route className="h-6 w-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Total Journeys</p>
+                <p className="text-2xl font-semibold text-gray-900">{journeys.length}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-green-100">
+                <Users className="h-6 w-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Total Enrollments</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {journeys.reduce((sum, j) => sum + j.enrollments.totalEnrollments, 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-purple-100">
+                <CheckCircle className="h-6 w-6 text-purple-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Completed</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {journeys.reduce((sum, j) => sum + j.enrollments.completedEnrollments, 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-orange-100">
+                <TrendingUp className="h-6 w-6 text-orange-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Avg Conversion Rate</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {journeys.length > 0 
+                    ? (journeys.reduce((sum, j) => sum + parseFloat(j.conversionRate || '0'), 0) / journeys.length).toFixed(1)
+                    : '0'
+                  }%
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Journey Performance Overview */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900">Journey Performance Overview</h3>
+          </div>
+          <div className="p-6">
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">Journey</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">Steps</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">Enrollments</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">Active</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">Completed</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">Conversion Rate</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-900">Performance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {journeys.map((journey, index) => (
+                    <tr key={journey.journey.id} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                      <td className="py-3 px-4">
+                        <div>
+                          <div className="font-medium text-gray-900">{journey.journey.name}</div>
+                          {journey.journey.description && (
+                            <div className="text-sm text-gray-500">{journey.journey.description}</div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-gray-900">{journey.journey.stepCount}</td>
+                      <td className="py-3 px-4 text-gray-900">{journey.enrollments.totalEnrollments}</td>
+                      <td className="py-3 px-4 text-gray-900">{journey.enrollments.activeEnrollments}</td>
+                      <td className="py-3 px-4 text-gray-900">{journey.enrollments.completedEnrollments}</td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          parseFloat(journey.conversionRate || '0') >= 80 ? 'bg-green-100 text-green-800' :
+                          parseFloat(journey.conversionRate || '0') >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {journey.conversionRate || '0'}%
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-blue-600 h-2 rounded-full" 
+                            style={{ width: `${Math.min(parseFloat(journey.conversionRate || '0'), 100)}%` }}
+                          ></div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Individual Journey Details */}
+        {journeys.map((journey) => (
+          <div key={journey.journey.id} className="bg-white rounded-lg shadow">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-medium text-gray-900">{journey.journey.name}</h3>
+                <span className="text-sm text-gray-500">ID: {journey.journey.id}</span>
+              </div>
+              {journey.journey.description && (
+                <p className="text-sm text-gray-600 mt-1">{journey.journey.description}</p>
+              )}
+            </div>
+            
+            <div className="p-6">
+              {/* Enrollment Status */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="text-center p-4 bg-blue-50 rounded-lg">
+                  <div className="text-2xl font-bold text-blue-600">{journey.enrollments.totalEnrollments}</div>
+                  <div className="text-sm text-blue-600">Total Enrollments</div>
+                </div>
+                <div className="text-center p-4 bg-green-50 rounded-lg">
+                  <div className="text-2xl font-bold text-green-600">{journey.enrollments.activeEnrollments}</div>
+                  <div className="text-sm text-green-600">Active</div>
+                </div>
+                <div className="text-center p-4 bg-purple-50 rounded-lg">
+                  <div className="text-2xl font-bold text-purple-600">{journey.enrollments.completedEnrollments}</div>
+                  <div className="text-sm text-purple-600">Completed</div>
+                </div>
+                <div className="text-center p-4 bg-orange-50 rounded-lg">
+                  <div className="text-2xl font-bold text-orange-600">{journey.enrollments.exitedEnrollments}</div>
+                  <div className="text-sm text-orange-600">Exited</div>
+                </div>
+              </div>
+
+              {/* Conversion Funnel */}
+              <div className="mb-6">
+                <h4 className="text-md font-medium text-gray-900 mb-3">Conversion Funnel</h4>
+                <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-gray-900">{journey.conversionFunnel.uniqueLeads}</div>
+                    <div className="text-sm text-gray-600">Unique Leads</div>
+                  </div>
+                  <div className="flex-1 mx-4">
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-blue-600 h-2 rounded-full" style={{ width: '100%' }}></div>
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-gray-900">{journey.conversionFunnel.reachedFirstStep}</div>
+                    <div className="text-sm text-gray-600">First Step</div>
+                  </div>
+                  <div className="flex-1 mx-4">
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-green-600 h-2 rounded-full" 
+                        style={{ 
+                          width: `${journey.conversionFunnel.uniqueLeads > 0 
+                            ? (parseInt(journey.conversionFunnel.reachedFirstStep) / parseInt(journey.conversionFunnel.uniqueLeads)) * 100 
+                            : 0}%` 
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-gray-900">{journey.conversionFunnel.reachedLastStep}</div>
+                    <div className="text-sm text-gray-600">Last Step</div>
+                  </div>
+                  <div className="flex-1 mx-4">
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-purple-600 h-2 rounded-full" 
+                        style={{ 
+                          width: `${journey.conversionFunnel.uniqueLeads > 0 
+                            ? (parseInt(journey.conversionFunnel.reachedLastStep) / parseInt(journey.conversionFunnel.uniqueLeads)) * 100 
+                            : 0}%` 
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-gray-900">{journey.conversionFunnel.completed}</div>
+                    <div className="text-sm text-gray-600">Completed</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step Performance */}
+              <div>
+                <h4 className="text-md font-medium text-gray-900 mb-3">Step Performance</h4>
+                <div className="space-y-3">
+                  {Object.entries(journey.stepPerformance).map(([stepId, step]) => {
+                    const successRate = parseFloat(step.successRate?.toString() || '0');
+                    return (
+                      <div key={stepId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">{step.stepName}</div>
+                          <div className="text-sm text-gray-600">
+                            {step.completedExecutions} / {step.totalExecutions} executions
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="w-32 bg-gray-200 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full ${
+                                successRate >= 90 ? 'bg-green-500' :
+                                successRate >= 70 ? 'bg-yellow-500' :
+                                'bg-red-500'
+                              }`}
+                              style={{ width: `${Math.min(successRate, 100)}%` }}
+                            ></div>
+                          </div>
+                          <span className={`text-sm font-medium ${
+                            successRate >= 90 ? 'text-green-600' :
+                            successRate >= 70 ? 'text-yellow-600' :
+                            'text-red-600'
+                          }`}>
+                            {successRate.toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderTemplates = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-medium text-gray-900">Report Templates</h3>
+        <Button
+          onClick={() => setShowTemplateModal(true)}
+          className="flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Create Template
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {reportTemplates.map((template) => (
+          <div key={template.id} className="bg-white p-6 rounded-lg shadow">
+            <div className="flex justify-between items-start mb-4">
+              <h4 className="text-lg font-medium text-gray-900">{template.name}</h4>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => executeReportTemplate(template.id, { exportFormat: 'pdf' })}
+                >
+                  <Play className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedTemplate(template)}
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            <p className="text-sm text-gray-500 mb-2">Type: {template.type}</p>
+            {template.schedule?.enabled && (
+              <p className="text-sm text-green-600">
+                Scheduled: {template.schedule.frequency} at {template.schedule.time}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Recent Executions */}
+      <div>
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Executions</h3>
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Template
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Started
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {reportExecutions.map((execution) => (
+                <tr key={execution.id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {reportTemplates.find(t => t.id === execution.templateId)?.name || 'Unknown'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      execution.status === 'completed' ? 'bg-green-100 text-green-800' :
+                      execution.status === 'failed' ? 'bg-red-100 text-red-800' :
+                      execution.status === 'running' ? 'bg-blue-100 text-blue-800' :
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {execution.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(execution.startedAt).toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {execution.downloadUrl && (
+                      <a
+                        href={execution.downloadUrl}
+                        className="text-blue-600 hover:text-blue-900"
+                        download
+                      >
+                        <Download className="w-4 h-4" />
+                      </a>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -308,34 +1216,35 @@ export default function ReportsPage() {
   return (
     <DashboardLayout>
       <div className="py-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-semibold text-gray-900">Reports</h1>
-          <div className="flex items-center space-x-2">
-            {reportType === 'daily' && (
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-semibold text-gray-900">Reports & Analytics</h1>
+          <div className="flex items-center gap-2">
+            {reportType !== 'dashboard' && reportType !== 'templates' && (
               <>
-                <input
-                  type="date"
-                  className="py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  max={new Date().toISOString().split('T')[0]}
-                />
                 <Button
-                  onClick={() => fetchReport(selectedDate)}
-                  variant="primary"
-                  isLoading={isLoading}
+                  variant="outline"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center gap-2"
                 >
-                  <Calendar className="w-4 h-4 mr-2" />
-                  View Report
+                  <Filter className="w-4 h-4" />
+                  Filters
+                </Button>
+                <Button
+                  onClick={generateReport}
+                  isLoading={isLoading}
+                  className="flex items-center gap-2"
+                >
+                  <BarChart className="w-4 h-4" />
+                  Generate Report
                 </Button>
               </>
             )}
             <Button
-              onClick={handleRefresh}
               variant="outline"
-              isLoading={isLoading}
+              onClick={() => window.location.reload()}
+              className="flex items-center gap-2"
             >
-              <RefreshCw className="w-4 h-4 mr-2" />
+              <RefreshCw className="w-4 h-4" />
               Refresh
             </Button>
           </div>
@@ -343,264 +1252,22 @@ export default function ReportsPage() {
 
         {renderReportTypeSelector()}
 
+        {reportType !== 'dashboard' && reportType !== 'templates' && (
+          <>
+            {renderDateRangeSelector()}
+            {renderFilters()}
+          </>
+        )}
+
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700"></div>
           </div>
         ) : (
           <>
-            {reportType === 'daily' && (
-              report ? (
-                <div className="mt-6">
-                  <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-                    <div className="px-4 py-5 sm:px-6">
-                      <h3 className="text-lg leading-6 font-medium text-gray-900">
-                        Daily Call Report - {formatDate(report.date)}
-                      </h3>
-                      <p className="mt-1 max-w-2xl text-sm text-gray-500">
-                        Detailed metrics for call performance and agent activity.
-                      </p>
-                    </div>
-                    
-                    <div className="border-t border-gray-200 px-4 py-5 sm:p-6">
-                      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                        <div className="bg-gray-50 overflow-hidden shadow rounded-lg">
-                          <div className="p-5">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 bg-brand rounded-md p-3">
-                                <PhoneCall className="h-6 w-6 text-white" />
-                              </div>
-                              <div className="ml-5 w-0 flex-1">
-                                <dl>
-                                  <dt className="text-sm font-medium text-gray-500 truncate">Total Calls</dt>
-                                  <dd className="mt-1 text-3xl font-semibold text-gray-900">{report.totalCalls}</dd>
-                                </dl>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="bg-gray-100 px-5 py-3">
-                            <div className="text-sm">
-                              <div className="font-medium text-brand">
-                                Answered: {report.answeredCalls} ({calculatePercentage(report.answeredCalls, report.totalCalls)})
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="bg-gray-50 overflow-hidden shadow rounded-lg">
-                          <div className="p-5">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 bg-brand rounded-md p-3">
-                                <Phone className="h-6 w-6 text-white" />
-                              </div>
-                              <div className="ml-5 w-0 flex-1">
-                                <dl>
-                                  <dt className="text-sm font-medium text-gray-500 truncate">Connection Rate</dt>
-                                  <dd className="mt-1 text-3xl font-semibold text-gray-900">{report.connectionRate}</dd>
-                                </dl>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="bg-gray-100 px-5 py-3">
-                            <div className="text-sm">
-                              <div className="font-medium text-brand">
-                                Answered: {report.answeredCalls} of {report.totalCalls}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="bg-gray-50 overflow-hidden shadow rounded-lg">
-                          <div className="p-5">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 bg-brand rounded-md p-3">
-                                <PhoneForwarded className="h-6 w-6 text-white" />
-                              </div>
-                              <div className="ml-5 w-0 flex-1">
-                                <dl>
-                                  <dt className="text-sm font-medium text-gray-500 truncate">Transfers</dt>
-                                  <dd className="mt-1 text-3xl font-semibold text-gray-900">{report.transfers}</dd>
-                                </dl>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="bg-gray-100 px-5 py-3">
-                            <div className="text-sm">
-                              <div className="font-medium text-brand">
-                                Transfer Rate: {report.transferRate}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="bg-gray-50 overflow-hidden shadow rounded-lg">
-                          <div className="p-5">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 bg-brand rounded-md p-3">
-                                <Clock className="h-6 w-6 text-white" />
-                              </div>
-                              <div className="ml-5 w-0 flex-1">
-                                <dl>
-                                  <dt className="text-sm font-medium text-gray-500 truncate">Call Duration</dt>
-                                  <dd className="mt-1 text-3xl font-semibold text-gray-900">{report.callsOver5Min}</dd>
-                                  <dd className="mt-1 text-sm text-gray-500">calls over 5 minutes</dd>
-                                </dl>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="bg-gray-100 px-5 py-3">
-                            <div className="text-sm">
-                              <div className="font-medium text-brand">
-                                Long Calls: {report.callsOver15Min} (over 15 min)
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="border-t border-gray-200 px-4 py-5 sm:p-6">
-                      <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Call Duration Breakdown</h3>
-                      <div className="relative pt-1">
-                        <div className="flex mb-2 items-center justify-between">
-                          <div>
-                            <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full bg-brand bg-opacity-10 text-brand text-shadow-light">
-                              Under 1 Minute
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-xs font-semibold inline-block text-brand text-shadow-light">
-                              {calculatePercentage(report.answeredCalls - report.callsOver1Min, report.answeredCalls)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-brand bg-opacity-10">
-                          <div style={{ width: calculatePercentage(report.answeredCalls - report.callsOver1Min, report.answeredCalls) }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-brand"></div>
-                        </div>
-                      </div>
-                      
-                      <div className="relative pt-1">
-                        <div className="flex mb-2 items-center justify-between">
-                          <div>
-                            <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full bg-brand bg-opacity-10 text-brand text-shadow-light">
-                              1-5 Minutes
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-xs font-semibold inline-block text-brand text-shadow-light">
-                              {calculatePercentage(report.callsOver1Min - report.callsOver5Min, report.answeredCalls)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-brand bg-opacity-10">
-                          <div style={{ width: calculatePercentage(report.callsOver1Min - report.callsOver5Min, report.answeredCalls) }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-brand"></div>
-                        </div>
-                      </div>
-                      
-                      <div className="relative pt-1">
-                        <div className="flex mb-2 items-center justify-between">
-                          <div>
-                            <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full bg-brand bg-opacity-10 text-brand text-shadow-light">
-                              5-15 Minutes
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-xs font-semibold inline-block text-brand text-shadow-light">
-                              {calculatePercentage(report.callsOver5Min - report.callsOver15Min, report.answeredCalls)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-brand bg-opacity-10">
-                          <div style={{ width: calculatePercentage(report.callsOver5Min - report.callsOver15Min, report.answeredCalls) }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-brand"></div>
-                        </div>
-                      </div>
-                      
-                      <div className="relative pt-1">
-                        <div className="flex mb-2 items-center justify-between">
-                          <div>
-                            <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full bg-brand bg-opacity-10 text-brand text-shadow-light">
-                              Over 15 Minutes
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-xs font-semibold inline-block text-brand text-shadow-light">
-                              {calculatePercentage(report.callsOver15Min, report.answeredCalls)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-brand bg-opacity-10">
-                          <div style={{ width: calculatePercentage(report.callsOver15Min, report.answeredCalls) }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-brand"></div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
-                      <h3 className="text-lg leading-6 font-medium text-gray-900">Call Quality Summary</h3>
-                      <p className="mt-1 max-w-2xl text-sm text-gray-500">
-                        Overview of daily call performance metrics.
-                      </p>
-
-                      <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
-                        <div className="bg-white overflow-hidden shadow sm:rounded-lg">
-                          <div className="px-4 py-5 sm:p-6">
-                            <dl>
-                              <dt className="text-sm font-medium text-gray-500 truncate">Connection Performance</dt>
-                              <dd className="mt-1">
-                                <div className="flex justify-between items-baseline">
-                                  <div className="text-2xl font-semibold text-gray-900">{report.connectionRate}</div>
-                                  <div className="bg-brand bg-opacity-10 text-brand inline-flex items-baseline px-2.5 py-0.5 rounded-full text-sm font-medium md:mt-2 lg:mt-0 text-shadow-light">
-                                    Answered: {report.answeredCalls} of {report.totalCalls} calls connected
-                                  </div>
-                                </div>
-                              </dd>
-                            </dl>
-                          </div>
-                        </div>
-                        
-                        <div className="bg-white overflow-hidden shadow sm:rounded-lg">
-                          <div className="px-4 py-5 sm:p-6">
-                            <dl>
-                              <dt className="text-sm font-medium text-gray-500 truncate">Transfer Rate</dt>
-                              <dd className="mt-1">
-                                <div className="flex justify-between items-baseline">
-                                  <div className="text-2xl font-semibold text-gray-900">{report.transferRate}</div>
-                                  <div className="bg-brand bg-opacity-10 text-brand inline-flex items-baseline px-2.5 py-0.5 rounded-full text-sm font-medium md:mt-2 lg:mt-0 text-shadow-light">
-                                    Transfers: {report.transfers}
-                                  </div>
-                                </div>
-                              </dd>
-                            </dl>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                renderEmptyState('daily')
-              )
-            )}
-            {reportType === 'journey' && (
-              journeyStats?.activeJourneys > 0 ? (
-                renderJourneyStats()
-              ) : (
-                renderEmptyState('journey')
-              )
-            )}
-            {reportType === 'brand' && (
-              brandStats?.brandBreakdown?.length > 0 ? (
-                renderBrandStats()
-              ) : (
-                renderEmptyState('brand')
-              )
-            )}
-            {reportType === 'source' && (
-              sourceStats?.sourceBreakdown?.length > 0 ? (
-                renderSourceStats()
-              ) : (
-                renderEmptyState('source')
-              )
-            )}
+            {reportType === 'dashboard' && renderDashboard()}
+            {reportType === 'templates' && renderTemplates()}
+            {reportType !== 'dashboard' && reportType !== 'templates' && renderReportData()}
           </>
         )}
       </div>

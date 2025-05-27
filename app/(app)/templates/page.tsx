@@ -6,6 +6,8 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
 import { FileText, Plus, Edit, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'react-hot-toast';
+import api from '@/app/lib/api';
 
 // Placeholder type for a template
 interface Template {
@@ -28,17 +30,22 @@ export default function TemplatesPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Placeholder: fetch templates (replace with real API call)
+  // Replace the placeholder useEffect with a real API call
   useEffect(() => {
     setLoading(true);
-    setTimeout(() => {
-      setTemplates([
-        { id: '1', name: 'Welcome SMS', type: 'sms', updatedAt: '2024-06-01T12:00:00Z' },
-        { id: '2', name: 'Follow-up Email', type: 'email', updatedAt: '2024-06-02T09:30:00Z' },
-        { id: '3', name: 'Agent Script', type: 'script', updatedAt: '2024-06-03T15:45:00Z' },
-      ]);
-      setLoading(false);
-    }, 500);
+    api.templates.list({})
+      .then(response => {
+        console.log('API response:', response);
+        const templatesData = response.data?.templates || [];
+        setTemplates(templatesData);
+      })
+      .catch(error => {
+        console.error('Error fetching templates:', error);
+        toast.error('Failed to load templates');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   const filteredTemplates = templates.filter(t =>
