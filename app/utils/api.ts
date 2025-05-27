@@ -264,9 +264,71 @@ export const getAgentStatus = async (params: {
   ingroup: string;
   user: string;
   pass: string;
-}) => {
-  const response = await api.get('/agent-status', { params });
-  return response.data;
+}): Promise<AgentStatus[]> => {
+  try {
+    console.log('getAgentStatus called with params:', params);
+    
+    // Validate required parameters
+    if (!params.url) {
+      throw new Error('URL is required for agent status check');
+    }
+    if (!params.ingroup) {
+      throw new Error('Ingroup is required for agent status check');
+    }
+    if (!params.user) {
+      throw new Error('User is required for agent status check');
+    }
+    if (!params.pass) {
+      throw new Error('Password is required for agent status check');
+    }
+
+    // Transform the parameters to match backend expectations
+    const backendParams = {
+      url: params.url,
+      user: params.user,
+      pass: params.pass,
+      ingroups: params.ingroup  // Backend expects 'ingroups' not 'ingroup'
+    };
+
+    console.log('Sending to backend with params:', backendParams);
+
+    // Make the API call
+    const response = await api.get('/agent-status', { params: backendParams });
+    console.log('getAgentStatus response:', response.data);
+    
+    // Extract the data array from the response
+    const responseData = response.data;
+    if (responseData && Array.isArray(responseData.data)) {
+      return responseData.data;
+    } else if (Array.isArray(responseData)) {
+      return responseData;
+    } else {
+      console.warn('Unexpected response format:', responseData);
+      return [];
+    }
+  } catch (error: any) {
+    console.error('Error in getAgentStatus:', error);
+    
+    // Provide more specific error messages
+    if (error.response) {
+      console.error('Response status:', error.response.status);
+      console.error('Response data:', error.response.data);
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication failed. Please check your credentials.');
+      } else if (error.response.status === 404) {
+        throw new Error('Agent status endpoint not found. Please check your URL configuration.');
+      } else if (error.response.status >= 500) {
+        throw new Error('Server error occurred. Please try again later.');
+      } else if (error.response.status === 400) {
+        throw new Error('Invalid request parameters. Please check your configuration.');
+      }
+    } else if (error.request) {
+      throw new Error('Network error. Please check your connection and URL configuration.');
+    }
+    
+    throw error;
+  }
 };
 
 // Call Management APIs
@@ -652,12 +714,49 @@ export const getAgentStatusReport = async (params: {
   ingroup: string;
   user: string;
   pass: string;
-}) => {
+}): Promise<AgentStatus[]> => {
   try {
-    const response = await api.get('/agent-status', { params });
-    return response.data;
-  } catch (error) {
+    console.log('getAgentStatusReport called with params:', params);
+    
+    // Transform the parameters to match backend expectations
+    const backendParams = {
+      url: params.url,
+      user: params.user,
+      pass: params.pass,
+      ingroups: params.ingroup  // Backend expects 'ingroups' not 'ingroup'
+    };
+
+    const response = await api.get('/agent-status', { params: backendParams });
+    console.log('getAgentStatusReport response:', response.data);
+    
+    // Extract the data array from the response
+    const responseData = response.data;
+    if (responseData && Array.isArray(responseData.data)) {
+      return responseData.data;
+    } else if (Array.isArray(responseData)) {
+      return responseData;
+    } else {
+      console.warn('Unexpected response format:', responseData);
+      return [];
+    }
+  } catch (error: any) {
     console.error('Error fetching agent status:', error);
+    
+    // Provide more specific error messages
+    if (error.response) {
+      if (error.response.status === 401) {
+        throw new Error('Authentication failed. Please check your credentials.');
+      } else if (error.response.status === 404) {
+        throw new Error('Agent status endpoint not found. Please check your URL configuration.');
+      } else if (error.response.status >= 500) {
+        throw new Error('Server error occurred. Please try again later.');
+      } else if (error.response.status === 400) {
+        throw new Error('Invalid request parameters. Please check your configuration.');
+      }
+    } else if (error.request) {
+      throw new Error('Network error. Please check your connection and URL configuration.');
+    }
+    
     throw error;
   }
 };

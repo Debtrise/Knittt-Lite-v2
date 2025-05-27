@@ -160,10 +160,25 @@ export default function SettingsPage() {
       return;
     }
 
+    if (!tenantData?.apiConfig?.url) {
+      toast.error('No API URL configured');
+      return;
+    }
+
+    if (!tenantData?.apiConfig?.user || !tenantData?.apiConfig?.password) {
+      toast.error('API credentials not configured');
+      return;
+    }
+
     setIsRefreshing(true);
     try {
       const group = tenantData.apiConfig.ingroup || tenantData.apiConfig.ingroups;
-      const status = await getAgentStatus(group);
+      const status = await getAgentStatus({
+        url: tenantData.apiConfig.url,
+        ingroup: group,
+        user: tenantData.apiConfig.user,
+        pass: tenantData.apiConfig.password
+      });
       setAgentStatus(Array.isArray(status) ? status : []);
     } catch (error) {
       console.error('Error fetching agent status:', error);

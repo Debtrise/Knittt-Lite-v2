@@ -640,7 +640,16 @@ export const system = {
     ingroup: string;
     user: string;
     pass: string;
-  }) => api.get('/agent-status', { params }),
+  }) => {
+    // Transform parameters to match backend expectations
+    const backendParams = {
+      url: params.url,
+      user: params.user,
+      pass: params.pass,
+      ingroups: params.ingroup  // Backend expects 'ingroups' not 'ingroup'
+    };
+    return api.get('/agent-status', { params: backendParams });
+  },
   getDailyReport: (date: string) =>
     api.get('/reports/daily', { params: { date } }),
   getModuleStatus: () => api.get('/system/module-status'),

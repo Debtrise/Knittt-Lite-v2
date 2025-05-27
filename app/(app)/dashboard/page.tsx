@@ -88,7 +88,7 @@ export default function DashboardPage() {
       console.log('Making API call with group:', currentGroup);
       const response = await api.system.getAgentStatus({
         url: tenantConfig?.apiConfig?.url || '',
-        ingroups: currentGroup,
+        ingroup: currentGroup,
         user: tenantConfig?.apiConfig?.user || user.username,
         pass: tenantConfig?.apiConfig?.password || ''
       });
@@ -132,7 +132,7 @@ export default function DashboardPage() {
               console.log('Fetching agent status for group:', group);
               const statusResponse = await api.system.getAgentStatus({
                 url: tenantData.apiConfig?.url || '',
-                ingroups: group,
+                ingroup: group,
                 user: tenantData.apiConfig?.user || user.username,
                 pass: tenantData.apiConfig?.password || ''
               });
