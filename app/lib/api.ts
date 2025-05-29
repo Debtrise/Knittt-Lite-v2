@@ -254,6 +254,7 @@ export const dids = {
   }) => api.put(`/dids/${id}`, data),
   delete: (id: string) => api.delete(`/dids/${id}`),
   bulkDelete: (ids: number[]) => api.post('/dids/bulk-delete', { ids }),
+  bulkUpload: (fileContent: string) => api.post('/dids/bulk-upload', { fileContent }),
 };
 
 // Journey endpoints
