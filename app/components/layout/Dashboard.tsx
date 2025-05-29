@@ -24,7 +24,6 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
     { name: 'Calls', href: '/calls', icon: <Phone className="w-6 h-6" /> },
     { name: 'DIDs', href: '/dids', icon: <Layers className="w-6 h-6" /> },
     { name: 'Transfer Groups', href: '/settings/transfer-groups', icon: <GitBranch className="w-6 h-6" /> },
-    { name: 'Recordings', href: '/recordings', icon: <Mic className="w-6 h-6" /> },
     { name: 'Templates', href: '/templates', icon: <FileText className="w-6 h-6" /> },
     { name: 'Webhooks', href: '/webhooks', icon: <Link2 className="w-6 h-6" /> },
     { name: 'Reports', href: '/reports', icon: <FileText className="w-6 h-6" /> },

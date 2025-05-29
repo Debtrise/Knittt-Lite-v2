@@ -26,7 +26,6 @@ import {
   createReportTemplate,
   executeReportTemplate,
   listReportExecutions,
-  getDashboardStats,
   getTodaysStats,
   getHourlyBreakdown
 } from '@/app/utils/api';
@@ -65,7 +64,7 @@ export default function ReportsPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
-  const [reportType, setReportType] = useState<ReportType>('dashboard');
+  const [reportType, setReportType] = useState<ReportType>('call-summary');
   
   // Dashboard data
   const [dashboardStats, setDashboardStats] = useState<any>(null);
@@ -121,13 +120,12 @@ export default function ReportsPage() {
 
   const fetchDashboardData = async () => {
     try {
-      const [dashStats, todayStats, hourlyStats] = await Promise.all([
-        getDashboardStats(),
+      const [todayStats, hourlyStats] = await Promise.all([
         getTodaysStats(),
         getHourlyBreakdown()
       ]);
       
-      setDashboardStats(dashStats);
+      setDashboardStats(todayStats); // Use today's stats as dashboard stats
       setTodaysStats(todayStats);
       setHourlyBreakdown(hourlyStats);
     } catch (error) {
@@ -255,14 +253,8 @@ export default function ReportsPage() {
   const renderReportTypeSelector = () => (
     <div className="flex flex-wrap gap-2 mb-6">
       {[
-        { key: 'dashboard', label: 'Dashboard', icon: Activity },
         { key: 'call-summary', label: 'Call Summary', icon: PhoneCall },
-        { key: 'sms-summary', label: 'SMS Summary', icon: MessageSquare },
-        { key: 'agent-performance', label: 'Agent Performance', icon: Users },
-        { key: 'lead-conversion', label: 'Lead Conversion', icon: TrendingUp },
         { key: 'journey-analytics', label: 'Journey Analytics', icon: Route },
-        { key: 'custom', label: 'Custom Reports', icon: Database },
-        { key: 'templates', label: 'Templates', icon: FileText }
       ].map(({ key, label, icon: Icon }) => (
         <Button
           key={key}

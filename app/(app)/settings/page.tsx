@@ -11,7 +11,7 @@ import { Input } from '@/app/components/ui/Input';
 import { getAgentStatus, updateTenantSettings, getTenant, updateTenant } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
 import api from '@/app/utils/api';
-import { recordings } from '@/app/lib/api';
+import { recordings, freepbx } from '@/app/lib/api';
 
 type AgentStatus = {
   ingroup: string;
@@ -59,6 +59,13 @@ type TenantData = {
     username: string;
     password: string;
   };
+  freepbxConfig?: {
+    serverUrl: string;
+    username: string;
+    password: string;
+    isActive: boolean;
+    autoUpload: boolean;
+  };
 };
 
 type TestResult = {
@@ -97,6 +104,13 @@ type SettingsFormData = {
   };
   elevenLabsConfig: {
     apiKey: string;
+  };
+  freepbxConfig: {
+    serverUrl: string;
+    username: string;
+    password: string;
+    isActive: boolean;
+    autoUpload: boolean;
   };
 };
 
@@ -148,6 +162,13 @@ export default function SettingsPage() {
       },
       elevenLabsConfig: {
         apiKey: '',
+      },
+      freepbxConfig: {
+        serverUrl: '',
+        username: '',
+        password: '',
+        isActive: false,
+        autoUpload: false,
       },
     }
   });
@@ -247,6 +268,14 @@ export default function SettingsPage() {
               setValue('amiConfig.username', data.amiConfig.username || '');
               setValue('amiConfig.password', data.amiConfig.password || '');
             }
+
+            if (data.freepbxConfig) {
+              setValue('freepbxConfig.serverUrl', data.freepbxConfig.serverUrl || '');
+              setValue('freepbxConfig.username', data.freepbxConfig.username || '');
+              setValue('freepbxConfig.password', data.freepbxConfig.password || '');
+              setValue('freepbxConfig.isActive', data.freepbxConfig.isActive || false);
+              setValue('freepbxConfig.autoUpload', data.freepbxConfig.autoUpload || false);
+            }
           }
 
           // Fetch Eleven Labs configuration
@@ -319,6 +348,7 @@ export default function SettingsPage() {
         dialerConfig: data.dialerConfig,
         schedule: data.schedule,
         amiConfig: data.amiConfig,
+        freepbxConfig: data.freepbxConfig,
       });
 
       // Update Eleven Labs configuration if changed
@@ -790,6 +820,132 @@ export default function SettingsPage() {
                 isLoading={isSubmitting}
               >
                 Save Eleven Labs Settings
+              </Button>
+            </div>
+          </form>
+        </div>
+
+        {/* FreePBX Configuration Section */}
+        <div className="mt-6 bg-white shadow rounded-lg p-6">
+          <div className="flex items-center mb-4">
+            <Phone className="h-5 w-5 text-brand mr-2" />
+            <h2 className="text-lg font-medium text-gray-900">FreePBX Configuration</h2>
+          </div>
+
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+            <p className="text-sm text-green-800">
+              Configure FreePBX integration to automatically upload recordings to your PBX system. 
+              Recordings will be available in FreePBX under Admin → System Recordings.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  FreePBX Server URL
+                </label>
+                <Input
+                  type="url"
+                  {...register('freepbxConfig.serverUrl', { 
+                    required: 'Server URL is required',
+                    pattern: {
+                      value: /^https?:\/\/.+/,
+                      message: 'Please enter a valid URL starting with http:// or https://'
+                    }
+                  })}
+                  placeholder="https://dial.knittt.com"
+                />
+                {errors.freepbxConfig?.serverUrl && (
+                  <p className="mt-1 text-sm text-red-600">{errors.freepbxConfig.serverUrl.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Username
+                </label>
+                <Input
+                  {...register('freepbxConfig.username', { required: 'Username is required' })}
+                  placeholder="admin"
+                />
+                {errors.freepbxConfig?.username && (
+                  <p className="mt-1 text-sm text-red-600">{errors.freepbxConfig.username.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Password
+                </label>
+                <Input
+                  type="password"
+                  {...register('freepbxConfig.password', { required: 'Password is required' })}
+                  placeholder="Enter FreePBX password"
+                />
+                {errors.freepbxConfig?.password && (
+                  <p className="mt-1 text-sm text-red-600">{errors.freepbxConfig.password.message}</p>
+                )}
+              </div>
+
+              <div className="flex flex-col space-y-3">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    {...register('freepbxConfig.isActive')}
+                    className="h-4 w-4 text-brand focus:ring-brand border-gray-300 rounded"
+                  />
+                  <label className="ml-2 block text-sm text-gray-700">
+                    Enable FreePBX Integration
+                  </label>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    {...register('freepbxConfig.autoUpload')}
+                    className="h-4 w-4 text-brand focus:ring-brand border-gray-300 rounded"
+                    disabled={!watch('freepbxConfig.isActive')}
+                  />
+                  <label className="ml-2 block text-sm text-gray-700">
+                    Auto-upload recordings to FreePBX
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={async () => {
+                  // Test FreePBX connection
+                  const formData = watch('freepbxConfig');
+                  try {
+                    setIsTesting(true);
+                    const response = await freepbx.test({
+                      serverUrl: formData.serverUrl,
+                      username: formData.username,
+                      password: formData.password
+                    });
+                    toast.success(`FreePBX connection test successful! Connected to ${response.data.version}`);
+                  } catch (error: any) {
+                    const errorMessage = error.response?.data?.error || 'FreePBX connection test failed';
+                    toast.error(errorMessage);
+                  } finally {
+                    setIsTesting(false);
+                  }
+                }}
+                isLoading={isTesting}
+              >
+                Test Connection
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                isLoading={isSubmitting}
+              >
+                Save FreePBX Settings
               </Button>
             </div>
           </form>

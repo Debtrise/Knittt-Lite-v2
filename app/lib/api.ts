@@ -32,12 +32,26 @@ const smsApi = axios.create({
   },
 });
 
-// Add request interceptor to add auth token
+// Add request interceptor to add auth token and tenant ID
 const addAuthToken = (config: any) => {
   const token = useAuthStore.getState().token;
+  const user = useAuthStore.getState().user;
+  
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  
+  // Add tenant ID to headers for all requests
+  if (user?.tenantId) {
+    config.headers['X-Tenant-ID'] = user.tenantId;
+    
+    // For FreePBX related endpoints, also add as query parameter
+    if (config.url && (config.url.includes('freepbx') || config.url.includes('upload-to-freepbx'))) {
+      const separator = config.url.includes('?') ? '&' : '?';
+      config.url += `${separator}tenantId=${user.tenantId}`;
+    }
+  }
+  
   return config;
 };
 
@@ -685,10 +699,16 @@ export const recordings = {
   delete: (id: string) => api.delete(`/recordings/${id}`),
   generateAudio: (id: string) => 
     api.post(`/recordings/${id}/generate`),
-  uploadAudio: (formData: FormData) => 
-    api.post('/recordings/upload', formData, {
+  uploadAudio: (formData: FormData) => {
+    const user = useAuthStore.getState().user;
+    // Add tenant ID to form data
+    if (user?.tenantId) {
+      formData.append('tenantId', user.tenantId);
+    }
+    return api.post('/recordings/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+    });
+  },
   // New streaming endpoints
   stream: (id: string) => 
     api.get(`/recordings/${id}/stream`, {
@@ -772,6 +792,65 @@ export const recordingTemplates = {
   }) => api.post(`/recording-templates/${id}/create-recording`, data),
 };
 
+// FreePBX Integration - Updated based on test results
+export const freepbx = {
+  // ✅ WORKING: Test FreePBX connection 
+  test: (data: {
+    serverUrl: string;
+    username: string;
+    password: string;
+  }) => {
+    const user = useAuthStore.getState().user;
+    return api.post('/recordings/test-freepbx', {
+      ...data,
+      tenantId: user?.tenantId || '1' // Include tenant ID explicitly
+    });
+  },
+  
+  // ✅ WORKING: Sync recording status with FreePBX
+  syncRecording: async (recordingId: string) => {
+    try {
+      const user = useAuthStore.getState().user;
+      const tenantId = user?.tenantId || '1';
+      
+      return await api.post(`/recordings/${recordingId}/sync-freepbx?tenantId=${tenantId}`, {
+        tenantId: tenantId
+      });
+    } catch (error: any) {
+      console.error('FreePBX sync error:', error);
+      throw error;
+    }
+  },
+
+  // ⚠️ PARTIAL: Upload to FreePBX (endpoint exists but may fail)
+  uploadRecording: async (recordingId: string) => {
+    try {
+      const user = useAuthStore.getState().user;
+      const tenantId = user?.tenantId || '1';
+      
+      // Include tenant ID in both body and query params
+      return await api.post(`/recordings/${recordingId}/upload-to-freepbx?tenantId=${tenantId}`, {
+        tenantId: tenantId // Include tenant ID explicitly in body
+      });
+    } catch (error: any) {
+      // Handle specific error cases
+      if (error.response?.status === 404) {
+        throw new Error('FreePBX upload functionality is not yet implemented on the backend. Please contact your system administrator.');
+      }
+      if (error.response?.data?.error?.includes('Upload failed')) {
+        throw new Error('FreePBX upload failed. Please check your FreePBX server connection and credentials.');
+      }
+      throw error;
+    }
+  },
+
+  // ❌ NOT IMPLEMENTED: These endpoints don't exist or have issues on the backend
+  // configure: () => { throw new Error('Configure endpoint not implemented on backend'); },
+  // getConfig: () => { throw new Error('GetConfig endpoint not implemented on backend'); },
+  // listRecordings: () => { throw new Error('ListRecordings endpoint has routing issues on backend'); },
+  // setupDefault: () => { throw new Error('SetupDefault endpoint not implemented on backend'); },
+};
+
 export default {
   auth,
   users,
@@ -791,4 +870,5 @@ export default {
   system,
   recordings,
   recordingTemplates,
+  freepbx,
 }; 

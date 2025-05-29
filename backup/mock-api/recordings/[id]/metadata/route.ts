@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-// In-memory storage (in a real app, this would be a database)
-let recordings: any[] = [];
+import { findRecordingById } from '../../shared-store';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const recording = recordings.find(r => r.id === params.id);
+    const recording = findRecordingById(params.id);
     
     if (!recording) {
       return NextResponse.json(
@@ -24,6 +22,8 @@ export async function GET(
       duration: recording.metadata?.duration || 0,
       characterCount: recording.metadata?.characterCount || recording.scriptText?.length || 0,
       isAvailable: recording.metadata?.isAvailable || false,
+      canStream: recording.metadata?.canStream || false,
+      hasLocalFile: recording.metadata?.hasLocalFile || false,
       lastGenerated: recording.metadata?.lastGenerated,
       audioSize: recording.metadata?.audioSize || 0,
       format: 'mp3',

@@ -4,11 +4,11 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Plus, PhoneOutgoing, CheckCircle, XCircle, Edit, Trash2 } from 'lucide-react';
+import { Plus, PhoneOutgoing, CheckCircle, XCircle, Edit, Trash2, Upload } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
-import { getDIDs, addDID, updateDID, deleteDID, bulkDeleteDIDs } from '@/app/utils/api';
+import { getDIDs, createDID, updateDID, deleteDID, bulkDeleteDIDs, bulkUploadDIDs } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
 
 type DID = {
@@ -37,6 +37,10 @@ type UpdateDIDFormData = {
   isActive: boolean;
 };
 
+type UploadFormData = {
+  fileContent: string;
+};
+
 export default function DIDsPage() {
   const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
@@ -54,9 +58,14 @@ export default function DIDsPage() {
   const [stateFilter, setStateFilter] = useState('');
   const [uniqueAreaCodes, setUniqueAreaCodes] = useState<string[]>([]);
   const [uniqueStates, setUniqueStates] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadIsLoading, setUploadIsLoading] = useState(false);
+  const [uploadMethod, setUploadMethod] = useState<'text' | 'file'>('text');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const addForm = useForm<AddDIDFormData>();
   const editForm = useForm<UpdateDIDFormData>();
+  const uploadForm = useForm<UploadFormData>();
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -106,7 +115,7 @@ export default function DIDsPage() {
 
   const onAddSubmit = async (data: AddDIDFormData) => {
     try {
-      await addDID(data);
+      await createDID(data);
       toast.success('DID added successfully');
       addForm.reset();
       setIsAdding(false);
@@ -214,7 +223,57 @@ export default function DIDsPage() {
   const clearFilters = () => {
     setAreaCodeFilter('');
     setStateFilter('');
+    setCurrentPage(1);
     fetchDIDs(1);
+  };
+
+  const onUploadSubmit = async (data: UploadFormData) => {
+    setUploadIsLoading(true);
+    
+    try {
+      const response = await bulkUploadDIDs(data.fileContent);
+      
+      // Handle both regular and chunked upload responses
+      if (response.chunks) {
+        toast.success(`${response.message}. Processed ${response.chunks} chunks.`);
+      } else {
+        toast.success(response.message || 'DIDs uploaded successfully');
+      }
+      
+      // Show detailed results if available
+      if (response.summary) {
+        const { totalRows, created, alreadyExists } = response.summary;
+        console.log(`Upload Summary: ${totalRows} total rows, ${created} created, ${alreadyExists} already existed`);
+      }
+      
+      uploadForm.reset();
+      setIsUploading(false);
+      fetchDIDs(1); // Refresh DIDs
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast.error(error.response?.data?.error || 'Failed to upload DIDs');
+    } finally {
+      setUploadIsLoading(false);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      
+      // Check file size (warn if over 1MB)
+      const maxSize = 1024 * 1024; // 1MB
+      if (file.size > maxSize) {
+        toast.warning(`Large file detected (${(file.size / 1024 / 1024).toFixed(1)}MB). This will be processed in chunks.`);
+      }
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const csvContent = event.target?.result as string;
+        uploadForm.setValue('fileContent', csvContent);
+      };
+      reader.readAsText(file);
+    }
   };
 
   if (!isAuthenticated) {
@@ -227,10 +286,19 @@ export default function DIDsPage() {
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-semibold text-gray-900">Direct Inward Dialing (DIDs)</h1>
           {user?.role === 'admin' && (
-            <Button onClick={() => setIsAdding(!isAdding)} variant="primary">
-              <Plus className="w-4 h-4 mr-2" />
-              Add DID
-            </Button>
+            <div className="flex space-x-3">
+              <Button
+                onClick={() => setIsUploading(!isUploading)}
+                variant="secondary"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Upload DIDs
+              </Button>
+              <Button onClick={() => setIsAdding(!isAdding)} variant="primary">
+                <Plus className="w-4 h-4 mr-2" />
+                Add DID
+              </Button>
+            </div>
           )}
         </div>
 
@@ -389,6 +457,145 @@ export default function DIDsPage() {
                     </Button>
                   </div>
                 </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isUploading && (
+          <div className="mt-6 bg-white shadow px-4 py-5 sm:rounded-lg sm:p-6">
+            <div className="md:grid md:grid-cols-3 md:gap-6">
+              <div className="md:col-span-1">
+                <h3 className="text-lg font-medium leading-6 text-gray-900">Upload DIDs</h3>
+                <p className="mt-1 text-sm text-gray-600">
+                  Upload multiple DIDs from a CSV file or paste the CSV content directly.
+                </p>
+                <div className="mt-4">
+                  <div className="flex space-x-4">
+                    <button
+                      type="button"
+                      onClick={() => setUploadMethod('text')}
+                      className={`px-3 py-2 text-sm font-medium rounded-md ${
+                        uploadMethod === 'text' 
+                          ? 'bg-brand text-white' 
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Paste CSV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUploadMethod('file')}
+                      className={`px-3 py-2 text-sm font-medium rounded-md ${
+                        uploadMethod === 'file' 
+                          ? 'bg-brand text-white' 
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Upload File
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-5 md:mt-0 md:col-span-2">
+                {uploadMethod === 'text' ? (
+                  <form onSubmit={uploadForm.handleSubmit(onUploadSubmit)}>
+                    <div className="grid grid-cols-6 gap-6">
+                      <div className="col-span-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">CSV Content</label>
+                        <textarea
+                          id="fileContent"
+                          rows={10}
+                          className="shadow-sm focus:ring-brand focus:border-brand block w-full sm:text-sm border border-gray-300 rounded-md"
+                          placeholder="phoneNumber,description,areaCode,state&#10;5551234567,Main Office,555,CA&#10;5559876543,Support Line,555,NY"
+                          {...uploadForm.register('fileContent', { 
+                            required: 'CSV content is required',
+                          })}
+                        ></textarea>
+                        {uploadForm.formState.errors.fileContent && (
+                          <p className="mt-1 text-sm text-red-600">{uploadForm.formState.errors.fileContent.message}</p>
+                        )}
+                        <div className="mt-2 text-sm text-gray-500">
+                          <p className="font-medium">Supported CSV format:</p>
+                          <p>Headers: phoneNumber, description, areaCode, state</p>
+                          <p>Phone numbers should be 10-15 digits (non-numeric characters will be stripped)</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6 flex justify-end">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="mr-3"
+                        onClick={() => setIsUploading(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="submit"
+                        variant="primary"
+                        isLoading={uploadIsLoading}
+                      >
+                        Upload DIDs
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <div>
+                    <div className="grid grid-cols-6 gap-6">
+                      <div className="col-span-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">CSV File</label>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".csv"
+                          onChange={handleFileChange}
+                          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-brand file:bg-opacity-10 file:text-brand hover:file:bg-brand hover:file:bg-opacity-20"
+                        />
+                        <div className="mt-4 p-3 bg-gray-50 rounded-md">
+                          <h4 className="text-sm font-medium text-gray-700">Example CSV format:</h4>
+                          <pre className="mt-1 text-xs text-gray-600">phoneNumber,description,areaCode,state
+5551234567,Main Office,555,CA
+5559876543,Support Line,555,NY
+8001234567,Toll Free,800,</pre>
+                          <div className="mt-2 text-xs text-gray-500">
+                            <p>• Phone Number: Required, 10-15 digits</p>
+                            <p>• Description: Optional description for the DID</p>
+                            <p>• Area Code: Optional, auto-extracted if not provided</p>
+                            <p>• State: Optional state abbreviation</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6 flex justify-end">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="mr-3"
+                        onClick={() => setIsUploading(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="primary"
+                        isLoading={uploadIsLoading}
+                        disabled={!uploadForm.watch('fileContent') || uploadIsLoading}
+                        onClick={() => {
+                          const fileContent = uploadForm.getValues('fileContent');
+                          if (fileContent) {
+                            onUploadSubmit({ fileContent });
+                          }
+                        }}
+                      >
+                        Upload DIDs
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
