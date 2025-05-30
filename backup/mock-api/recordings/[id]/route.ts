@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { findRecordingById, updateRecording, deleteRecording } from '../shared-store';
 
 // Import the recordings array from the main route (in a real app, this would be a database)
 // For now, we'll recreate it here - in a real app you'd use a shared database
@@ -9,7 +10,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const recording = recordings.find(r => r.id === params.id);
+    const recording = findRecordingById(params.id);
     
     if (!recording) {
       return NextResponse.json(
@@ -34,24 +35,21 @@ export async function PUT(
 ) {
   try {
     const body = await request.json();
-    const recordingIndex = recordings.findIndex(r => r.id === params.id);
     
-    if (recordingIndex === -1) {
+    const updatedRecording = updateRecording(params.id, {
+      ...body,
+      updatedAt: new Date().toISOString()
+    });
+    
+    if (!updatedRecording) {
       return NextResponse.json(
         { error: 'Recording not found' },
         { status: 404 }
       );
     }
 
-    // Update recording
-    recordings[recordingIndex] = {
-      ...recordings[recordingIndex],
-      ...body,
-      updatedAt: new Date().toISOString()
-    };
-
     return NextResponse.json({
-      data: recordings[recordingIndex],
+      data: updatedRecording,
       success: true
     });
   } catch (error) {
@@ -68,17 +66,14 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const recordingIndex = recordings.findIndex(r => r.id === params.id);
+    const deletedRecording = deleteRecording(params.id);
     
-    if (recordingIndex === -1) {
+    if (!deletedRecording) {
       return NextResponse.json(
         { error: 'Recording not found' },
         { status: 404 }
       );
     }
-
-    // Remove recording
-    recordings.splice(recordingIndex, 1);
 
     return NextResponse.json({
       success: true,

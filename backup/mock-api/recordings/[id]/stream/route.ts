@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { findRecordingById } from '../../shared-store';
 
 // In-memory storage (in a real app, this would be a database)
 let recordings: any[] = [];
@@ -8,7 +9,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const recording = recordings.find(r => r.id === params.id);
+    const recording = findRecordingById(params.id);
     
     if (!recording) {
       return NextResponse.json(
@@ -17,6 +18,22 @@ export async function GET(
       );
     }
 
+    // Check if this is an uploaded file with stored audio data
+    if (recording._audioData) {
+      const audioData = new Uint8Array(recording._audioData);
+      
+      return new NextResponse(audioData, {
+        status: 200,
+        headers: {
+          'Content-Type': 'audio/mpeg',
+          'Content-Length': audioData.length.toString(),
+          'Accept-Ranges': 'bytes',
+          'Cache-Control': 'public, max-age=3600',
+        },
+      });
+    }
+
+    // For generated recordings, check if available
     if (!recording.metadata?.isAvailable) {
       return NextResponse.json(
         { error: 'Audio not available. Please generate it first.' },
@@ -29,7 +46,7 @@ export async function GET(
     // 2. Stream the actual audio file
     // 3. Handle range requests for seeking
     
-    // For development/testing, we'll return a mock audio response
+    // For development/testing, we'll return a mock audio response for generated recordings
     // You could also redirect to a sample audio file or generate a tone
     
     // Create a simple audio tone for testing (440Hz sine wave)
@@ -54,7 +71,7 @@ export async function GET(
     headerView.setUint32(4, 36 + samples * 2, true); // file size
     headerView.setUint32(8, 0x45564157, false); // "WAVE"
     headerView.setUint32(12, 0x20746d66, false); // "fmt "
-    headerView.setUint32(16, 16, true); // fmt chunk size
+    headerView.setUint32(16, 16, true);
     headerView.setUint16(20, 1, true); // PCM format
     headerView.setUint16(22, 1, true); // mono
     headerView.setUint32(24, sampleRate, true); // sample rate

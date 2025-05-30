@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -37,11 +37,11 @@ import { BulkEnrollCriteria, JourneyMatchingStats } from '@/app/types/lead';
 import JourneyFlow from '@/app/components/journey-builder/JourneyFlow';
 import StepEditor from '@/app/components/journey-builder/StepEditor';
 
-export default function JourneyDetailPage() {
+export default function JourneyDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const params = useParams();
+  const resolvedParams = use(params);
   const { isAuthenticated } = useAuthStore();
-  const journeyId = parseInt(params.id as string, 10);
+  const journeyId = parseInt(resolvedParams.id, 10);
   
   const [journey, setJourney] = useState<JourneyWithSteps | null>(null);
   const [steps, setSteps] = useState<JourneyStep[]>([]);

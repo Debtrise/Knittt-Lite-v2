@@ -10,6 +10,7 @@ export interface Lead {
   createdAt: string;
   additionalData?: Record<string, any>;
   ageDays?: number;
+  tags?: string[];
 }
 
 export interface LeadDetail extends Lead {

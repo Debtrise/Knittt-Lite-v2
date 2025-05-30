@@ -4,6 +4,8 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/app/store/authStore';
 import { Phone, Users, BarChart, Layers, Settings, FileText, User, LogOut, Menu, X, GitBranch, MessageSquare, Route, Link2, Mic } from 'lucide-react';
+import NotificationBar from '@/app/components/ui/NotificationBar';
+import '@/app/services/webhookNotificationService';
 
 type NavItem = {
   name: string;
@@ -24,7 +26,6 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
     { name: 'Calls', href: '/calls', icon: <Phone className="w-6 h-6" /> },
     { name: 'DIDs', href: '/dids', icon: <Layers className="w-6 h-6" /> },
     { name: 'Transfer Groups', href: '/settings/transfer-groups', icon: <GitBranch className="w-6 h-6" /> },
-    { name: 'Recordings', href: '/recordings', icon: <Mic className="w-6 h-6" /> },
     { name: 'Templates', href: '/templates', icon: <FileText className="w-6 h-6" /> },
     { name: 'Webhooks', href: '/webhooks', icon: <Link2 className="w-6 h-6" /> },
     { name: 'Reports', href: '/reports', icon: <FileText className="w-6 h-6" /> },
@@ -43,6 +44,9 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Notification Bar */}
+      <NotificationBar />
+      
       {/* Mobile sidebar */}
       <div className="lg:hidden">
         <div className="fixed inset-0 z-40 flex">

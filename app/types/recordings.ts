@@ -78,6 +78,12 @@ export interface Recording {
   metadata?: RecordingMetadata;
   createdAt: string;
   updatedAt: string;
+  // FreePBX fields
+  freepbxStatus?: 'not_configured' | 'pending' | 'uploaded' | 'failed';
+  freepbxRecordingId?: string;
+  freepbxUploadedAt?: string;
+  freepbxError?: string;
+  freepbxAutoUpload?: boolean;
 }
 
 export interface Voice {

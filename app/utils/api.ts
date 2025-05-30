@@ -264,9 +264,71 @@ export const getAgentStatus = async (params: {
   ingroup: string;
   user: string;
   pass: string;
-}) => {
-  const response = await api.get('/agent-status', { params });
-  return response.data;
+}): Promise<AgentStatus[]> => {
+  try {
+    console.log('getAgentStatus called with params:', params);
+    
+    // Validate required parameters
+    if (!params.url) {
+      throw new Error('URL is required for agent status check');
+    }
+    if (!params.ingroup) {
+      throw new Error('Ingroup is required for agent status check');
+    }
+    if (!params.user) {
+      throw new Error('User is required for agent status check');
+    }
+    if (!params.pass) {
+      throw new Error('Password is required for agent status check');
+    }
+
+    // Transform the parameters to match backend expectations
+    const backendParams = {
+      url: params.url,
+      user: params.user,
+      pass: params.pass,
+      ingroups: params.ingroup  // Backend expects 'ingroups' not 'ingroup'
+    };
+
+    console.log('Sending to backend with params:', backendParams);
+
+    // Make the API call
+    const response = await api.get('/agent-status', { params: backendParams });
+    console.log('getAgentStatus response:', response.data);
+    
+    // Extract the data array from the response
+    const responseData = response.data;
+    if (responseData && Array.isArray(responseData.data)) {
+      return responseData.data;
+    } else if (Array.isArray(responseData)) {
+      return responseData;
+    } else {
+      console.warn('Unexpected response format:', responseData);
+      return [];
+    }
+  } catch (error: any) {
+    console.error('Error in getAgentStatus:', error);
+    
+    // Provide more specific error messages
+    if (error.response) {
+      console.error('Response status:', error.response.status);
+      console.error('Response data:', error.response.data);
+      
+      if (error.response.status === 401) {
+        throw new Error('Authentication failed. Please check your credentials.');
+      } else if (error.response.status === 404) {
+        throw new Error('Agent status endpoint not found. Please check your URL configuration.');
+      } else if (error.response.status >= 500) {
+        throw new Error('Server error occurred. Please try again later.');
+      } else if (error.response.status === 400) {
+        throw new Error('Invalid request parameters. Please check your configuration.');
+      }
+    } else if (error.request) {
+      throw new Error('Network error. Please check your connection and URL configuration.');
+    }
+    
+    throw error;
+  }
 };
 
 // Call Management APIs
@@ -355,6 +417,106 @@ export const deleteDID = async (id: number) => {
 export const bulkDeleteDIDs = async (ids: number[]) => {
   const response = await api.post('/dids/bulk-delete', { ids });
   return response.data;
+};
+
+export const bulkUploadDIDs = async (fileContent: string) => {
+  // Parse CSV content
+  const lines = fileContent.trim().split('\n');
+  if (lines.length < 2) {
+    throw new Error('CSV file must contain headers and at least one data row');
+  }
+  
+  const header = lines[0].toLowerCase();
+  const dataLines = lines.slice(1);
+  
+  // Map header columns to standard field names
+  const headerColumns = header.split(',').map(col => col.trim());
+  const phoneNumberIndex = headerColumns.findIndex(col => 
+    ['phonenumber', 'phone_number', 'phone', 'did'].includes(col)
+  );
+  const descriptionIndex = headerColumns.findIndex(col => 
+    ['description'].includes(col)
+  );
+  const areaCodeIndex = headerColumns.findIndex(col => 
+    ['areacode', 'area_code'].includes(col)
+  );
+  const stateIndex = headerColumns.findIndex(col => 
+    ['state'].includes(col)
+  );
+  
+  if (phoneNumberIndex === -1) {
+    throw new Error('CSV must contain a phone number column (phoneNumber, phone_number, phone, or did)');
+  }
+  
+  let totalCreated = 0;
+  let totalSkipped = 0;
+  let allErrors: any[] = [];
+  
+  // Process each row
+  for (let i = 0; i < dataLines.length; i++) {
+    const row = dataLines[i].split(',').map(cell => cell.trim());
+    const phoneNumber = row[phoneNumberIndex];
+    
+    if (!phoneNumber) {
+      allErrors.push({
+        row: i + 2, // +2 because we start from line 2 (after header)
+        error: 'Missing phone number'
+      });
+      continue;
+    }
+    
+    // Clean phone number (remove non-digits)
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    if (cleanPhone.length < 10 || cleanPhone.length > 15) {
+      allErrors.push({
+        row: i + 2,
+        phoneNumber: phoneNumber,
+        error: 'Invalid phone number format (must be 10-15 digits)'
+      });
+      continue;
+    }
+    
+    try {
+      const didData = {
+        phoneNumber: cleanPhone,
+        description: descriptionIndex >= 0 && row[descriptionIndex] ? row[descriptionIndex] : 'Imported DID',
+        areaCode: areaCodeIndex >= 0 && row[areaCodeIndex] ? row[areaCodeIndex] : cleanPhone.substring(0, 3),
+        state: stateIndex >= 0 && row[stateIndex] ? row[stateIndex] : ''
+      };
+      
+      await createDID(didData);
+      totalCreated++;
+    } catch (error: any) {
+      if (error.response?.status === 409 || error.response?.data?.error?.includes('already exists')) {
+        totalSkipped++;
+        allErrors.push({
+          row: i + 2,
+          phoneNumber: phoneNumber,
+          error: 'DID already exists in system'
+        });
+      } else {
+        allErrors.push({
+          row: i + 2,
+          phoneNumber: phoneNumber,
+          error: error.response?.data?.error || error.message || 'Failed to create DID'
+        });
+      }
+    }
+  }
+  
+  return {
+    message: `${totalCreated} DIDs imported successfully`,
+    created: totalCreated,
+    skipped: totalSkipped,
+    errors: allErrors,
+    summary: {
+      totalRows: dataLines.length,
+      validDids: dataLines.length - allErrors.filter(e => e.error.includes('Missing phone number') || e.error.includes('Invalid phone number')).length,
+      created: totalCreated,
+      alreadyExists: totalSkipped,
+      invalid: allErrors.filter(e => e.error.includes('Missing phone number') || e.error.includes('Invalid phone number')).length
+    }
+  };
 };
 
 // Reports APIs
@@ -652,12 +814,49 @@ export const getAgentStatusReport = async (params: {
   ingroup: string;
   user: string;
   pass: string;
-}) => {
+}): Promise<AgentStatus[]> => {
   try {
-    const response = await api.get('/agent-status', { params });
-    return response.data;
-  } catch (error) {
+    console.log('getAgentStatusReport called with params:', params);
+    
+    // Transform the parameters to match backend expectations
+    const backendParams = {
+      url: params.url,
+      user: params.user,
+      pass: params.pass,
+      ingroups: params.ingroup  // Backend expects 'ingroups' not 'ingroup'
+    };
+
+    const response = await api.get('/agent-status', { params: backendParams });
+    console.log('getAgentStatusReport response:', response.data);
+    
+    // Extract the data array from the response
+    const responseData = response.data;
+    if (responseData && Array.isArray(responseData.data)) {
+      return responseData.data;
+    } else if (Array.isArray(responseData)) {
+      return responseData;
+    } else {
+      console.warn('Unexpected response format:', responseData);
+      return [];
+    }
+  } catch (error: any) {
     console.error('Error fetching agent status:', error);
+    
+    // Provide more specific error messages
+    if (error.response) {
+      if (error.response.status === 401) {
+        throw new Error('Authentication failed. Please check your credentials.');
+      } else if (error.response.status === 404) {
+        throw new Error('Agent status endpoint not found. Please check your URL configuration.');
+      } else if (error.response.status >= 500) {
+        throw new Error('Server error occurred. Please try again later.');
+      } else if (error.response.status === 400) {
+        throw new Error('Invalid request parameters. Please check your configuration.');
+      }
+    } else if (error.request) {
+      throw new Error('Network error. Please check your connection and URL configuration.');
+    }
+    
     throw error;
   }
 };
@@ -1114,179 +1313,6 @@ export const deleteTwilioNumber = async (numberId: number, options?: {
   return response.data;
 };
 
-export const bulkDeleteTwilioNumbers = async (numberIds: number[], options?: {
-  reassign?: boolean;
-  force?: boolean;
-}) => {
-  const response = await smsApi.post('/twilio-numbers/bulk-delete', { numberIds }, {
-    params: options,
-  });
-  return response.data;
-};
-
-// Notification APIs
-export const getNotifications = async (options?: {
-  page?: number;
-  limit?: number;
-  isRead?: boolean;
-  type?: string;
-}) => {
-  const { page = 1, limit = 20, isRead, type } = options || {};
-  const params = { page, limit, ...(isRead !== undefined ? { isRead } : {}), ...(type ? { type } : {}) };
-  const response = await smsApi.get('/notifications', { params });
-  return response.data;
-};
-
-export const createNotification = async (notification: {
-  title: string;
-  message: string;
-  type: string;
-  priority: 'low' | 'medium' | 'high';
-}) => {
-  const response = await smsApi.post('/notifications', notification);
-  return response.data;
-};
-
-export const markNotificationsAsRead = async (notificationIds: number[]) => {
-  const response = await smsApi.patch('/notifications/mark-read', { notificationIds });
-  return response.data;
-};
-
-export const deleteNotification = async (notificationId: number) => {
-  const response = await smsApi.delete(`/notifications/${notificationId}`);
-  return response.data;
-};
-
-// CSV Operations
-export const previewCsv = async (formData: FormData, options?: {
-  rows?: number;
-}) => {
-  try {
-    // Use the adjusted path to ensure we're hitting the right endpoint
-    const response = await smsApi.post('/csv/preview', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      params: options,
-      timeout: 30000, // 30 second timeout
-    });
-    return response.data;
-  } catch (error: any) {
-    console.error('CSV Preview Error:', error);
-    // Add more descriptive error message
-    if (error.code === 'ECONNABORTED') {
-      throw new Error('Connection timeout. The server took too long to respond.');
-    } else if (error.message === 'Network Error') {
-      throw new Error('Network connection failed. Please check your internet connection or the API server status.');
-    }
-    throw error;
-  }
-};
-
-// API Connection Test
-export const checkSmsApiConnection = async () => {
-  try {
-    // Use a known endpoint that already exists instead of /health
-    // We'll just check if we can get the list of campaigns (even empty)
-    // with a very short timeout
-    await smsApi.get('/campaigns', { 
-      params: { limit: 1 },  // Request only one record to minimize data
-      timeout: 3000          // Short timeout
-    });
-    return { status: 'connected' };
-  } catch (error: any) {
-    console.error('SMS API Connection Test Error:', error);
-    return { 
-      status: 'disconnected', 
-      error: error.message,
-      url: SMS_API_URL
-    };
-  }
-};
-
-// Unresponded Messages APIs
-export const getUnrespondedMessages = async (options?: {
-  page?: number;
-  limit?: number;
-  campaignId?: number;
-}) => {
-  const { page = 1, limit = 50, campaignId } = options || {};
-  const params = { page, limit, ...(campaignId ? { campaignId } : {}) };
-  const response = await smsApi.get('/unresponded-messages', { params });
-  return response.data;
-};
-
-export const markMessagesAsResolved = async (contactIds: number[]) => {
-  const response = await smsApi.post('/unresponded-messages/mark-resolved', { contactIds });
-  return response.data;
-};
-
-export const sendBulkReplies = async (data: {
-  contactIds?: number[];
-  campaignId?: number;
-  message: string;
-}) => {
-  const response = await smsApi.post('/unresponded-messages/bulk-reply', data);
-  return response.data;
-};
-
-// Dashboard APIs
-export const getDashboardStats = async () => {
-  try {
-    const response = await api.get('/reports/dashboard-stats');
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching dashboard stats:', error);
-    // Return default data structure when endpoint is not available
-    return {
-      totalCalls: 0,
-      smsSent: 0,
-      activeAgents: 0,
-      conversions: 0
-    };
-  }
-};
-
-// Try a simpler approach with direct endpoint
-export const importContactsSimplified = async (formData: FormData, fieldMapping: Record<string, string>, campaignId?: number) => {
-  try {
-    // Create an endpoint URL
-    let url = '/contacts/import';
-    
-    // Get the file from the formData
-    const file = formData.get('file') as File;
-    
-    // Create a new FormData with the correct field name
-    const newFormData = new FormData();
-    newFormData.append('contacts', file);  // API expects 'contacts', not 'file'
-    
-    // Log what we're attempting to do
-    console.log('Sending to endpoint:', url);
-    console.log('With field mapping:', fieldMapping);
-    
-    // Add the field mapping directly to the form data with the correct name
-    newFormData.append('fieldMapping', JSON.stringify(fieldMapping));
-    
-    const response = await smsApi.post(url, newFormData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      // Add campaignId as a URL parameter if provided
-      params: campaignId ? { campaignId } : undefined,
-      timeout: 30000, // 30 second timeout
-    });
-    return response.data;
-  } catch (error: any) {
-    console.error('Import Contacts Simplified Error:', error);
-    // Give more detailed error information for debugging
-    if (error.response) {
-      console.error('Response data:', error.response.data);
-      console.error('Response status:', error.response.status);
-    }
-    throw error;
-  }
-};
-
 // Journey Management APIs
 export const listJourneys = async (options?: {
   page?: number;
@@ -1343,7 +1369,6 @@ export const updateJourney = async (id: number, journeyData: {
 };
 
 export const deleteJourney = async (id: number, options?: { force?: boolean }) => {
-  // Build query string for DELETE request
   const queryParams = new URLSearchParams();
   if (options?.force) {
     queryParams.append('force', 'true');
@@ -1392,7 +1417,6 @@ export const updateJourneyStep = async (journeyId: number, stepId: number, stepD
 };
 
 export const deleteJourneyStep = async (journeyId: number, stepId: number, options?: { force?: boolean }) => {
-  // Build query string for DELETE request
   const queryParams = new URLSearchParams();
   if (options?.force) {
     queryParams.append('force', 'true');
@@ -1441,26 +1465,6 @@ export const enrollLeadsByCriteria = async (journeyId: number, data: {
   return response.data;
 };
 
-export const getLeadJourneys = async (leadId: number) => {
-  const response = await api.get(`/leads/${leadId}/journeys`);
-  return response.data;
-};
-
-export const updateLeadJourneyStatus = async (leadId: number, journeyId: number, data: {
-  status: string;
-}) => {
-  const response = await api.put(`/leads/${leadId}/journeys/${journeyId}/status`, data);
-  return response.data;
-};
-
-export const executeJourneyStep = async (leadId: number, journeyId: number, data: {
-  stepId: number;
-}) => {
-  const response = await api.post(`/leads/${leadId}/journeys/${journeyId}/execute`, data);
-  return response.data;
-};
-
-// New API endpoint to get matching statistics
 export const getJourneyMatchingStats = async (journeyId: number) => {
   try {
     const response = await api.get(`/journeys/${journeyId}/matching-stats`);
@@ -1482,80 +1486,27 @@ export const getJourneyMatchingStats = async (journeyId: number) => {
   }
 };
 
-// Journey Statistics APIs
-export const getJourneyStatistics = async () => {
-  try {
-    const response = await api.get('/journeys/stats');
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching journey statistics:', error);
-    // Return default data structure when endpoint is not available
-    return {
-      activeJourneys: 0,
-      activeLeadJourneys: 0,
-      completedLeadJourneys: 0,
-      pendingExecutions: 0,
-      topJourneys: []
-    };
-  }
-};
-
-// New endpoints for brand and source statistics
-export const getJourneyStatsByBrand = async () => {
-  try {
-    const response = await api.get('/stats/journeys/by-brand');
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching journey statistics by brand:', error);
-    // Return default data structure with sample data
-    return {
-      brandBreakdown: [
-        {
-          name: "Tax Relief",
-          activeJourneys: 0,
-          totalLeads: 0,
-          completionRate: 0
-        }
-      ]
-    };
-  }
-};
-
-export const getJourneyStatsBySource = async () => {
-  try {
-    const response = await api.get('/stats/journeys/by-source');
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching journey statistics by source:', error);
-    // Return default data structure with sample data
-    return {
-      sourceBreakdown: [
-        {
-          name: "Facebook",
-          activeJourneys: 0,
-          totalLeads: 0,
-          completionRate: 0
-        }
-      ]
-    };
-  }
-};
-
-export const getUpcomingExecutions = async (options?: { limit?: number }) => {
-  const params = options || {};
-  const response = await api.get('/executions/upcoming', { params });
+export const updateLeadJourneyStatus = async (leadId: number, journeyId: number, data: {
+  status: string;
+  stepId?: number;
+  exitReason?: string;
+}) => {
+  const response = await api.put(`/journeys/${journeyId}/leads/${leadId}/status`, data);
   return response.data;
 };
 
-// Webhook Management APIs
+export const executeJourneyStep = async (journeyId: number, stepId: number, leadId: number) => {
+  const response = await api.post(`/journeys/${journeyId}/steps/${stepId}/execute`, { leadId });
+  return response.data;
+};
+
+// Webhook APIs
 export const listWebhooks = async (options?: {
   page?: number;
   limit?: number;
   isActive?: boolean;
 }) => {
-  const { page = 1, limit = 50, ...filters } = options || {};
-  const params = { page, limit, ...filters };
-  const response = await api.get('/webhooks', { params });
+  const response = await api.get('/webhooks', { params: options });
   return response.data;
 };
 
@@ -1567,7 +1518,6 @@ export const getWebhookDetails = async (id: number) => {
 export const createWebhook = async (webhookData: {
   name: string;
   description: string;
-  isActive: boolean;
   brand: string;
   source: string;
   fieldMapping: Record<string, string>;
@@ -1583,25 +1533,24 @@ export const createWebhook = async (webhookData: {
     value: string;
     tag: string;
   }>;
-  securityToken?: string;
-  autoEnrollJourneyId?: number;
+  requiredHeaders?: Record<string, string>;
+  autoEnrollJourneyId?: number | null;
 }) => {
   const response = await api.post('/webhooks', webhookData);
   return response.data;
 };
 
-export const updateWebhook = async (id: number, webhookData: Partial<{
-  name: string;
-  description: string;
-  isActive: boolean;
-  brand: string;
-  source: string;
-  fieldMapping: Record<string, string>;
-  validationRules: {
-    requirePhone: boolean;
-    requireName: boolean;
-    requireEmail: boolean;
-    allowDuplicatePhone: boolean;
+export const updateWebhook = async (id: number, webhookData: {
+  name?: string;
+  description?: string;
+  brand?: string;
+  source?: string;
+  fieldMapping?: Record<string, string>;
+  validationRules?: {
+    requirePhone?: boolean;
+    requireName?: boolean;
+    requireEmail?: boolean;
+    allowDuplicatePhone?: boolean;
   };
   autoTagRules?: Array<{
     field: string;
@@ -1609,9 +1558,9 @@ export const updateWebhook = async (id: number, webhookData: Partial<{
     value: string;
     tag: string;
   }>;
-  securityToken?: string;
-  autoEnrollJourneyId?: number;
-}>) => {
+  requiredHeaders?: Record<string, string>;
+  autoEnrollJourneyId?: number | null;
+}) => {
   const response = await api.put(`/webhooks/${id}`, webhookData);
   return response.data;
 };
@@ -1621,29 +1570,44 @@ export const deleteWebhook = async (id: number) => {
   return response.data;
 };
 
-export const getWebhookEvents = async (
-  webhookId: number,
-  options?: {
-    page?: number;
-    limit?: number;
-    status?: 'success' | 'partial_success' | 'failed';
-  }
-) => {
-  const { page = 1, limit = 50, ...filters } = options || {};
-  const params = { page, limit, ...filters };
-  const response = await api.get(`/webhooks/${webhookId}/events`, { params });
+export const getWebhookEvents = async (webhookId: number, options?: {
+  page?: number;
+  limit?: number;
+  status?: 'success' | 'partial_success' | 'failed';
+}) => {
+  const response = await api.get(`/webhooks/${webhookId}/events`, { params: options });
   return response.data;
 };
 
-export const testWebhook = async (id: number, payload: Record<string, any>) => {
-  const response = await api.post(`/webhooks/${id}/test`, payload);
+export const testWebhook = async (id: number, testData: Record<string, any>) => {
+  const response = await api.post(`/webhooks/${id}/test`, testData);
   return response.data;
 };
 
-// SMS Contact Reply API
-export const sendContactReply = async (contactId: number, message: string) => {
-  const response = await api.post(`/sms/contacts/${contactId}/reply`, { message });
+export const regenerateWebhookKey = async (id: number) => {
+  const response = await api.post(`/webhooks/${id}/regenerate-key`);
   return response.data;
 };
 
-export default api; 
+export const regenerateWebhookToken = async (id: number) => {
+  const response = await api.post(`/webhooks/${id}/regenerate-token`);
+  return response.data;
+};
+
+export const getWebhookHealth = async (endpointKey: string) => {
+  const response = await api.get(`/webhook-health/${endpointKey}`);
+  return response.data;
+};
+
+export const getWebhookCapabilities = async () => {
+  const response = await api.get('/system/webhook-capabilities');
+  return response.data;
+};
+
+// Dashboard Stats API (also missing)
+export const getDashboardStats = async () => {
+  const response = await api.get('/dashboard/stats');
+  return response.data;
+};
+
+export default api;

@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-// In-memory storage for recordings (in a real app, this would be a database)
-let recordings: any[] = [];
-let nextId = 1;
+import { getAllRecordings, addRecording, getNextId } from './shared-store';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,7 +9,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
 
-    let filteredRecordings = recordings;
+    let filteredRecordings = getAllRecordings();
 
     // Apply filters
     if (type) {
@@ -66,9 +63,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const recordingId = getNextId();
+
     // Create new recording
     const newRecording = {
-      id: nextId.toString(),
+      id: recordingId.toString(),
       name,
       description: description || '',
       type,
@@ -80,15 +79,17 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       metadata: {
+        id: recordingId.toString(),
         duration: 0,
         characterCount: scriptText.length,
         isAvailable: false,
+        canStream: false,
+        hasLocalFile: false,
         lastGenerated: null
       }
     };
 
-    recordings.push(newRecording);
-    nextId++;
+    addRecording(newRecording);
 
     return NextResponse.json({
       data: newRecording,
