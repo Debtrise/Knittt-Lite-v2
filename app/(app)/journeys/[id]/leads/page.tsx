@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -25,11 +25,36 @@ import {
 } from '@/app/utils/api';
 import { Journey, LeadJourney } from '@/app/types/journey';
 
-export default function JourneyLeadsPage() {
+interface JourneyLead {
+  id: number;
+  leadId: number;
+  journeyId: number;
+  status: string;
+  currentStepId?: number;
+  enrolledAt: string;
+  lastExecutedAt?: string;
+  exitedAt?: string;
+  exitReason?: string;
+  lead: {
+    id: number;
+    phone: string;
+    name?: string;
+    email?: string;
+    status: string;
+    brand?: string;
+    source?: string;
+  };
+  currentStep?: {
+    id: number;
+    name: string;
+  };
+}
+
+export default function JourneyLeadsPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const params = useParams();
+  const resolvedParams = use(params);
+  const journeyId = parseInt(resolvedParams.id, 10);
   const { isAuthenticated } = useAuthStore();
-  const journeyId = parseInt(params.id as string, 10);
   
   const [journey, setJourney] = useState<Journey | null>(null);
   const [leads, setLeads] = useState<LeadJourney[]>([]);

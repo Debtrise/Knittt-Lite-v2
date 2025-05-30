@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { User, Phone, Clock, Mail, File, BarChart, Trash2, ArrowLeft } from 'lucide-react';
+import { User, Phone, Clock, Mail, File, BarChart, Trash2, ArrowLeft, Tag } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
+import { Badge } from '@/app/components/ui/badge';
 import { getLeadDetails, deleteLead } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
 import Link from 'next/link';
@@ -16,8 +17,10 @@ type LeadDetail = {
   phone: string;
   email: string;
   status: string;
+  createdAt: string;
   callDurations?: number[];
   additionalData?: Record<string, any>;
+  tags?: string[];
 };
 
 type Call = {
@@ -57,6 +60,43 @@ export default function LeadDetailPage() {
 
   // Get leadId from params directly
   const leadId = typeof params.id === 'string' ? parseInt(params.id, 10) : 0;
+
+  // Function to calculate lead age in days
+  const calculateLeadAge = (createdAt: string): number => {
+    const created = new Date(createdAt);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - created.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  // Function to format lead age for display
+  const formatLeadAge = (days: number): string => {
+    if (days === 0) return 'Today';
+    if (days === 1) return '1 day';
+    if (days < 30) return `${days} days`;
+    if (days < 365) {
+      const months = Math.floor(days / 30);
+      return months === 1 ? '1 month' : `${months} months`;
+    }
+    const years = Math.floor(days / 365);
+    return years === 1 ? '1 year' : `${years} years`;
+  };
+
+  // Function to format tags for display
+  const formatTags = (lead: LeadDetail): string[] => {
+    // Check multiple possible locations for tags
+    if (lead.tags && Array.isArray(lead.tags)) {
+      return lead.tags;
+    }
+    if (lead.additionalData?.tags && Array.isArray(lead.additionalData.tags)) {
+      return lead.additionalData.tags;
+    }
+    if (lead.additionalData?.leadTags && Array.isArray(lead.additionalData.leadTags)) {
+      return lead.additionalData.leadTags;
+    }
+    return [];
+  };
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -230,8 +270,38 @@ export default function LeadDetailPage() {
                       {leadDetails.lead.email || 'Not provided'}
                     </dd>
                   </div>
+                  <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt className="text-sm font-medium text-gray-500 flex items-center">
+                      <Clock className="h-5 w-5 mr-2 text-gray-400" />
+                      Lead Age
+                    </dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      {leadDetails.lead.createdAt ? formatLeadAge(calculateLeadAge(leadDetails.lead.createdAt)) : 'Not available'}
+                    </dd>
+                  </div>
+                  <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt className="text-sm font-medium text-gray-500 flex items-center">
+                      <Tag className="h-5 w-5 mr-2 text-gray-400" />
+                      Tags
+                    </dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      {formatTags(leadDetails.lead).length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {formatTags(leadDetails.lead).map((tag, index) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-500">No tags</span>
+                      )}
+                    </dd>
+                  </div>
                   {leadDetails.lead.additionalData && Object.keys(leadDetails.lead.additionalData).length > 0 && 
-                    Object.entries(leadDetails.lead.additionalData).map(([key, value], index) => (
+                    Object.entries(leadDetails.lead.additionalData)
+                      .filter(([key]) => key !== 'tags' && key !== 'leadTags') // Filter out tags since we display them separately
+                      .map(([key, value], index) => (
                       <div key={key} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6`}>
                         <dt className="text-sm font-medium text-gray-500 flex items-center">
                           <File className="h-5 w-5 mr-2 text-gray-400" />

@@ -1,22 +1,34 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Save, Trash2, Eye } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
+import { Label } from '@/app/components/ui/label';
+import { Textarea } from '@/app/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { Badge } from '@/app/components/ui/badge';
 import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
 
 type Template = {
   id: number;
   name: string;
-  content: string;
+  description: string;
+  type: 'sms' | 'email' | 'transfer' | 'script' | 'voicemail';
   categoryId: number;
-  category: string;
-  variables: string[];
+  subject?: string;
+  content: string;
+  htmlContent?: string;
+  isActive: boolean;
+  category: {
+    id: number;
+    name: string;
+    type: string;
+  };
   createdAt: string;
   updatedAt: string;
 };
@@ -28,8 +40,10 @@ type Category = {
   type: string;
 };
 
-export default function EditTemplatePage({ params }: { params: { id: string } }) {
+export default function EditTemplatePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
+  const resolvedParams = use(params);
+  const templateId = resolvedParams.id;
   const { isAuthenticated } = useAuthStore();
   const [template, setTemplate] = useState<Template | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -47,16 +61,16 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
 
     fetchTemplate();
     fetchCategories();
-  }, [isAuthenticated, router, params.id]);
+  }, [isAuthenticated, router, templateId]);
 
   const fetchTemplate = async () => {
     setIsLoading(true);
     try {
-      const response = await api.templates.get(params.id);
-      setTemplate(response);
+      const response = await api.templates.get(templateId);
+      setTemplate(response.data);
       // Initialize preview variables
       const initialVariables: Record<string, string> = {};
-      response.variables.forEach(variable => {
+      response.data.variables.forEach(variable => {
         initialVariables[variable] = '';
       });
       setPreviewVariables(initialVariables);
@@ -84,14 +98,18 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
     
     setIsSaving(true);
     try {
-      const updatedTemplate = await api.templates.update(params.id, {
+      const updatedTemplate = await api.templates.update(templateId, {
         name: template.name,
+        description: template.description,
         content: template.content,
+        type: template.type,
         categoryId: template.categoryId,
+        subject: template.subject,
+        htmlContent: template.htmlContent,
+        isActive: template.isActive,
         variables: template.variables,
-        type: 'sms',
       });
-      setTemplate(updatedTemplate);
+      setTemplate(updatedTemplate.data);
       toast.success('Template updated successfully');
     } catch (error) {
       console.error('Error updating template:', error);
@@ -102,10 +120,12 @@ export default function EditTemplatePage({ params }: { params: { id: string } })
   };
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this template?')) return;
+    if (!confirm('Are you sure you want to delete this template? This action cannot be undone.')) {
+      return;
+    }
     
     try {
-      await api.templates.delete(params.id);
+      await api.templates.delete(templateId);
       toast.success('Template deleted successfully');
       router.push('/sms/templates');
     } catch (error) {

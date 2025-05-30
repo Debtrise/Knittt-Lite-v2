@@ -2,9 +2,11 @@
 
 export interface WebhookEndpoint {
   id: number;
+  tenantId: string;
   name: string;
   description: string;
   endpointKey: string;
+  webhookUrl?: string; // Only returned in detailed responses
   isActive: boolean;
   brand: string;
   source: string;
@@ -13,17 +15,18 @@ export interface WebhookEndpoint {
   autoTagRules?: AutoTagRule[];
   securityToken?: string;
   requiredHeaders?: Record<string, string>;
-  autoEnrollJourneyId?: number;
+  autoEnrollJourneyId?: number | null;
   testPayload?: Record<string, any>;
+  conditionalRules?: ConditionalRules;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface FieldMapping {
-  phone: string;
-  name: string;
-  email: string;
-  [key: string]: string;
+  phone?: string;
+  name?: string;
+  email?: string;
+  [key: string]: string | undefined;
 }
 
 export interface ValidationRules {
@@ -42,14 +45,18 @@ export interface AutoTagRule {
 
 export interface WebhookEvent {
   id: number;
-  webhookEndpointId: number;
-  status: 'success' | 'partial_success' | 'failed';
-  payload: Record<string, any>;
-  createdLeadIds: number[];
-  errorMessage: string | null;
+  webhookId: number;
+  status: 'success' | 'failed' | 'partial_success';
   receivedAt: string;
   ipAddress: string;
   processingTime: number;
+  createdLeadIds: number[];
+  payload: Record<string, any>;
+  errorMessage?: string;
+  validationErrors?: string[];
+  processedData?: Record<string, any>;
+  headers?: Record<string, string>;
+  responseData?: Record<string, any>;
 }
 
 export interface WebhookListResponse {
@@ -84,32 +91,97 @@ export interface WebhookTestResponse {
 export interface CreateWebhookParams {
   name: string;
   description: string;
-  isActive: boolean;
   brand: string;
   source: string;
   fieldMapping: FieldMapping;
   validationRules: ValidationRules;
   autoTagRules?: AutoTagRule[];
-  securityToken?: string;
   requiredHeaders?: Record<string, string>;
-  autoEnrollJourneyId?: number;
+  autoEnrollJourneyId?: number | null;
+  conditionalRules?: ConditionalRules | null;
 }
 
 export interface UpdateWebhookParams {
   name?: string;
   description?: string;
-  isActive?: boolean;
   brand?: string;
   source?: string;
   fieldMapping?: FieldMapping;
   validationRules?: ValidationRules;
   autoTagRules?: AutoTagRule[];
-  securityToken?: string;
   requiredHeaders?: Record<string, string>;
-  autoEnrollJourneyId?: number;
+  autoEnrollJourneyId?: number | null;
+  conditionalRules?: ConditionalRules | null;
 }
 
 export interface WebhookDeleteResponse {
   message: string;
-  id: string;
+  id: number;
+}
+
+export interface WebhookCreateResponse {
+  id: number;
+  tenantId: string;
+  name: string;
+  endpointKey: string;
+  webhookUrl: string;
+  securityToken: string;
+  isActive: boolean;
+  // ... other fields
+}
+
+export interface WebhookRegenerateKeyResponse {
+  message: string;
+  endpointKey: string;
+  webhookUrl: string;
+}
+
+export interface WebhookRegenerateTokenResponse {
+  message: string;
+  securityToken: string;
+}
+
+export interface WebhookHealthResponse {
+  message: string;
+  name: string;
+  endpointKey: string;
+  isActive: boolean;
+}
+
+export interface WebhookCapabilitiesResponse {
+  message: string;
+  capabilities: {
+    endpoints: boolean;
+    events: boolean;
+    leadCreation: boolean;
+    fieldMapping: boolean;
+    security: boolean;
+    journeyIntegration: boolean;
+  };
+}
+
+export interface ConditionalRules {
+  enabled: boolean;
+  logicOperator: 'AND' | 'OR';
+  conditionSets: ConditionSet[];
+}
+
+export interface ConditionSet {
+  name: string;
+  conditions: Condition[];
+  actions: Action[];
+}
+
+export interface Condition {
+  field: string;
+  operator: 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'starts_with' | 'ends_with' | 
+           'greater_than' | 'less_than' | 'greater_than_or_equal' | 'less_than_or_equal' | 
+           'exists' | 'not_exists' | 'is_empty' | 'is_not_empty' | 'regex_match';
+  value: any;
+  dataType: 'string' | 'number' | 'boolean' | 'date' | 'array';
+}
+
+export interface Action {
+  type: 'create_lead' | 'update_lead' | 'delete_lead' | 'send_notification' | 'enroll_journey' | 'call_webhook' | 'set_tags' | 'create_task';
+  config: Record<string, any>;
 } 

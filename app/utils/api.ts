@@ -1504,8 +1504,7 @@ export const executeJourneyStep = async (journeyId: number, stepId: number, lead
 export const listWebhooks = async (options?: {
   page?: number;
   limit?: number;
-  status?: 'active' | 'inactive';
-  url?: string;
+  isActive?: boolean;
 }) => {
   const response = await api.get('/webhooks', { params: options });
   return response.data;
@@ -1518,14 +1517,24 @@ export const getWebhookDetails = async (id: number) => {
 
 export const createWebhook = async (webhookData: {
   name: string;
-  url: string;
-  secret?: string;
-  events: string[];
-  isActive?: boolean;
-  description?: string;
-  headers?: Record<string, string>;
-  retryAttempts?: number;
-  timeout?: number;
+  description: string;
+  brand: string;
+  source: string;
+  fieldMapping: Record<string, string>;
+  validationRules: {
+    requirePhone: boolean;
+    requireName: boolean;
+    requireEmail: boolean;
+    allowDuplicatePhone: boolean;
+  };
+  autoTagRules?: Array<{
+    field: string;
+    operator: string;
+    value: string;
+    tag: string;
+  }>;
+  requiredHeaders?: Record<string, string>;
+  autoEnrollJourneyId?: number | null;
 }) => {
   const response = await api.post('/webhooks', webhookData);
   return response.data;
@@ -1533,14 +1542,24 @@ export const createWebhook = async (webhookData: {
 
 export const updateWebhook = async (id: number, webhookData: {
   name?: string;
-  url?: string;
-  secret?: string;
-  events?: string[];
-  isActive?: boolean;
   description?: string;
-  headers?: Record<string, string>;
-  retryAttempts?: number;
-  timeout?: number;
+  brand?: string;
+  source?: string;
+  fieldMapping?: Record<string, string>;
+  validationRules?: {
+    requirePhone?: boolean;
+    requireName?: boolean;
+    requireEmail?: boolean;
+    allowDuplicatePhone?: boolean;
+  };
+  autoTagRules?: Array<{
+    field: string;
+    operator: string;
+    value: string;
+    tag: string;
+  }>;
+  requiredHeaders?: Record<string, string>;
+  autoEnrollJourneyId?: number | null;
 }) => {
   const response = await api.put(`/webhooks/${id}`, webhookData);
   return response.data;
@@ -1554,14 +1573,34 @@ export const deleteWebhook = async (id: number) => {
 export const getWebhookEvents = async (webhookId: number, options?: {
   page?: number;
   limit?: number;
-  status?: 'pending' | 'success' | 'failed';
+  status?: 'success' | 'partial_success' | 'failed';
 }) => {
   const response = await api.get(`/webhooks/${webhookId}/events`, { params: options });
   return response.data;
 };
 
-export const testWebhook = async (id: number, testData?: Record<string, any>) => {
-  const response = await api.post(`/webhooks/${id}/test`, testData || {});
+export const testWebhook = async (id: number, testData: Record<string, any>) => {
+  const response = await api.post(`/webhooks/${id}/test`, testData);
+  return response.data;
+};
+
+export const regenerateWebhookKey = async (id: number) => {
+  const response = await api.post(`/webhooks/${id}/regenerate-key`);
+  return response.data;
+};
+
+export const regenerateWebhookToken = async (id: number) => {
+  const response = await api.post(`/webhooks/${id}/regenerate-token`);
+  return response.data;
+};
+
+export const getWebhookHealth = async (endpointKey: string) => {
+  const response = await api.get(`/webhook-health/${endpointKey}`);
+  return response.data;
+};
+
+export const getWebhookCapabilities = async () => {
+  const response = await api.get('/system/webhook-capabilities');
   return response.data;
 };
 

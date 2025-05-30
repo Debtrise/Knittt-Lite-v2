@@ -4,10 +4,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Upload, User, CheckCircle, XCircle, PhoneOutgoing, Filter, Trash2, Edit, AlertTriangle } from 'lucide-react';
+import { Upload, User, CheckCircle, XCircle, PhoneOutgoing, Filter, Trash2, Edit, AlertTriangle, Tag } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
+import { Badge } from '@/app/components/ui/badge';
 import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
 
@@ -24,6 +25,7 @@ type Lead = {
   status: string;
   createdAt: string;
   updatedAt: string;
+  tags?: string[];
 };
 
 type UploadFormData = {
@@ -50,6 +52,28 @@ export default function LeadsPage() {
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [uniqueStatuses, setUniqueStatuses] = useState<string[]>([]);
+
+  // Function to calculate lead age in days
+  const calculateLeadAge = (createdAt: string): number => {
+    const created = new Date(createdAt);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - created.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  // Function to format lead age for display
+  const formatLeadAge = (days: number): string => {
+    if (days === 0) return 'Today';
+    if (days === 1) return '1 day';
+    if (days < 30) return `${days} days`;
+    if (days < 365) {
+      const months = Math.floor(days / 30);
+      return months === 1 ? '1 month' : `${months} months`;
+    }
+    const years = Math.floor(days / 365);
+    return years === 1 ? '1 year' : `${years} years`;
+  };
 
   const {
     register,
@@ -218,6 +242,21 @@ export default function LeadsPage() {
       setIsDeletingAll(false);
       setShowDeleteAllConfirm(false);
     }
+  };
+
+  // Function to format tags for display
+  const formatTags = (lead: Lead): string[] => {
+    // Check multiple possible locations for tags
+    if (lead.tags && Array.isArray(lead.tags)) {
+      return lead.tags;
+    }
+    if (lead.additionalData?.tags && Array.isArray(lead.additionalData.tags)) {
+      return lead.additionalData.tags;
+    }
+    if (lead.additionalData?.leadTags && Array.isArray(lead.additionalData.leadTags)) {
+      return lead.additionalData.leadTags;
+    }
+    return [];
   };
 
   if (!isAuthenticated) {
@@ -530,7 +569,7 @@ Jane Smith,8007654321,jane@example.com</pre>
                           </div>
                         </div>
                         <div className="mt-2 sm:flex sm:justify-between">
-                          <div className="sm:flex">
+                          <div className="sm:flex sm:flex-wrap">
                             <p className="flex items-center text-sm text-gray-500">
                               <span className="truncate">{lead.phone}</span>
                             </p>
@@ -539,6 +578,23 @@ Jane Smith,8007654321,jane@example.com</pre>
                                 {lead.attempts} {lead.attempts === 1 ? 'attempt' : 'attempts'}
                               </span>
                             </p>
+                            <p className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
+                              <span className="ml-1">
+                                Age: {formatLeadAge(calculateLeadAge(lead.createdAt))}
+                              </span>
+                            </p>
+                            {formatTags(lead).length > 0 && (
+                              <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
+                                <Tag className="h-4 w-4 mr-1" />
+                                <div className="flex flex-wrap gap-1">
+                                  {formatTags(lead).map((tag, index) => (
+                                    <Badge key={index} variant="outline" className="text-xs">
+                                      {tag}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                           <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize 

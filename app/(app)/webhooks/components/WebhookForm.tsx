@@ -6,6 +6,7 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
 import { Label } from '@/app/components/ui/label';
 import { Checkbox } from '@/app/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 import {
   Card,
   CardContent,
@@ -15,28 +16,38 @@ import {
   CardTitle,
 } from '@/app/components/ui/card';
 import { createWebhook, updateWebhook, getWebhookDetails } from '@/app/utils/api';
+import api from '@/app/lib/api';
 import { WebhookEndpoint, CreateWebhookParams, UpdateWebhookParams } from '@/app/types/webhook';
 import { toast } from 'react-hot-toast';
 
 type WebhookFormProps = {
   webhookId?: number;
   isEdit?: boolean;
+  onSuccess?: (webhook: any) => void;
 };
 
-export default function WebhookForm({ webhookId, isEdit = false }: WebhookFormProps) {
+interface Journey {
+  id: number;
+  name: string;
+  description: string;
+  isActive: boolean;
+}
+
+export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: WebhookFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
+  const [availableJourneys, setAvailableJourneys] = useState<Journey[]>([]);
+  const [availableWebhookFields, setAvailableWebhookFields] = useState<string[]>([]);
   const [formData, setFormData] = useState<CreateWebhookParams>({
     name: '',
     description: '',
-    isActive: true,
     brand: '',
     source: '',
     fieldMapping: {
-      phone: 'contact.phoneNumber',
-      name: 'contact.fullName',
-      email: 'contact.email',
+      phone: 'phone',
+      name: 'full_name',
+      email: 'email_address',
     },
     validationRules: {
       requirePhone: true,
@@ -56,9 +67,9 @@ export default function WebhookForm({ webhookId, isEdit = false }: WebhookFormPr
 
   // Additional state for fields that need custom handling
   const [fieldMappings, setFieldMappings] = useState<Array<{ key: string; value: string }>>([
-    { key: 'phone', value: 'contact.phoneNumber' },
-    { key: 'name', value: 'contact.fullName' },
-    { key: 'email', value: 'contact.email' },
+    { key: 'phone', value: 'phone' },
+    { key: 'name', value: 'full_name' },
+    { key: 'email', value: 'email_address' },
   ]);
   
   const [customFieldMappings, setCustomFieldMappings] = useState<Array<{ key: string; value: string }>>([]);
@@ -81,63 +92,204 @@ export default function WebhookForm({ webhookId, isEdit = false }: WebhookFormPr
   
   const [requiredHeaders, setRequiredHeaders] = useState<Array<{ key: string; value: string }>>([]);
 
-  useEffect(() => {
-    if (isEdit && webhookId) {
-      const fetchWebhook = async () => {
-        try {
-          const response = await getWebhookDetails(webhookId);
-          
-          // Normalize field mappings
-          const standardFields = ['phone', 'name', 'email'];
-          const stdFieldMappings = standardFields.map(field => ({
-            key: field,
-            value: response.fieldMapping[field] || '',
-          }));
-          
-          const customFields = Object.entries(response.fieldMapping)
-            .filter(([key]) => !standardFields.includes(key))
-            .map(([key, value]) => ({ key, value: value as string }));
-          
-          setFieldMappings(stdFieldMappings);
-          setCustomFieldMappings(customFields);
-          
-          // Set auto tag rules
-          if (response.autoTagRules && response.autoTagRules.length > 0) {
-            setAutoTagRules(response.autoTagRules);
-          }
-          
-          // Set required headers
-          if (response.requiredHeaders) {
-            const headers = Object.entries(response.requiredHeaders).map(([key, value]) => ({
-              key,
-              value: value as string,
-            }));
-            setRequiredHeaders(headers);
-          }
-          
-          // Set main form data
-          setFormData({
-            name: response.name,
-            description: response.description,
-            isActive: response.isActive,
-            brand: response.brand,
-            source: response.source,
-            fieldMapping: response.fieldMapping,
-            validationRules: response.validationRules,
-            autoTagRules: response.autoTagRules,
-            securityToken: response.securityToken,
-            requiredHeaders: response.requiredHeaders,
-            autoEnrollJourneyId: response.autoEnrollJourneyId,
-          });
-        } catch (error) {
-          console.error('Error fetching webhook:', error);
-          toast.error('Failed to load webhook');
-        } finally {
-          setLoading(false);
-        }
-      };
+  // New state for conditional rules
+  const [conditionalRules, setConditionalRules] = useState({
+    enabled: false,
+    logicOperator: 'AND' as 'AND' | 'OR',
+    conditionSets: [] as Array<{
+      name: string;
+      conditions: Array<{
+        field: string;
+        operator: string;
+        value: any;
+        dataType: 'string' | 'number' | 'boolean' | 'date' | 'array';
+      }>;
+      actions: Array<{
+        type: 'create_lead' | 'update_lead' | 'send_notification' | 'enroll_journey' | 'call_webhook' | 'set_tags' | 'create_task';
+        config: Record<string, any>;
+      }>;
+    }>
+  });
+
+  // Available operators for conditions
+  const conditionOperators = [
+    { value: 'equals', label: 'Equals', dataTypes: ['string', 'number', 'boolean'] },
+    { value: 'not_equals', label: 'Not Equals', dataTypes: ['string', 'number', 'boolean'] },
+    { value: 'contains', label: 'Contains', dataTypes: ['string', 'array'] },
+    { value: 'not_contains', label: 'Not Contains', dataTypes: ['string', 'array'] },
+    { value: 'starts_with', label: 'Starts With', dataTypes: ['string'] },
+    { value: 'ends_with', label: 'Ends With', dataTypes: ['string'] },
+    { value: 'greater_than', label: 'Greater Than', dataTypes: ['number', 'date'] },
+    { value: 'less_than', label: 'Less Than', dataTypes: ['number', 'date'] },
+    { value: 'greater_than_or_equal', label: 'Greater Than or Equal', dataTypes: ['number', 'date'] },
+    { value: 'less_than_or_equal', label: 'Less Than or Equal', dataTypes: ['number', 'date'] },
+    { value: 'exists', label: 'Exists', dataTypes: ['string', 'number', 'boolean', 'array'] },
+    { value: 'not_exists', label: 'Not Exists', dataTypes: ['string', 'number', 'boolean', 'array'] },
+    { value: 'is_empty', label: 'Is Empty', dataTypes: ['string', 'array'] },
+    { value: 'is_not_empty', label: 'Is Not Empty', dataTypes: ['string', 'array'] },
+    { value: 'regex_match', label: 'Regex Match', dataTypes: ['string'] },
+  ];
+
+  // Available action types
+  const actionTypes = [
+    { value: 'create_lead', label: 'Create Lead', description: 'Create a new lead with custom field mapping' },
+    { value: 'update_lead', label: 'Update Lead', description: 'Update existing leads based on search criteria' },
+    { value: 'delete_lead', label: 'Delete Lead', description: 'Delete existing leads based on search criteria' },
+    { value: 'send_notification', label: 'Send Notification', description: 'Send email/SMS notifications' },
+    { value: 'enroll_journey', label: 'Enroll Journey', description: 'Auto-enroll leads in journeys' },
+    { value: 'call_webhook', label: 'Call Webhook', description: 'Call external webhooks' },
+    { value: 'set_tags', label: 'Set Tags', description: 'Add/remove tags from leads' },
+    { value: 'create_task', label: 'Create Task', description: 'Create tasks and reminders' },
+  ];
+
+  // Fetch available journeys
+  const fetchJourneys = async () => {
+    try {
+      const response = await api.journeys.list();
+      console.log('Journeys API response:', response);
       
+      const data = response.data || response;
+      const journeysList = data.journeys || data || [];
+      setAvailableJourneys(journeysList);
+    } catch (error) {
+      console.error('Error fetching journeys:', error);
+      toast.error('Failed to load journeys');
+    }
+  };
+
+  // Fetch webhook events to extract available fields
+  const fetchWebhookFields = async () => {
+    if (!webhookId) return;
+    
+    try {
+      const response = await api.webhooks.getEvents(webhookId.toString(), {
+        page: 1,
+        limit: 10, // Get recent events to analyze fields
+      });
+      
+      const data = response.data || response;
+      const events = data.events || data || [];
+      
+      // Extract all unique field names from webhook payloads
+      const fieldSet = new Set<string>();
+      
+      events.forEach((event: any) => {
+        if (event.payload && typeof event.payload === 'object') {
+          extractFieldNames(event.payload, '', fieldSet);
+        }
+      });
+      
+      // Convert to sorted array
+      const fields = Array.from(fieldSet).sort();
+      console.log('Extracted webhook fields:', fields);
+      setAvailableWebhookFields(fields);
+    } catch (error) {
+      console.error('Error fetching webhook events:', error);
+      // Don't show error toast as this is not critical
+    }
+  };
+
+  // Recursively extract field names from nested objects
+  const extractFieldNames = (obj: any, prefix: string, fieldSet: Set<string>) => {
+    Object.keys(obj).forEach(key => {
+      const fullKey = prefix ? `${prefix}.${key}` : key;
+      fieldSet.add(fullKey);
+      
+      // If the value is an object (but not an array), recurse
+      if (obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
+        extractFieldNames(obj[key], fullKey, fieldSet);
+      }
+    });
+  };
+
+  const fetchWebhook = async () => {
+    if (!webhookId) return;
+    
+    try {
+      const response = await api.webhooks.get(webhookId.toString());
+      const data = response.data || response;
+      
+      console.log('Fetched webhook data:', data); // Debug log
+      
+      // Map API response to form data
+      setFormData({
+        name: data.name || '',
+        description: data.description || '',
+        brand: data.brand || '',
+        source: data.source || '',
+        fieldMapping: {
+          phone: data.fieldMapping?.phone || '',
+          name: data.fieldMapping?.name || '',
+          email: data.fieldMapping?.email || '',
+          address: data.fieldMapping?.address || '',
+          city: data.fieldMapping?.city || '',
+          state: data.fieldMapping?.state || '',
+          zip: data.fieldMapping?.zip || '',
+          leadValue: data.fieldMapping?.leadValue || '',
+          notes: data.fieldMapping?.notes || '',
+        },
+        validationRules: {
+          requirePhone: data.validationRules?.requirePhone ?? true,
+          requireName: data.validationRules?.requireName ?? false,
+          requireEmail: data.validationRules?.requireEmail ?? false,
+          allowDuplicatePhone: data.validationRules?.allowDuplicatePhone ?? false,
+        },
+        autoTagRules: data.autoTagRules || [],
+        requiredHeaders: data.requiredHeaders || {},
+        autoEnrollJourneyId: data.autoEnrollJourneyId || null,
+        conditionalRules: data.conditionalRules || null,
+      });
+
+      // Populate fieldMappings state from the fetched data
+      if (data.fieldMapping) {
+        const baseMappings = [
+          { key: 'phone', value: data.fieldMapping.phone || 'phone' },
+          { key: 'name', value: data.fieldMapping.name || 'full_name' },
+          { key: 'email', value: data.fieldMapping.email || 'email_address' },
+        ];
+        setFieldMappings(baseMappings);
+        
+        // Set custom field mappings for any additional fields
+        const customFields = Object.entries(data.fieldMapping)
+          .filter(([key]) => !['phone', 'name', 'email'].includes(key))
+          .map(([key, value]) => ({ key, value: value as string }));
+        setCustomFieldMappings(customFields);
+      }
+
+      // Populate autoTagRules state
+      if (data.autoTagRules) {
+        setAutoTagRules(data.autoTagRules);
+      }
+
+      // Populate requiredHeaders state
+      if (data.requiredHeaders) {
+        const headerEntries = Object.entries(data.requiredHeaders)
+          .map(([key, value]) => ({ key, value: value as string }));
+        setRequiredHeaders(headerEntries);
+      }
+
+      // Load conditional rules if they exist
+      if (data.conditionalRules) {
+        setConditionalRules(data.conditionalRules);
+      }
+    } catch (error) {
+      console.error('Error fetching webhook:', error);
+      toast.error('Failed to load webhook');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Always fetch journeys when component mounts
+    fetchJourneys();
+    
+    if (isEdit && webhookId) {
       fetchWebhook();
+      fetchWebhookFields(); // Fetch available fields from webhook events
+    } else {
+      // If not in edit mode, set loading to false
+      setLoading(false);
     }
   }, [isEdit, webhookId]);
 
@@ -317,64 +469,267 @@ export default function WebhookForm({ webhookId, isEdit = false }: WebhookFormPr
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+
     setSaving(true);
     
     try {
-      // Validate required fields
-      if (!formData.name || !formData.brand || !formData.source) {
-        toast.error('Please fill in all required fields');
-        setSaving(false);
-        return;
-      }
-      
-      // Validate field mappings
-      const requiredMappings = ['phone', 'name', 'email'];
-      for (const field of requiredMappings) {
-        const mapping = fieldMappings.find(m => m.key === field);
-        if (!mapping || !mapping.value) {
-          toast.error(`Field mapping for ${field} is required`);
-          setSaving(false);
-          return;
-        }
-      }
-      
-      // Update the form data with the latest field mappings, headers, etc.
-      const updatedFormData = {
+      const submitData = {
         ...formData,
-        fieldMapping: {
-          ...fieldMappings.reduce((acc, { key, value }) => {
-            if (key) acc[key] = value;
-            return acc;
-          }, {} as Record<string, string>),
-          ...customFieldMappings.reduce((acc, { key, value }) => {
-            if (key) acc[key] = value;
-            return acc;
-          }, {} as Record<string, string>),
-        },
-        autoTagRules: autoTagRules.filter(rule => rule.field && rule.tag),
-        requiredHeaders: requiredHeaders.reduce((acc, { key, value }) => {
-          if (key) acc[key] = value;
-          return acc;
-        }, {} as Record<string, string>),
+        autoEnrollJourneyId: formData.autoEnrollJourneyId === '' ? null : formData.autoEnrollJourneyId,
+        conditionalRules: conditionalRules.enabled ? conditionalRules : null,
       };
-      
-      if (isEdit && webhookId) {
-        // Update existing webhook
-        await updateWebhook(webhookId, updatedFormData);
+
+      let response;
+      if (webhookId) {
+        response = await api.webhooks.update(webhookId, submitData);
         toast.success('Webhook updated successfully');
       } else {
-        // Create new webhook
-        await createWebhook(updatedFormData);
+        response = await api.webhooks.create(submitData);
         toast.success('Webhook created successfully');
       }
-      
-      // Redirect back to webhooks list
-      router.push('/webhooks');
-    } catch (error) {
+
+      if (onSuccess) {
+        onSuccess(response.data || response);
+      }
+    } catch (error: any) {
       console.error('Error saving webhook:', error);
-      toast.error(isEdit ? 'Failed to update webhook' : 'Failed to create webhook');
+      toast.error(error.response?.data?.error || 'Failed to save webhook');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const validateForm = () => {
+    // Implement form validation logic here
+    return true; // Placeholder return, actual implementation needed
+  };
+
+  // Conditional rules handlers
+  const addConditionSet = () => {
+    setConditionalRules(prev => ({
+      ...prev,
+      conditionSets: [
+        ...prev.conditionSets,
+        {
+          name: `Condition Set ${prev.conditionSets.length + 1}`,
+          conditions: [{
+            field: '',
+            operator: 'equals',
+            value: '',
+            dataType: 'string'
+          }],
+          actions: []
+        }
+      ]
+    }));
+  };
+
+  const removeConditionSet = (index: number) => {
+    setConditionalRules(prev => ({
+      ...prev,
+      conditionSets: prev.conditionSets.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateConditionSet = (index: number, field: string, value: any) => {
+    setConditionalRules(prev => ({
+      ...prev,
+      conditionSets: prev.conditionSets.map((set, i) => 
+        i === index ? { ...set, [field]: value } : set
+      )
+    }));
+  };
+
+  const addCondition = (setIndex: number) => {
+    setConditionalRules(prev => ({
+      ...prev,
+      conditionSets: prev.conditionSets.map((set, i) => 
+        i === setIndex 
+          ? {
+              ...set,
+              conditions: [
+                ...set.conditions,
+                {
+                  field: '',
+                  operator: 'equals',
+                  value: '',
+                  dataType: 'string'
+                }
+              ]
+            }
+          : set
+      )
+    }));
+  };
+
+  const removeCondition = (setIndex: number, conditionIndex: number) => {
+    setConditionalRules(prev => ({
+      ...prev,
+      conditionSets: prev.conditionSets.map((set, i) => 
+        i === setIndex 
+          ? {
+              ...set,
+              conditions: set.conditions.filter((_, ci) => ci !== conditionIndex)
+            }
+          : set
+      )
+    }));
+  };
+
+  const updateCondition = (setIndex: number, conditionIndex: number, field: string, value: any) => {
+    setConditionalRules(prev => ({
+      ...prev,
+      conditionSets: prev.conditionSets.map((set, i) => 
+        i === setIndex 
+          ? {
+              ...set,
+              conditions: set.conditions.map((condition, ci) => 
+                ci === conditionIndex ? { ...condition, [field]: value } : condition
+              )
+            }
+          : set
+      )
+    }));
+  };
+
+  const addAction = (setIndex: number) => {
+    setConditionalRules(prev => ({
+      ...prev,
+      conditionSets: prev.conditionSets.map((set, i) => 
+        i === setIndex 
+          ? {
+              ...set,
+              actions: [
+                ...set.actions,
+                {
+                  type: 'create_lead',
+                  config: {}
+                }
+              ]
+            }
+          : set
+      )
+    }));
+  };
+
+  const removeAction = (setIndex: number, actionIndex: number) => {
+    setConditionalRules(prev => ({
+      ...prev,
+      conditionSets: prev.conditionSets.map((set, i) => 
+        i === setIndex 
+          ? {
+              ...set,
+              actions: set.actions.filter((_, ai) => ai !== actionIndex)
+            }
+          : set
+      )
+    }));
+  };
+
+  const updateAction = (setIndex: number, actionIndex: number, field: string, value: any) => {
+    setConditionalRules(prev => ({
+      ...prev,
+      conditionSets: prev.conditionSets.map((set, i) => 
+        i === setIndex 
+          ? {
+              ...set,
+              actions: set.actions.map((action, ai) => 
+                ai === actionIndex 
+                  ? field === 'type' 
+                    ? { type: value, config: {} }
+                    : { ...action, [field]: value }
+                  : action
+              )
+            }
+          : set
+      )
+    }));
+  };
+
+  const getActionConfigFields = (actionType: string) => {
+    switch (actionType) {
+      case 'create_lead':
+        return [
+          { key: 'brand', label: 'Brand', type: 'text', placeholder: 'Override brand' },
+          { key: 'source', label: 'Source', type: 'text', placeholder: 'Override source' },
+        ];
+      case 'update_lead':
+        return [
+          { key: 'searchField', label: 'Search Field', type: 'select', options: [
+            { value: 'phone', label: 'Phone Number' },
+            { value: 'email', label: 'Email Address' },
+            { value: 'id', label: 'Lead ID' }
+          ]},
+          { key: 'searchValue', label: 'Search Value', type: 'text', placeholder: 'Use {{field}} for dynamic values' },
+          { key: 'updateFields', label: 'Update Fields', type: 'textarea', placeholder: '{"status": "updated", "notes": "Updated via webhook"}' },
+        ];
+      case 'delete_lead':
+        return [
+          { key: 'searchField', label: 'Search Field', type: 'select', options: [
+            { value: 'phone', label: 'Phone Number' },
+            { value: 'email', label: 'Email Address' },
+            { value: 'id', label: 'Lead ID' },
+            { value: 'brand', label: 'Brand' },
+            { value: 'source', label: 'Source' }
+          ]},
+          { key: 'searchValue', label: 'Search Value', type: 'text', placeholder: 'Use {{field}} for dynamic values from webhook' },
+          { key: 'confirmationRequired', label: 'Require Confirmation', type: 'select', options: [
+            { value: 'false', label: 'Delete Immediately' },
+            { value: 'true', label: 'Mark for Deletion (Requires Manual Confirmation)' }
+          ]},
+          { key: 'reason', label: 'Deletion Reason', type: 'text', placeholder: 'Unsubscribed via webhook' },
+        ];
+      case 'enroll_journey':
+        return [
+          { key: 'journeyId', label: 'Journey', type: 'select', options: availableJourneys.map(j => ({ value: j.id, label: j.name })) },
+          { key: 'priority', label: 'Priority', type: 'select', options: [
+            { value: 'low', label: 'Low' },
+            { value: 'normal', label: 'Normal' },
+            { value: 'high', label: 'High' },
+            { value: 'immediate', label: 'Immediate' }
+          ]},
+        ];
+      case 'send_notification':
+        return [
+          { key: 'recipients', label: 'Recipients', type: 'text', placeholder: 'email1@example.com,email2@example.com' },
+          { key: 'subject', label: 'Subject', type: 'text', placeholder: 'New lead: {{name}}' },
+          { key: 'message', label: 'Message', type: 'textarea', placeholder: 'New lead received: {{name}} ({{phone}})' },
+          { key: 'type', label: 'Type', type: 'select', options: [
+            { value: 'email', label: 'Email' },
+            { value: 'sms', label: 'SMS' }
+          ]},
+        ];
+      case 'set_tags':
+        return [
+          { key: 'operation', label: 'Operation', type: 'select', options: [
+            { value: 'add', label: 'Add Tags' },
+            { value: 'remove', label: 'Remove Tags' }
+          ]},
+          { key: 'tags', label: 'Tags', type: 'text', placeholder: 'tag1,tag2,tag3' },
+        ];
+      case 'call_webhook':
+        return [
+          { key: 'url', label: 'Webhook URL', type: 'text', placeholder: 'https://api.example.com/webhook' },
+          { key: 'method', label: 'Method', type: 'select', options: [
+            { value: 'POST', label: 'POST' },
+            { value: 'PUT', label: 'PUT' },
+            { value: 'PATCH', label: 'PATCH' }
+          ]},
+          { key: 'headers', label: 'Headers', type: 'textarea', placeholder: '{"Authorization": "Bearer token"}' },
+        ];
+      case 'create_task':
+        return [
+          { key: 'title', label: 'Task Title', type: 'text', placeholder: 'Follow up with {{name}}' },
+          { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Contact lead about {{subject}}' },
+          { key: 'dueDate', label: 'Due Date', type: 'text', placeholder: '+1d (1 day from now)' },
+          { key: 'assignee', label: 'Assignee', type: 'text', placeholder: 'user@example.com' },
+        ];
+      default:
+        return [];
     }
   };
 
@@ -444,17 +799,6 @@ export default function WebhookForm({ webhookId, isEdit = false }: WebhookFormPr
                   required
                 />
               </div>
-            </div>
-            
-            <div className="flex items-center space-x-2 pt-2">
-              <Checkbox
-                id="isActive"
-                checked={formData.isActive}
-                onCheckedChange={(checked) => 
-                  handleCheckboxChange('isActive', checked as boolean)
-                }
-              />
-              <Label htmlFor="isActive">Webhook is active</Label>
             </div>
           </div>
         </CardContent>
@@ -671,31 +1015,30 @@ export default function WebhookForm({ webhookId, isEdit = false }: WebhookFormPr
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="securityToken">Security Token</Label>
-            <Input
-              id="securityToken"
-              name="securityToken"
-              value={formData.securityToken || ''}
-              onChange={handleInputChange}
-              placeholder="Optional security token"
-            />
+            <Label htmlFor="autoEnrollJourneyId">Auto-Enroll Journey</Label>
+            <Select
+              value={formData.autoEnrollJourneyId ? formData.autoEnrollJourneyId.toString() : 'none'}
+              onValueChange={(value) => {
+                setFormData(prev => ({
+                  ...prev,
+                  autoEnrollJourneyId: value === 'none' ? null : parseInt(value, 10)
+                }));
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a journey (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None - No auto-enrollment</SelectItem>
+                {availableJourneys.map((journey) => (
+                  <SelectItem key={journey.id} value={journey.id.toString()}>
+                    {journey.name} {!journey.isActive && '(Inactive)'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <p className="text-xs text-gray-500">
-              If provided, API clients must include this token in the Authorization header.
-            </p>
-          </div>
-          
-          <div className="space-y-2 pt-4">
-            <Label htmlFor="autoEnrollJourneyId">Auto-Enroll Journey ID</Label>
-            <Input
-              id="autoEnrollJourneyId"
-              name="autoEnrollJourneyId"
-              type="number"
-              value={formData.autoEnrollJourneyId || ''}
-              onChange={handleInputChange}
-              placeholder="Journey ID for auto-enrollment"
-            />
-            <p className="text-xs text-gray-500">
-              If provided, leads created from this webhook will be automatically enrolled in the specified journey.
+              If selected, leads created from this webhook will be automatically enrolled in the specified journey.
             </p>
           </div>
           
@@ -739,6 +1082,373 @@ export default function WebhookForm({ webhookId, isEdit = false }: WebhookFormPr
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Conditional Rules & Actions</CardTitle>
+          <CardDescription>
+            Set up advanced conditional logic to automatically execute actions when specific conditions are met.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center space-x-3">
+            <Checkbox
+              id="enableConditionalRules"
+              checked={conditionalRules.enabled}
+              onCheckedChange={(checked) => 
+                setConditionalRules(prev => ({ ...prev, enabled: checked as boolean }))
+              }
+            />
+            <div>
+              <Label htmlFor="enableConditionalRules" className="text-base font-medium">
+                Enable Conditional Processing
+              </Label>
+              <p className="text-sm text-gray-500">
+                When enabled, webhook data will be processed through conditional rules before creating leads
+              </p>
+            </div>
+          </div>
+
+          {conditionalRules.enabled && (
+            <div className="space-y-6 border-t pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-medium">Logic Operator</h4>
+                  <p className="text-xs text-gray-500">How condition sets should be evaluated</p>
+                </div>
+                <Select
+                  value={conditionalRules.logicOperator}
+                  onValueChange={(value: 'AND' | 'OR') => 
+                    setConditionalRules(prev => ({ ...prev, logicOperator: value }))
+                  }
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="AND">AND</SelectItem>
+                    <SelectItem value="OR">OR</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium">Condition Sets</h4>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addConditionSet}
+                  >
+                    + Add Condition Set
+                  </Button>
+                </div>
+
+                {conditionalRules.conditionSets.map((conditionSet, setIndex) => (
+                  <Card key={setIndex} className="border-2 border-dashed">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <Input
+                          value={conditionSet.name}
+                          onChange={(e) => updateConditionSet(setIndex, 'name', e.target.value)}
+                          placeholder="Condition Set Name"
+                          className="max-w-md"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeConditionSet(setIndex)}
+                        >
+                          Remove Set
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Conditions */}
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-2">
+                            <h5 className="text-sm font-medium">Conditions</h5>
+                            {availableWebhookFields.length > 0 && (
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                                {availableWebhookFields.length} fields available
+                              </span>
+                            )}
+                            {isEdit && webhookId && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={fetchWebhookFields}
+                                className="text-xs px-2 py-1 h-6"
+                                title="Refresh available fields from recent webhook events"
+                              >
+                                ↻
+                              </Button>
+                            )}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => addCondition(setIndex)}
+                          >
+                            + Add Condition
+                          </Button>
+                        </div>
+
+                        {availableWebhookFields.length > 0 && (
+                          <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-xs text-blue-700">
+                              💡 Field names are populated from recent webhook data. Select from dropdown or enter custom field names.
+                            </p>
+                          </div>
+                        )}
+
+                        {conditionSet.conditions.map((condition, conditionIndex) => (
+                          <div key={conditionIndex} className="grid grid-cols-12 gap-2 items-center mb-2 p-3 bg-gray-50 rounded-lg">
+                            <div className="col-span-3">
+                              {availableWebhookFields.length > 0 ? (
+                                <div className="space-y-1">
+                                  <Select
+                                    value={availableWebhookFields.includes(condition.field) ? condition.field : '__manual__'}
+                                    onValueChange={(value) => {
+                                      if (value === '__manual__') {
+                                        updateCondition(setIndex, conditionIndex, 'field', '');
+                                      } else {
+                                        updateCondition(setIndex, conditionIndex, 'field', value);
+                                      }
+                                    }}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select field from webhook data" />
+                                    </SelectTrigger>
+                                    <SelectContent className="max-h-48 overflow-y-auto">
+                                      <SelectItem value="__manual__">
+                                        <span className="text-gray-500">Manual entry...</span>
+                                      </SelectItem>
+                                      {availableWebhookFields.map(field => (
+                                        <SelectItem key={field} value={field}>
+                                          <code className="text-xs bg-gray-100 px-1 rounded">{field}</code>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  {!availableWebhookFields.includes(condition.field) && (
+                                    <Input
+                                      placeholder="Enter custom field name"
+                                      value={condition.field}
+                                      onChange={(e) => updateCondition(setIndex, conditionIndex, 'field', e.target.value)}
+                                    />
+                                  )}
+                                </div>
+                              ) : (
+                                <Input
+                                  placeholder="Field (e.g., budget)"
+                                  value={condition.field}
+                                  onChange={(e) => updateCondition(setIndex, conditionIndex, 'field', e.target.value)}
+                                />
+                              )}
+                            </div>
+                            <div className="col-span-2">
+                              <Select
+                                value={condition.dataType}
+                                onValueChange={(value) => updateCondition(setIndex, conditionIndex, 'dataType', value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="string">String</SelectItem>
+                                  <SelectItem value="number">Number</SelectItem>
+                                  <SelectItem value="boolean">Boolean</SelectItem>
+                                  <SelectItem value="date">Date</SelectItem>
+                                  <SelectItem value="array">Array</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="col-span-2">
+                              <Select
+                                value={condition.operator}
+                                onValueChange={(value) => updateCondition(setIndex, conditionIndex, 'operator', value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {conditionOperators
+                                    .filter(op => op.dataTypes.includes(condition.dataType))
+                                    .map(op => (
+                                      <SelectItem key={op.value} value={op.value}>
+                                        {op.label}
+                                      </SelectItem>
+                                    ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="col-span-4">
+                              {['exists', 'not_exists', 'is_empty', 'is_not_empty'].includes(condition.operator) ? (
+                                <div className="text-sm text-gray-500 italic">No value required</div>
+                              ) : (
+                                <Input
+                                  placeholder="Value"
+                                  value={condition.value}
+                                  onChange={(e) => {
+                                    let value = e.target.value;
+                                    if (condition.dataType === 'number') {
+                                      value = value === '' ? '' : Number(value);
+                                    } else if (condition.dataType === 'boolean') {
+                                      value = value === 'true';
+                                    }
+                                    updateCondition(setIndex, conditionIndex, 'value', value);
+                                  }}
+                                />
+                              )}
+                            </div>
+                            <div className="col-span-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeCondition(setIndex, conditionIndex)}
+                              >
+                                ×
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Actions */}
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <h5 className="text-sm font-medium">Actions</h5>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => addAction(setIndex)}
+                          >
+                            + Add Action
+                          </Button>
+                        </div>
+
+                        {conditionSet.actions.map((action, actionIndex) => (
+                          <div key={actionIndex} className={`border rounded-lg p-4 space-y-3 ${
+                            action.type === 'delete_lead' 
+                              ? 'bg-red-50 border-red-200' 
+                              : 'bg-blue-50'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <Select
+                                value={action.type}
+                                onValueChange={(value) => updateAction(setIndex, actionIndex, 'type', value)}
+                              >
+                                <SelectTrigger className="max-w-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {actionTypes.map(type => (
+                                    <SelectItem key={type.value} value={type.value}>
+                                      {type.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeAction(setIndex, actionIndex)}
+                              >
+                                Remove Action
+                              </Button>
+                            </div>
+
+                            {action.type === 'delete_lead' && (
+                              <div className="flex items-center space-x-2 p-2 bg-red-100 border border-red-300 rounded">
+                                <span className="text-red-600 font-bold">⚠️</span>
+                                <span className="text-xs text-red-700 font-medium">
+                                  WARNING: This action will permanently delete leads from your system. Use with caution.
+                                </span>
+                              </div>
+                            )}
+
+                            <div className={`text-xs ${
+                              action.type === 'delete_lead' ? 'text-red-600' : 'text-gray-600'
+                            }`}>
+                              {actionTypes.find(t => t.value === action.type)?.description}
+                            </div>
+
+                            {/* Action Configuration */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {getActionConfigFields(action.type).map(field => (
+                                <div key={field.key} className="space-y-1">
+                                  <Label className="text-xs">{field.label}</Label>
+                                  {field.type === 'select' ? (
+                                    <Select
+                                      value={action.config[field.key] || ''}
+                                      onValueChange={(value) => {
+                                        const newConfig = { ...action.config, [field.key]: value };
+                                        updateAction(setIndex, actionIndex, 'config', newConfig);
+                                      }}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder={`Select ${field.label}`} />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {field.options?.map(option => (
+                                          <SelectItem key={option.value} value={option.value.toString()}>
+                                            {option.label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : field.type === 'textarea' ? (
+                                    <textarea
+                                      className="w-full p-2 text-xs border rounded resize-none"
+                                      rows={2}
+                                      placeholder={field.placeholder}
+                                      value={action.config[field.key] || ''}
+                                      onChange={(e) => {
+                                        const newConfig = { ...action.config, [field.key]: e.target.value };
+                                        updateAction(setIndex, actionIndex, 'config', newConfig);
+                                      }}
+                                    />
+                                  ) : (
+                                    <Input
+                                      className="text-xs"
+                                      placeholder={field.placeholder}
+                                      value={action.config[field.key] || ''}
+                                      onChange={(e) => {
+                                        const newConfig = { ...action.config, [field.key]: e.target.value };
+                                        updateAction(setIndex, actionIndex, 'config', newConfig);
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+
+                {conditionalRules.conditionSets.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>No condition sets configured</p>
+                    <p className="text-sm">Add a condition set to start creating conditional rules</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
       

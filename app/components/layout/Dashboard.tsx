@@ -4,6 +4,8 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/app/store/authStore';
 import { Phone, Users, BarChart, Layers, Settings, FileText, User, LogOut, Menu, X, GitBranch, MessageSquare, Route, Link2, Mic } from 'lucide-react';
+import NotificationBar from '@/app/components/ui/NotificationBar';
+import '@/app/services/webhookNotificationService';
 
 type NavItem = {
   name: string;
@@ -42,6 +44,9 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Notification Bar */}
+      <NotificationBar />
+      
       {/* Mobile sidebar */}
       <div className="lg:hidden">
         <div className="fixed inset-0 z-40 flex">

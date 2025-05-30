@@ -11,13 +11,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/app/components/ui/card';
-import { listWebhooks, deleteWebhook } from '@/app/utils/api';
 import { WebhookEndpoint, WebhookListResponse } from '@/app/types/webhook';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
 import { Badge } from '@/app/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { PlusIcon, RefreshCwIcon, TrashIcon, PencilIcon } from 'lucide-react';
+import api from '@/app/lib/api';
 
 export default function WebhooksPage() {
   const router = useRouter();
@@ -33,16 +33,21 @@ export default function WebhooksPage() {
   const fetchWebhooks = async (page = 1, filter: { isActive?: boolean } = {}) => {
     setLoading(true);
     try {
-      const response = await listWebhooks({
+      const response = await api.webhooks.list({
         page,
         limit: 10,
         ...filter,
       });
-      setWebhooks(response.webhooks);
+      
+      // Handle different response structures
+      const data = response.data || response;
+      const webhookList = data.webhooks || data || [];
+      
+      setWebhooks(webhookList);
       setPaginationInfo({
-        currentPage: response.currentPage,
-        totalPages: response.totalPages,
-        totalCount: response.totalCount,
+        currentPage: data.currentPage || page,
+        totalPages: data.totalPages || Math.ceil((data.totalCount || webhookList.length) / 10),
+        totalCount: data.totalCount || webhookList.length,
       });
     } catch (error) {
       console.error('Error fetching webhooks:', error);
@@ -70,7 +75,7 @@ export default function WebhooksPage() {
   const handleDelete = async (id: number) => {
     if (confirm('Are you sure you want to delete this webhook?')) {
       try {
-        await deleteWebhook(id);
+        await api.webhooks.delete(id.toString());
         toast.success('Webhook deleted successfully');
         fetchWebhooks(paginationInfo.currentPage);
       } catch (error) {

@@ -358,7 +358,6 @@ export const webhooks = {
   create: (data: {
     name: string;
     description: string;
-    isActive: boolean;
     brand: string;
     source: string;
     fieldMapping: Record<string, string>;
@@ -374,8 +373,8 @@ export const webhooks = {
       value: string;
       tag: string;
     }>;
-    securityToken?: string;
-    autoEnrollJourneyId?: number;
+    requiredHeaders?: Record<string, string>;
+    autoEnrollJourneyId?: number | null;
   }) => api.post('/webhooks', data),
   update: (id: string, data: any) => api.put(`/webhooks/${id}`, data),
   delete: (id: string) => api.delete(`/webhooks/${id}`),
@@ -386,6 +385,10 @@ export const webhooks = {
   }) => api.get(`/webhooks/${id}/events`, { params }),
   test: (id: string, payload: Record<string, any>) => 
     api.post(`/webhooks/${id}/test`, payload),
+  regenerateKey: (id: string) => api.post(`/webhooks/${id}/regenerate-key`),
+  regenerateToken: (id: string) => api.post(`/webhooks/${id}/regenerate-token`),
+  health: (endpointKey: string) => api.get(`/webhook-health/${endpointKey}`),
+  capabilities: () => api.get('/system/webhook-capabilities'),
 };
 
 // SMS/Twilio endpoints
