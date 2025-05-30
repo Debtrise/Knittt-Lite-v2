@@ -253,14 +253,8 @@ export default function ReportsPage() {
   const renderReportTypeSelector = () => (
     <div className="flex flex-wrap gap-2 mb-6">
       {[
-        { key: 'dashboard', label: 'Dashboard', icon: BarChart },
         { key: 'call-summary', label: 'Call Summary', icon: PhoneCall },
-        { key: 'sms-summary', label: 'SMS Summary', icon: MessageSquare },
-        { key: 'agent-performance', label: 'Agent Performance', icon: Users },
-        { key: 'lead-conversion', label: 'Lead Conversion', icon: TrendingUp },
         { key: 'journey-analytics', label: 'Journey Analytics', icon: Route },
-        { key: 'custom', label: 'Custom Query', icon: Database },
-        { key: 'templates', label: 'Templates', icon: FileText },
       ].map(({ key, label, icon: Icon }) => (
         <Button
           key={key}
@@ -375,73 +369,6 @@ export default function ReportsPage() {
                   placeholder="From number"
                   value={filters.fromNumber || ''}
                   onChange={(e) => setFilters(prev => ({ ...prev, fromNumber: e.target.value }))}
-                />
-              </div>
-            </>
-          )}
-
-          {reportType === 'agent-performance' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Agent IDs</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  placeholder="Agent IDs (comma separated)"
-                  value={filters.agentIds ? filters.agentIds.join(',') : ''}
-                  onChange={(e) => setFilters(prev => ({ 
-                    ...prev, 
-                    agentIds: e.target.value ? e.target.value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)) : undefined 
-                  }))}
-                />
-              </div>
-            </>
-          )}
-
-          {reportType === 'lead-conversion' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Sources</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  placeholder="Sources (comma separated)"
-                  value={filters.sources ? filters.sources.join(',') : ''}
-                  onChange={(e) => setFilters(prev => ({ 
-                    ...prev, 
-                    sources: e.target.value ? e.target.value.split(',').map(s => s.trim()) : undefined 
-                  }))}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Brands</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  placeholder="Brands (comma separated)"
-                  value={filters.brands ? filters.brands.join(',') : ''}
-                  onChange={(e) => setFilters(prev => ({ 
-                    ...prev, 
-                    brands: e.target.value ? e.target.value.split(',').map(b => b.trim()) : undefined 
-                  }))}
-                />
-              </div>
-            </>
-          )}
-
-          {reportType === 'journey-analytics' && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Journey IDs</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  placeholder="Journey IDs (comma separated)"
-                  value={filters.journeyIds ? filters.journeyIds.join(',') : ''}
-                  onChange={(e) => setFilters(prev => ({ 
-                    ...prev, 
-                    journeyIds: e.target.value ? e.target.value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)) : undefined 
-                  }))}
                 />
               </div>
             </>
