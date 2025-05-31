@@ -125,7 +125,7 @@ export default function WebhookDetailPage({ params }: WebhookDetailPageProps) {
     }
 
     try {
-      await api.webhooks.delete(webhookId);
+      await api.webhooks.delete(webhookId.toString());
       toast.success('Webhook deleted successfully');
       router.push('/webhooks');
     } catch (error) {
@@ -174,7 +174,7 @@ export default function WebhookDetailPage({ params }: WebhookDetailPageProps) {
             setIsEditing(false);
             // Reload webhook data
             setLoading(true);
-            api.webhooks.get(webhookId).then(response => {
+            api.webhooks.get(webhookId.toString()).then(response => {
               setWebhook(response.data);
               setLoading(false);
             });
