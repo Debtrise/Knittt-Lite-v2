@@ -188,7 +188,7 @@ export default function WebhooksPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <Button 
-                            variant="ghost" 
+                            variant="secondary" 
                             size="sm" 
                             onClick={(e) => {
                               e.stopPropagation();
@@ -199,7 +199,7 @@ export default function WebhooksPage() {
                             <PencilIcon className="h-4 w-4" />
                           </Button>
                           <Button 
-                            variant="ghost" 
+                            variant="secondary" 
                             size="sm" 
                             onClick={(e) => {
                               e.stopPropagation();
@@ -242,7 +242,7 @@ export default function WebhooksPage() {
                 Next
               </Button>
               <Button 
-                variant="ghost" 
+                variant="secondary" 
                 size="sm"
                 onClick={() => fetchWebhooks(paginationInfo.currentPage)}
                 className="ml-2"

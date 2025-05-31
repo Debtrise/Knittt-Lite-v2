@@ -252,7 +252,7 @@ export default function UserManagementPage() {
               Manage users and their roles within your organization
             </p>
           </div>
-          <Button variant="default" onClick={() => setShowForm(true)}>
+          <Button variant="primary" onClick={() => setShowForm(true)}>
             <Plus className="w-4 h-4 mr-2" />
             New User
           </Button>
@@ -285,8 +285,8 @@ export default function UserManagementPage() {
               </select>
             </div>
             <div className="flex gap-2">
-              <Button type="submit" variant="default">Search</Button>
-              <Button type="button" variant="ghost" onClick={clearFilters}>Clear</Button>
+              <Button type="submit" variant="primary">Search</Button>
+              <Button type="button" variant="secondary" onClick={clearFilters}>Clear</Button>
             </div>
           </form>
         </div>
@@ -298,7 +298,7 @@ export default function UserManagementPage() {
               <h2 className="text-lg font-medium text-gray-900">
                 {editingUser ? 'Edit User' : 'Create New User'}
               </h2>
-              <Button variant="ghost" onClick={resetForm}>Cancel</Button>
+              <Button variant="secondary" onClick={resetForm}>Cancel</Button>
             </div>
             <form onSubmit={editingUser ? handleUpdate : handleCreate} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -369,10 +369,8 @@ export default function UserManagementPage() {
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-4">
-                <Button type="button" variant="ghost" onClick={resetForm}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="default" disabled={saving}>
+                <Button variant="secondary" onClick={resetForm}>Cancel</Button>
+                <Button type="submit" variant="primary" disabled={saving}>
                   {saving ? 'Saving...' : editingUser ? 'Update User' : 'Create User'}
                 </Button>
               </div>
@@ -456,7 +454,7 @@ export default function UserManagementPage() {
                         <div className="flex justify-end gap-2">
                           <Link href={`/settings/users/${u.id}`}>
                             <Button
-                              variant="ghost"
+                              variant="secondary"
                               size="sm"
                               className="text-gray-600 hover:text-gray-900"
                             >
@@ -464,7 +462,7 @@ export default function UserManagementPage() {
                             </Button>
                           </Link>
                           <Button
-                            variant="ghost"
+                            variant="secondary"
                             size="sm"
                             onClick={() => handleEdit(u)}
                             className="text-blue-600 hover:text-blue-900"
@@ -473,7 +471,7 @@ export default function UserManagementPage() {
                           </Button>
                           {u.id !== user?.userId && (
                             <Button
-                              variant="ghost"
+                              variant="secondary"
                               size="sm"
                               onClick={() => handleDelete(u.id)}
                               disabled={deleting === u.id}
@@ -504,7 +502,7 @@ export default function UserManagementPage() {
                 </div>
                 <div className="flex gap-2">
                   <Button
-                    variant="ghost"
+                    variant="secondary"
                     size="sm"
                     onClick={() => setCurrentPage(currentPage - 1)}
                     disabled={currentPage === 1}
@@ -515,7 +513,7 @@ export default function UserManagementPage() {
                     Page {currentPage} of {totalPages}
                   </span>
                   <Button
-                    variant="ghost"
+                    variant="secondary"
                     size="sm"
                     onClick={() => setCurrentPage(currentPage + 1)}
                     disabled={currentPage === totalPages}

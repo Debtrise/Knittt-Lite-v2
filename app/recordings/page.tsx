@@ -437,7 +437,7 @@ export default function RecordingsPage() {
               Create New Recording
             </Button>
             <label htmlFor="file-upload">
-              <Button variant="outline" asChild disabled={uploading}>
+              <Button variant="outline" disabled={uploading}>
                 <div>
                   {uploading ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />

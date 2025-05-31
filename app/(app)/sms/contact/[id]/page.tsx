@@ -103,7 +103,7 @@ export default function ContactPage() {
       <div className="py-6 h-full flex flex-col">
         <div className="flex items-center mb-6">
           <Button
-            variant="ghost"
+            variant="secondary"
             onClick={() => router.back()}
             className="mr-4"
           >
@@ -168,7 +168,7 @@ export default function ContactPage() {
                 </div>
                 <Button
                   type="submit"
-                  variant="default"
+                  variant="primary"
                   isLoading={isSending}
                   disabled={isSending || !replyText.trim()}
                 >

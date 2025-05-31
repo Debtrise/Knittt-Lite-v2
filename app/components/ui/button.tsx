@@ -7,7 +7,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   fullWidth?: boolean;
 }
 
-const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ variant = 'primary', isLoading = false, size = 'md', fullWidth = false, children, className = '', ...props }, ref) => {
     const baseStyles = 'inline-flex items-center justify-center rounded-md font-bold focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-300';
     
@@ -45,6 +45,4 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   }
 );
 
-Button.displayName = 'Button';
-
-export default Button; 
+Button.displayName = 'Button'; 

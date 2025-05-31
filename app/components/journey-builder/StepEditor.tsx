@@ -1065,7 +1065,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
         
         <div className="flex justify-between pt-4 border-t border-gray-200">
           <Button
-            variant="destructive"
+            variant="danger"
             onClick={handleDelete}
             disabled={isDeleting}
             className="flex items-center gap-1"

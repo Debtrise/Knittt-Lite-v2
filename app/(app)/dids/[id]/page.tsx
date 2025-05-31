@@ -155,7 +155,7 @@ export default function DIDDetailPage() {
           </div>
           <Button
             type="button"
-            variant="destructive"
+            variant="danger"
             onClick={handleDelete}
             isLoading={isDeleting}
             disabled={isDeleting}

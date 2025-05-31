@@ -124,7 +124,7 @@ export default function SmsTemplatesPage() {
           </div>
           <Button
             onClick={() => setShowCreateForm(true)}
-            variant="default"
+            variant="primary"
           >
             <Plus className="w-4 h-4 mr-2" />
             New Template
@@ -179,7 +179,7 @@ export default function SmsTemplatesPage() {
                   </Button>
                   <Button
                     type="submit"
-                    variant="default"
+                    variant="primary"
                     isLoading={isCreating}
                   >
                     Create Template

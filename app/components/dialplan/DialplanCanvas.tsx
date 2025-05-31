@@ -1002,7 +1002,7 @@ export default function DialplanCanvas({
           
           {/* Add Node button */}
           <Button
-            variant={showNodePalette ? "brand" : "outline"}
+            variant={showNodePalette ? "primary" : "outline"}
             size="sm"
             onClick={toggleNodePalette}
             disabled={readOnly}

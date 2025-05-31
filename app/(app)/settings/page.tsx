@@ -393,7 +393,7 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Settings</h1>
           <Button
             onClick={fetchAgentStatus}
-            variant="default"
+            variant="primary"
             isLoading={isRefreshing}
           >
             Refresh Status
@@ -541,7 +541,7 @@ export default function SettingsPage() {
               <div className="flex justify-end">
                 <Button
                   type="submit"
-                  variant="default"
+                  variant="primary"
                   isLoading={isSubmitting}
                 >
                   Save API Settings
@@ -633,7 +633,7 @@ export default function SettingsPage() {
             <div className="flex justify-end">
               <Button
                 type="submit"
-                variant="default"
+                variant="primary"
                 isLoading={isSubmitting}
               >
                 Save Dialer Settings
@@ -787,7 +787,7 @@ export default function SettingsPage() {
             <div className="flex justify-end">
               <Button
                 type="submit"
-                variant="default"
+                variant="primary"
                 isLoading={isSubmitting}
               >
                 Save AMI Settings
@@ -827,7 +827,7 @@ export default function SettingsPage() {
             <div className="flex justify-end">
               <Button
                 type="submit"
-                variant="default"
+                variant="primary"
                 isLoading={isSubmitting}
               >
                 Save Eleven Labs Settings
@@ -953,7 +953,7 @@ export default function SettingsPage() {
               </Button>
               <Button
                 type="submit"
-                variant="default"
+                variant="primary"
                 isLoading={isSubmitting}
               >
                 Save FreePBX Settings

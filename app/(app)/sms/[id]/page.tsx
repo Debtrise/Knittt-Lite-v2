@@ -186,7 +186,7 @@ export default function CampaignDetailPage() {
       <div className="py-6">
         <div className="flex items-center mb-6">
           <Button
-            variant="ghost"
+            variant="secondary"
             onClick={() => router.push('/sms')}
             className="mr-4"
           >
@@ -222,7 +222,7 @@ export default function CampaignDetailPage() {
                     </Button>
                   ) : campaign.status !== 'completed' && (
                     <Button
-                      variant="default"
+                      variant="primary"
                       onClick={handleStartCampaign}
                       disabled={campaign.totalContacts === 0}
                     >
@@ -258,7 +258,7 @@ export default function CampaignDetailPage() {
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 flex items-center">
                       <span>{campaign.rateLimit} messages per hour</span>
                       <Button
-                        variant="ghost"
+                        variant="secondary"
                         size="sm"
                         onClick={handleRateLimitChange}
                         className="ml-2"
@@ -377,7 +377,7 @@ export default function CampaignDetailPage() {
               <p className="mt-1 text-sm text-gray-500">The requested campaign may have been deleted or doesn't exist.</p>
               <div className="mt-6">
                 <Button
-                  variant="default"
+                  variant="primary"
                   onClick={() => router.push('/sms')}
                 >
                   <ArrowLeft className="mr-2 h-4 w-4" />

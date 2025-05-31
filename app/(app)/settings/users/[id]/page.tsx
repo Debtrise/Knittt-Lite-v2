@@ -219,7 +219,7 @@ export default function UserDetailsPage() {
         <div className="mb-6">
           <div className="flex items-center gap-4 mb-4">
             <Button
-              variant="ghost"
+              variant="secondary"
               onClick={() => router.push('/settings/users')}
               className="flex items-center gap-2"
             >
@@ -237,23 +237,23 @@ export default function UserDetailsPage() {
             <div className="flex gap-2">
               {!editing ? (
                 <>
-                  <Button variant="default" onClick={handleEdit}>
+                  <Button variant="primary" onClick={handleEdit}>
                     <Edit className="w-4 h-4 mr-2" />
                     Edit User
                   </Button>
                   {userDetails.id !== currentUser?.userId && (
-                    <Button variant="destructive" onClick={handleDelete}>
+                    <Button variant="danger" onClick={handleDelete}>
                       Delete User
                     </Button>
                   )}
                 </>
               ) : (
                 <>
-                  <Button variant="ghost" onClick={handleCancelEdit}>
+                  <Button variant="secondary" onClick={handleCancelEdit}>
                     <X className="w-4 h-4 mr-2" />
                     Cancel
                   </Button>
-                  <Button variant="default" onClick={handleSave} disabled={saving}>
+                  <Button variant="primary" onClick={handleSave} disabled={saving}>
                     <Save className="w-4 h-4 mr-2" />
                     {saving ? 'Saving...' : 'Save Changes'}
                   </Button>
@@ -438,7 +438,7 @@ export default function UserDetailsPage() {
               </div>
               <div className="p-6 space-y-3">
                 <Button
-                  variant="ghost"
+                  variant="secondary"
                   className="w-full justify-start"
                   onClick={() => {
                     // TODO: Implement reset password functionality
@@ -448,7 +448,7 @@ export default function UserDetailsPage() {
                   Reset Password
                 </Button>
                 <Button
-                  variant="ghost"
+                  variant="secondary"
                   className="w-full justify-start"
                   onClick={() => {
                     // TODO: Implement view activity functionality
@@ -459,7 +459,7 @@ export default function UserDetailsPage() {
                 </Button>
                 {userDetails.id !== currentUser?.userId && (
                   <Button
-                    variant="ghost"
+                    variant="secondary"
                     className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
                     onClick={handleDelete}
                   >

@@ -277,7 +277,7 @@ export default function AudioPlayer({
       {/* Volume Control */}
       <div className="flex items-center space-x-1">
         <Button
-          variant="ghost"
+          variant="secondary"
           size="sm"
           onClick={toggleMute}
           className="p-1"

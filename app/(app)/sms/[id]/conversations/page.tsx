@@ -243,7 +243,7 @@ export default function ConversationsPage() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
             <Button
-              variant="ghost"
+              variant="secondary"
               onClick={() => router.back()}
               className="mr-4"
             >
@@ -259,7 +259,7 @@ export default function ConversationsPage() {
                 </Button>
             )}
             <Button
-                variant={showUnreplied ? "default" : "secondary"}
+                variant={showUnreplied ? "primary" : "secondary"}
                 onClick={() => setShowUnreplied(!showUnreplied)}
                 className="flex items-center"
             >
@@ -283,7 +283,7 @@ export default function ConversationsPage() {
                                 rows={4}
                                 className="w-full p-2 border rounded-md pr-10 focus:ring-brand focus:border-brand"
                             />
-                             <Button type="button" variant="ghost" size="sm" className="absolute right-2 top-2" onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(sp => !sp);}}>
+                             <Button type="button" variant="secondary" size="sm" className="absolute right-2 top-2" onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(sp => !sp);}}>
                                 <Smile className="w-5 h-5 text-gray-500" />
                             </Button>
                             {showEmojiPicker && (
@@ -296,7 +296,7 @@ export default function ConversationsPage() {
                             <Button type="button" variant="secondary" onClick={() => {setShowBulkReplyModal(false); setShowEmojiPicker(false);}}>
                                 Cancel
                             </Button>
-                            <Button type="submit" variant="default" isLoading={isSendingBulkReply} disabled={!bulkReplyMessage.trim() || isSendingBulkReply}>
+                            <Button type="submit" variant="primary" isLoading={isSendingBulkReply} disabled={!bulkReplyMessage.trim() || isSendingBulkReply}>
                                 Send Bulk Reply
                             </Button>
                         </div>
@@ -407,7 +407,7 @@ export default function ConversationsPage() {
                   <form onSubmit={handleSendMessage} className="flex space-x-3 items-center">
                     <div className="relative flex-1">
                       <Input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Type your message..." className="w-full pr-10 py-2" />
-                      <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2" onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(sp => !sp);}}>
+                      <Button type="button" variant="secondary" size="sm" className="absolute right-1 top-1/2 -translate-y-1/2" onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(sp => !sp);}}>
                         <Smile className="w-5 h-5 text-gray-500" />
                       </Button>
                       {showEmojiPicker && !showBulkReplyModal && (
@@ -416,7 +416,7 @@ export default function ConversationsPage() {
                         </div>
                       )}
                     </div>
-                    <Button type="submit" variant="default" disabled={!newMessage.trim() || isSending} isLoading={isSending} size="icon" className="p-2">
+                    <Button type="submit" variant="primary" disabled={!newMessage.trim() || isSending} isLoading={isSending} size="sm" className="p-2">
                       <Send className="w-5 h-5" />
                     </Button>
                   </form>

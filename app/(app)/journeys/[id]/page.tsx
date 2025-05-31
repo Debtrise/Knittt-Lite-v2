@@ -316,7 +316,7 @@ export default function JourneyDetailPage({ params }: { params: { id: string } }
         <div className="py-6">
           <div className="flex items-center mb-6">
             <Link href="/journeys">
-              <Button variant="ghost" className="mr-4">
+              <Button variant="secondary" className="mr-4">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
@@ -340,7 +340,7 @@ export default function JourneyDetailPage({ params }: { params: { id: string } }
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center">
             <Link href="/journeys">
-              <Button variant="ghost" className="mr-4">
+              <Button variant="secondary" className="mr-4">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
@@ -362,7 +362,7 @@ export default function JourneyDetailPage({ params }: { params: { id: string } }
               Bulk Enroll
             </Button>
             <Button
-              variant={journey.isActive ? "outline" : "default"}
+              variant={journey.isActive ? "outline" : "secondary"}
               onClick={handleToggleJourneyStatus}
             >
               {journey.isActive ? (
@@ -385,7 +385,7 @@ export default function JourneyDetailPage({ params }: { params: { id: string } }
               Edit
             </Button>
             <Button
-              variant="destructive"
+              variant="danger"
               onClick={() => setShowDeleteConfirmation(true)}
             >
               <Trash2 className="h-4 w-4 mr-2" />
@@ -713,7 +713,7 @@ export default function JourneyDetailPage({ params }: { params: { id: string } }
             <Button variant="outline" onClick={() => setShowDeleteConfirmation(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteJourney} disabled={isSubmitting}>
+            <Button variant="danger" onClick={handleDeleteJourney} disabled={isSubmitting}>
               {isSubmitting ? 'Deleting...' : 'Delete Journey'}
             </Button>
           </DialogFooter>
