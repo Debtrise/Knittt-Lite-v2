@@ -214,7 +214,7 @@ export default function WebhookDetailPage({ params }: WebhookDetailPageProps) {
               Edit
             </Button>
             <Button
-              variant="destructive"
+              variant="danger"
               onClick={handleDelete}
               className="flex items-center gap-2"
             >
@@ -277,7 +277,7 @@ export default function WebhookDetailPage({ params }: WebhookDetailPageProps) {
                             {webhook.webhookUrl || `${process.env.NEXT_PUBLIC_API_URL}/api/webhook-receiver/${webhook.endpointKey}`}
                           </code>
                           <Button 
-                            variant="ghost" 
+                            variant="secondary" 
                             size="sm" 
                             onClick={() => {
                               const url = webhook.webhookUrl || `${process.env.NEXT_PUBLIC_API_URL}/api/webhook-receiver/${webhook.endpointKey}`;
@@ -631,7 +631,7 @@ export default function WebhookDetailPage({ params }: WebhookDetailPageProps) {
                   </CardContent>
                   <CardFooter>
                     <Button 
-                      variant="ghost" 
+                      variant="secondary" 
                       size="sm"
                       onClick={fetchEvents}
                       className="ml-auto"

@@ -498,7 +498,7 @@ export default function CallsPage() {
           <div className="space-x-2">
             <Button
               type="button"
-              variant={activeTab === 'call-list' ? 'default' : 'secondary'}
+              variant={activeTab === 'call-list' ? 'primary' : 'secondary'}
               onClick={() => setActiveTab('call-list')}
             >
               <List className="w-4 h-4 mr-2" />
@@ -506,7 +506,7 @@ export default function CallsPage() {
             </Button>
             <Button
               type="button"
-              variant={activeTab === 'make-call' ? 'default' : 'secondary'}
+              variant={activeTab === 'make-call' ? 'primary' : 'secondary'}
               onClick={() => setActiveTab('make-call')}
             >
               <Phone className="w-4 h-4 mr-2" />
@@ -514,7 +514,7 @@ export default function CallsPage() {
             </Button>
             <Button
               type="button"
-              variant={activeTab === 'dialplan' ? 'default' : 'secondary'}
+              variant={activeTab === 'dialplan' ? 'primary' : 'secondary'}
               onClick={() => setActiveTab('dialplan')}
             >
               <Settings className="w-4 h-4 mr-2" />
@@ -560,7 +560,7 @@ export default function CallsPage() {
                 <div className="flex space-x-2">
                   <Button
                     type="button"
-                    variant={dialplanTab === 'templates' ? 'default' : 'secondary'}
+                    variant={dialplanTab === 'templates' ? 'primary' : 'secondary'}
                     size="sm"
                     onClick={() => setDialplanTab('templates')}
                   >
@@ -568,7 +568,7 @@ export default function CallsPage() {
                   </Button>
                   <Button
                     type="button"
-                    variant={dialplanTab === 'projects' ? 'default' : 'secondary'}
+                    variant={dialplanTab === 'projects' ? 'primary' : 'secondary'}
                     size="sm"
                     onClick={() => setDialplanTab('projects')}
                   >
@@ -576,7 +576,7 @@ export default function CallsPage() {
                   </Button>
                   <Button
                     type="button"
-                    variant={dialplanTab === 'capabilities' ? 'default' : 'secondary'}
+                    variant={dialplanTab === 'capabilities' ? 'primary' : 'secondary'}
                     size="sm"
                     onClick={() => setDialplanTab('capabilities')}
                   >

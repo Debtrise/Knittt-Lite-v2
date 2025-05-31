@@ -547,7 +547,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         </div>
         
         <Button
-          variant="default"
+          variant="primary"
           className="w-full"
           onClick={handleSave}
         >

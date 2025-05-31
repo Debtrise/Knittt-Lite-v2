@@ -340,7 +340,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
           <Button
             onClick={handleRefresh}
-            variant="default"
+            variant="primary"
             isLoading={isRefreshing}
           >
             Refresh Status
@@ -696,7 +696,7 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium text-gray-900">Journeys</h3>
                 <Link href="/journeys">
-                  <Button variant="ghost" size="icon">
+                  <Button variant="outline" size="sm">
                     <Route className="h-5 w-5" />
                   </Button>
                 </Link>

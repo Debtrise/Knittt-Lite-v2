@@ -314,7 +314,7 @@ export default function DIDsPage() {
                 <Upload className="w-4 h-4 mr-2" />
                 Upload DIDs
               </Button>
-              <Button onClick={() => setIsAdding(!isAdding)} variant="default">
+              <Button onClick={() => setIsAdding(!isAdding)} variant="primary">
                 <Plus className="w-4 h-4 mr-2" />
                 Add DID
               </Button>
@@ -402,7 +402,7 @@ export default function DIDsPage() {
                     </Button>
                     <Button
                       type="submit"
-                      variant="default"
+                      variant="primary"
                       isLoading={addForm.formState.isSubmitting}
                     >
                       Add DID
@@ -470,7 +470,7 @@ export default function DIDsPage() {
                     </Button>
                     <Button
                       type="submit"
-                      variant="default"
+                      variant="primary"
                       isLoading={editForm.formState.isSubmitting}
                     >
                       Save Changes
@@ -555,7 +555,7 @@ export default function DIDsPage() {
                       </Button>
                       <Button
                         type="submit"
-                        variant="default"
+                        variant="primary"
                         isLoading={uploadIsLoading}
                       >
                         Upload DIDs
@@ -601,7 +601,7 @@ export default function DIDsPage() {
                       </Button>
                       <Button
                         type="button"
-                        variant="default"
+                        variant="primary"
                         isLoading={uploadIsLoading}
                         disabled={!uploadForm.watch('fileContent') || uploadIsLoading}
                         onClick={() => {
@@ -629,7 +629,7 @@ export default function DIDsPage() {
                 <div className="flex items-center space-x-4">
                   {selectedDIDs.length > 0 && (
                     <Button
-                      variant="destructive"
+                      variant="danger"
                       onClick={handleBulkDelete}
                       isLoading={isDeleting}
                       disabled={isDeleting}

@@ -324,7 +324,7 @@ function UploadLeadsContent() {
       <div className="py-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
-            <Button variant="ghost" onClick={() => router.back()} className="mr-4">
+            <Button variant="secondary" onClick={() => router.back()} className="mr-4">
               <ArrowLeft className="w-4 h-4" />
             </Button>
             <h1 className="text-2xl font-semibold text-gray-900">
@@ -382,7 +382,7 @@ function UploadLeadsContent() {
             {file && (
               <div className="mt-4 flex items-center justify-between p-3 bg-gray-50 rounded-md">
                 <p className="text-sm font-medium text-gray-700 truncate">Selected: {file.name}</p>
-                <Button variant="ghost" size="sm" onClick={() => { setFile(null); setPreviewData(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}>
+                <Button variant="secondary" size="sm" onClick={() => { setFile(null); setPreviewData(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}>
                   <X className="w-4 h-4 text-red-500" />
                 </Button>
               </div>
@@ -476,7 +476,7 @@ function UploadLeadsContent() {
                   disabled={isImporting || !fieldMapping.phone}
                   isLoading={isImporting}
                   className="w-full"
-                  variant="brand"
+                  variant="primary"
                 >
                   <Check className="w-4 h-4 mr-2" />
                   {isImporting ? 'Importing...' : 'Import Contacts'}

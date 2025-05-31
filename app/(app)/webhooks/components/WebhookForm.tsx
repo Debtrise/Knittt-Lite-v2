@@ -862,7 +862,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                   />
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="secondary"
                     size="sm"
                     onClick={() => removeCustomFieldMapping(index)}
                   >
@@ -995,7 +995,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
               <div className="flex items-end md:col-span-1">
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="secondary"
                   size="sm"
                   onClick={() => removeAutoTagRule(index)}
                 >
@@ -1082,7 +1082,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                   />
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="secondary"
                     size="sm"
                     onClick={() => removeRequiredHeader(index)}
                   >
@@ -1169,7 +1169,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                         />
                         <Button
                           type="button"
-                          variant="ghost"
+                          variant="secondary"
                           size="sm"
                           onClick={() => removeConditionSet(setIndex)}
                         >
@@ -1191,7 +1191,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                             {isEdit && webhookId && (
                               <Button
                                 type="button"
-                                variant="ghost"
+                                variant="secondary"
                                 size="sm"
                                 onClick={fetchWebhookFields}
                                 className="text-xs px-2 py-1 h-6"
@@ -1317,7 +1317,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                             <div className="col-span-1">
                               <Button
                                 type="button"
-                                variant="ghost"
+                                variant="secondary"
                                 size="sm"
                                 onClick={() => removeCondition(setIndex, conditionIndex)}
                               >
@@ -1366,7 +1366,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                               </Select>
                               <Button
                                 type="button"
-                                variant="ghost"
+                                variant="secondary"
                                 size="sm"
                                 onClick={() => removeAction(setIndex, actionIndex)}
                               >

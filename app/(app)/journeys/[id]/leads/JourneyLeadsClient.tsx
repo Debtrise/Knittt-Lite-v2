@@ -194,7 +194,7 @@ export default function JourneyLeadsClient({ journeyId }: JourneyLeadsClientProp
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center">
             <Link href={`/journeys/${journeyId}`}>
-              <Button variant="ghost" className="mr-4">
+              <Button variant="secondary" className="mr-4">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
@@ -258,8 +258,8 @@ export default function JourneyLeadsClient({ journeyId }: JourneyLeadsClientProp
                   )}
                 </div>
                 <Button
-                  variant="ghost"
-                  size="icon"
+                  variant="secondary"
+                  size="sm"
                   onClick={fetchLeads}
                   title="Refresh"
                   className="ml-2"
@@ -301,7 +301,7 @@ export default function JourneyLeadsClient({ journeyId }: JourneyLeadsClientProp
                   Exit
                 </Button>
                 <Button
-                  variant="ghost"
+                  variant="secondary"
                   size="sm"
                   onClick={() => setSelectedLeads([])}
                 >
@@ -409,7 +409,7 @@ export default function JourneyLeadsClient({ journeyId }: JourneyLeadsClientProp
                         <div className="flex justify-end space-x-2">
                           {lead.status === 'active' ? (
                             <Button
-                              variant="ghost"
+                              variant="secondary"
                               size="sm"
                               onClick={() => handleUpdateLeadStatus(lead.id, 'paused')}
                             >
@@ -417,7 +417,7 @@ export default function JourneyLeadsClient({ journeyId }: JourneyLeadsClientProp
                             </Button>
                           ) : lead.status === 'paused' ? (
                             <Button
-                              variant="ghost"
+                              variant="secondary"
                               size="sm"
                               onClick={() => handleUpdateLeadStatus(lead.id, 'active')}
                             >
@@ -426,7 +426,7 @@ export default function JourneyLeadsClient({ journeyId }: JourneyLeadsClientProp
                           ) : null}
                           
                           <Button
-                            variant="ghost"
+                            variant="secondary"
                             size="sm"
                             onClick={() => handleUpdateLeadStatus(lead.id, 'exited')}
                           >

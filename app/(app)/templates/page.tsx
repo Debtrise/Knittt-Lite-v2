@@ -67,7 +67,7 @@ export default function TemplatesPage() {
             </p>
           </div>
           <Link href="/templates/new">
-            <Button variant="default" className="flex items-center">
+            <Button variant="primary" className="flex items-center">
               <Plus className="w-4 h-4 mr-2" />
               New Template
             </Button>
@@ -117,10 +117,10 @@ export default function TemplatesPage() {
                       <td className="px-6 py-4 whitespace-nowrap capitalize">{template.type}</td>
                       <td className="px-6 py-4 whitespace-nowrap">{new Date(template.updatedAt).toLocaleString()}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <Button variant="ghost" size="icon" title="Edit">
+                        <Button variant="secondary" size="sm" title="Edit">
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" title="Delete">
+                        <Button variant="secondary" size="sm" title="Delete">
                           <Trash2 className="w-4 h-4 text-red-500" />
                         </Button>
                       </td>

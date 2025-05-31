@@ -134,7 +134,7 @@ export default function NewTemplatePage() {
               {showPreview ? 'Hide Preview' : 'Show Preview'}
             </Button>
             <Button
-              variant="default"
+              variant="primary"
               onClick={handleSave}
               isLoading={isSaving}
             >

@@ -306,7 +306,7 @@ export default function LeadsPage() {
             </Button>
             <Button 
               onClick={() => setShowDeleteAllConfirm(true)}
-              variant="destructive"
+              variant="danger"
               disabled={leads.length === 0 || isLoading}
             >
               <AlertTriangle className="w-4 h-4 mr-2" />
@@ -314,7 +314,7 @@ export default function LeadsPage() {
             </Button>
             <Button
               onClick={() => setIsUploading(!isUploading)}
-              variant="default"
+              variant="primary"
               disabled={isUploading}
             >
               <Upload className="w-4 h-4 mr-2" />
@@ -342,7 +342,7 @@ export default function LeadsPage() {
                   Cancel
                 </Button>
                 <Button
-                  variant="destructive"
+                  variant="danger"
                   onClick={handleDeleteAll}
                   isLoading={isDeletingAll}
                 >
@@ -449,7 +449,7 @@ export default function LeadsPage() {
                       </Button>
                       <Button
                         type="submit"
-                        variant="default"
+                        variant="primary"
                         isLoading={uploadIsLoading}
                       >
                         Upload
@@ -505,7 +505,7 @@ Jane Smith,8007654321,jane@example.com</pre>
                 <div className="flex items-center space-x-4">
                   {selectedLeads.length > 0 && (
                     <Button
-                      variant="destructive"
+                      variant="danger"
                       onClick={handleBulkDelete}
                       isLoading={isDeleting}
                       disabled={isDeleting}

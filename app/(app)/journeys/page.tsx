@@ -362,8 +362,8 @@ export default function JourneysPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
                         <Button
-                          variant="ghost"
-                          size="icon"
+                          variant="secondary"
+                          size="sm"
                           onClick={() => handleToggleJourneyStatus(journey)}
                           title={journey.isActive ? 'Pause journey' : 'Activate journey'}
                         >
@@ -374,21 +374,21 @@ export default function JourneysPage() {
                           )}
                         </Button>
                         <Link href={`/journeys/${journey.id}/leads`}>
-                          <Button variant="ghost" size="icon" title="View enrolled leads">
+                          <Button variant="secondary" size="sm" title="View enrolled leads">
                             <Users className="h-4 w-4 text-blue-500" />
                           </Button>
                         </Link>
                         <Button
-                          variant="ghost"
-                          size="icon"
+                          variant="secondary"
+                          size="sm"
                           onClick={() => openEditDialog(journey)}
                           title="Edit journey"
                         >
                           <Edit className="h-4 w-4 text-gray-500" />
                         </Button>
                         <Button
-                          variant="ghost"
-                          size="icon"
+                          variant="secondary"
+                          size="sm"
                           onClick={() => openDeleteConfirmation(journey)}
                           title="Delete journey"
                         >
@@ -879,7 +879,7 @@ export default function JourneysPage() {
             <Button variant="outline" onClick={() => setShowDeleteConfirmation(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteJourney} disabled={isSubmitting}>
+            <Button variant="danger" onClick={handleDeleteJourney} disabled={isSubmitting}>
               {isSubmitting ? 'Deleting...' : 'Delete Journey'}
             </Button>
           </DialogFooter>

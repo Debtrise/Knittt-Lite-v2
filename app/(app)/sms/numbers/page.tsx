@@ -151,7 +151,7 @@ export default function TwilioNumbersPage() {
       <div className="py-6">
         <div className="flex items-center mb-6">
           <Button
-            variant="ghost"
+            variant="secondary"
             onClick={() => router.push('/sms')}
             className="mr-4"
           >
@@ -191,7 +191,7 @@ export default function TwilioNumbersPage() {
             </Button>
           </div>
           <Button
-            variant="default"
+            variant="primary"
             onClick={() => setShowAddForm(!showAddForm)}
           >
             {showAddForm ? 'Cancel' : (
@@ -275,7 +275,7 @@ export default function TwilioNumbersPage() {
                   </Button>
                   <Button
                     type="submit"
-                    variant="default"
+                    variant="primary"
                     isLoading={isAdding}
                   >
                     Add Number
@@ -360,7 +360,7 @@ export default function TwilioNumbersPage() {
               </Button>
               <Button
                 onClick={() => setShowAddForm(true)}
-                variant="default"
+                variant="primary"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Number

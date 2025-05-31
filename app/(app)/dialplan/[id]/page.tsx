@@ -331,7 +331,7 @@ export default function DialPlanEditor() {
             <div className="text-center py-10">
               <h3 className="text-lg font-medium text-red-600 mb-2">Error</h3>
               <p className="text-gray-500 mb-4">{error}</p>
-              <Button variant="default" onClick={() => window.location.reload()}>
+              <Button variant="primary" onClick={() => window.location.reload()}>
                 Retry
               </Button>
             </div>
@@ -410,7 +410,7 @@ export default function DialPlanEditor() {
                   </Button>
                   <Button
                     type="submit"
-                    variant="default"
+                    variant="primary"
                     disabled={!newContext.name}
                   >
                     Create Context

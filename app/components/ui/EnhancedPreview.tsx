@@ -522,7 +522,7 @@ export default function EnhancedPreview({
                 {voicePresets.map((preset) => (
                   <Button
                     key={preset.name}
-                    variant={selectedPreset === preset.name ? "default" : "outline"}
+                    variant={selectedPreset === preset.name ? "primary" : "outline"}
                     size="sm"
                     onClick={() => applyPreset(preset.name)}
                   >

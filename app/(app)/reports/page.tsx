@@ -258,7 +258,7 @@ export default function ReportsPage() {
       ].map(({ key, label, icon: Icon }) => (
         <Button
           key={key}
-          variant={reportType === key ? 'default' : 'outline'}
+          variant={reportType === key ? 'secondary' : 'outline'}
           onClick={() => setReportType(key as ReportType)}
           className="flex items-center gap-2"
         >

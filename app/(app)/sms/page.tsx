@@ -866,7 +866,7 @@ export default function SmsPage() {
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               <Button
                                 size="sm"
-                                variant="destructive"
+                                variant="danger"
                                 onClick={() => handleDeleteSingleTwilioNumber(number.id)}
                               >
                                 <Trash2 className="w-4 h-4 mr-1" />

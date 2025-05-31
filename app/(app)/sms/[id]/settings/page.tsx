@@ -194,7 +194,7 @@ function SettingsPageContent({ campaignId }: SettingsPageProps) {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
             <Button
-              variant="ghost"
+              variant="secondary"
               onClick={() => router.back()}
               className="mr-4"
             >
@@ -203,7 +203,7 @@ function SettingsPageContent({ campaignId }: SettingsPageProps) {
             <h1 className="text-2xl font-semibold text-gray-900">Campaign Settings: {settings.name}</h1>
           </div>
           <Button
-            variant="brand"
+            variant="primary"
             onClick={handleUploadLeads}
             className="flex items-center"
           >
@@ -241,7 +241,7 @@ function SettingsPageContent({ campaignId }: SettingsPageProps) {
                     </Button>
                     <Button
                       type="button"
-                      variant={settings.status === 'active' ? 'secondary' : 'brand'}
+                      variant={settings.status === 'active' ? 'secondary' : 'primary'}
                       onClick={handleStatusToggle}
                       disabled={settings.status === 'completed'}
                     >
@@ -368,7 +368,7 @@ function SettingsPageContent({ campaignId }: SettingsPageProps) {
                   </Button>
                   <Button
                     type="submit"
-                    variant="default"
+                    variant="primary"
                     isLoading={isSaving}
                   >
                     <Save className="w-4 h-4 mr-2" />

@@ -171,14 +171,14 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
               {showPreview ? 'Hide Preview' : 'Show Preview'}
             </Button>
             <Button
-              variant="destructive"
+              variant="danger"
               onClick={handleDelete}
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Delete
             </Button>
             <Button
-              variant="default"
+              variant="primary"
               onClick={handleSave}
               isLoading={isSaving}
             >
