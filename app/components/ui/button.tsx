@@ -1,3 +1,4 @@
+// Button component with variants
 import React, { ButtonHTMLAttributes, forwardRef } from 'react';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
