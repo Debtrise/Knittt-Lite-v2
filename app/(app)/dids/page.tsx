@@ -115,7 +115,12 @@ export default function DIDsPage() {
 
   const onAddSubmit = async (data: AddDIDFormData) => {
     try {
-      await createDID(data);
+      await createDID({
+        phoneNumber: data.phoneNumber,
+        description: data.description,
+        areaCode: data.areaCode || '',
+        state: data.state || ''
+      });
       toast.success('DID added successfully');
       addForm.reset();
       setIsAdding(false);
