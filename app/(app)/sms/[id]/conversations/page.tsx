@@ -100,7 +100,7 @@ export default function ConversationsPage() {
     setIsLoadingContacts(true);
     try {
       const data = await getCampaignLeads(campaignId, { limit: 200 });
-      setContacts(data.contacts?.map(c => ({...c, isUnresponded: false})) || []);
+      setContacts(data.contacts?.map((c: Contact) => ({...c, isUnresponded: false})) || []);
     } catch (error) {
       console.error('Error fetching contacts:', error);
       toast.error('Failed to load contacts');
@@ -259,7 +259,7 @@ export default function ConversationsPage() {
                 </Button>
             )}
             <Button
-                variant={showUnreplied ? "primary" : "secondary"}
+                variant={showUnreplied ? "default" : "secondary"}
                 onClick={() => setShowUnreplied(!showUnreplied)}
                 className="flex items-center"
             >
@@ -296,7 +296,7 @@ export default function ConversationsPage() {
                             <Button type="button" variant="secondary" onClick={() => {setShowBulkReplyModal(false); setShowEmojiPicker(false);}}>
                                 Cancel
                             </Button>
-                            <Button type="submit" variant="primary" isLoading={isSendingBulkReply} disabled={!bulkReplyMessage.trim() || isSendingBulkReply}>
+                            <Button type="submit" variant="default" isLoading={isSendingBulkReply} disabled={!bulkReplyMessage.trim() || isSendingBulkReply}>
                                 Send Bulk Reply
                             </Button>
                         </div>
@@ -337,7 +337,7 @@ export default function ConversationsPage() {
                     <div className="ml-3 flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium text-gray-900 truncate">{contact.name || contact.phone || 'Unknown'}</p>
-                        {contact.unreadCount > 0 && !selectedContact && (
+                        {contact.unreadCount != null && contact.unreadCount > 0 && !selectedContact && (
                           <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-0.5 rounded-full">
                             {contact.unreadCount}
                           </span>
@@ -416,7 +416,7 @@ export default function ConversationsPage() {
                         </div>
                       )}
                     </div>
-                    <Button type="submit" variant="primary" disabled={!newMessage.trim() || isSending} isLoading={isSending} size="icon" className="p-2">
+                    <Button type="submit" variant="default" disabled={!newMessage.trim() || isSending} isLoading={isSending} size="icon" className="p-2">
                       <Send className="w-5 h-5" />
                     </Button>
                   </form>

@@ -179,7 +179,7 @@ export default function WebhooksPage() {
                           <code className="bg-gray-100 px-2 py-1 rounded text-sm">{webhook.endpointKey}</code>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <Badge variant={webhook.isActive ? "success" : "secondary"}>
+                          <Badge variant={webhook.isActive ? "default" : "secondary"}>
                             {webhook.isActive ? 'Active' : 'Inactive'}
                           </Badge>
                         </td>

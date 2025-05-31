@@ -110,7 +110,7 @@ function SettingsPageContent({ campaignId }: SettingsPageProps) {
             '- Click Cancel to stop the save process entirely'
           )) {
             // User chose to continue with other settings
-            toast.warning('Rate limit not saved due to connection issues, continuing with other settings.');
+            toast('Rate limit not saved due to connection issues, continuing with other settings.');
           } else {
             // User chose to stop entirely
             toast.error('Settings save cancelled.');
@@ -341,8 +341,9 @@ function SettingsPageContent({ campaignId }: SettingsPageProps) {
                   <h3 className="text-lg font-medium text-gray-900">Manage Unresponded Messages</h3>
                   <p className="mt-1 text-sm text-gray-500">
                     Mark all currently unresponded messages for this campaign as resolved. 
-                    {settings.contactStats?.unresponded > 0 && 
-                      `There are currently ${settings.contactStats.unresponded} unresponded messages.`}
+                    {settings.contactStats?.unresponded != null && settings.contactStats.unresponded > 0 &&
+                      `There are currently ${settings.contactStats.unresponded} unresponded messages.`
+                    }
                   </p>
                   <Button
                     type="button"
@@ -367,11 +368,11 @@ function SettingsPageContent({ campaignId }: SettingsPageProps) {
                   </Button>
                   <Button
                     type="submit"
-                    variant="primary"
+                    variant="default"
                     isLoading={isSaving}
                   >
                     <Save className="w-4 h-4 mr-2" />
-                    Save Changes
+                    {isSaving ? 'Saving...' : 'Save Settings'}
                   </Button>
                 </div>
               </form>

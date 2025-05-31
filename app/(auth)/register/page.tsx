@@ -43,7 +43,7 @@ export default function RegisterPage() {
         password: data.password,
         email: data.email,
         tenantId: data.tenantId,
-        role: data.role,
+        role: data.role as 'admin' | 'agent',
       });
       
       toast.success('Registration successful');

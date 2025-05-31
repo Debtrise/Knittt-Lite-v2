@@ -109,12 +109,19 @@ const getActionTypeLabel = (actionType: string, isStart: boolean, isEnd: boolean
   }
 };
 
-const getDelayText = (delayType: string, delayConfig: Record<string, any>) => {
+const getDelayText = (delayType: string, delayConfig: {
+  minutes?: number;
+  hours?: number;
+  days?: number;
+  untilTime?: string;
+  untilDate?: string;
+  businessHours?: boolean;
+}) => {
   switch (delayType) {
     case 'immediate':
       return 'Immediate';
     case 'fixed_time':
-      return `At ${delayConfig.time || 'specific time'}`;
+      return `At ${delayConfig.untilTime || 'specific time'}`;
     case 'delay_after_previous':
       const minutes = delayConfig.minutes || 0;
       const hours = delayConfig.hours || 0;

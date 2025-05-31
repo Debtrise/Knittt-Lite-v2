@@ -167,10 +167,21 @@ const StepEditor: React.FC<StepEditorProps> = ({
       console.log(`Loaded ${recordingsList.length} recordings`);
     } catch (error) {
       console.error('Error loading recordings:', error);
-      if (error.response?.status === 401) {
-        toast.error('Authentication required to load recordings');
-      } else if (error.response?.status === 404) {
-        toast.error('Recordings API not available. Please check your configuration.');
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as any).response === 'object' &&
+        (error as any).response !== null
+      ) {
+        const response = (error as any).response;
+        if (response.status === 401) {
+          toast.error('Authentication required to load recordings');
+        } else if (response.status === 404) {
+          toast.error('Recordings API not available. Please check your configuration.');
+        } else {
+          toast.error('Failed to load recordings');
+        }
       } else {
         toast.error('Failed to load recordings');
       }
@@ -342,7 +353,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
     
     setFormData(prev => ({
       ...prev,
-      actionType: newActionType,
+      actionType: newActionType as JourneyStep['actionType'],
       actionConfig: defaultActionConfig
     }));
   };
@@ -353,7 +364,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
     
     setFormData(prev => ({
       ...prev,
-      delayType: newDelayType,
+      delayType: newDelayType as JourneyStep['delayType'],
       delayConfig: defaultDelayConfig
     }));
   };
@@ -539,7 +550,12 @@ const StepEditor: React.FC<StepEditorProps> = ({
                         value={ivrOptions[key]?.recordingId?.toString() || 'none'}
                         onValueChange={(v) => {
                           const newValue = v === 'none' ? null : parseInt(v);
-                          updateIVROption(key, { ...ivrOptions[key], recordingId: newValue });
+                          const updatedOptions = { ...ivrOptions };
+                          updatedOptions[key] = {
+                            ...updatedOptions[key],
+                            recordingId: newValue
+                          };
+                          onChange(fieldId, updatedOptions);
                         }}
                         disabled={loadingRecordings}
                         onOpenChange={(open) => {
@@ -584,7 +600,14 @@ const StepEditor: React.FC<StepEditorProps> = ({
                       <Label>Fallback Text (TTS)</Label>
                       <Input
                         value={ivrOptions[key]?.recordingText || ''}
-                        onChange={(e) => updateIVROption(key, { ...ivrOptions[key], recordingText: e.target.value })}
+                        onChange={(e) => {
+                          const updatedOptions = { ...ivrOptions };
+                          updatedOptions[key] = {
+                            ...updatedOptions[key],
+                            recordingText: e.target.value
+                          };
+                          onChange(fieldId, updatedOptions);
+                        }}
                         placeholder="Text-to-speech fallback if recording unavailable"
                       />
                     </div>
@@ -946,14 +969,21 @@ const StepEditor: React.FC<StepEditorProps> = ({
                 )}
               </div>
             ))}
+            {formData.actionType === 'call' && formData.actionConfig?.dialerContext && (
+              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                <p className="text-xs text-yellow-700">
+                  Dialer Context is set. Most other call options will be overridden by the dialer configuration.
+                </p>
+              </div>
+            )}
             {actionParams.filter(param => !param.id.startsWith('ivr') || param.id === 'ivrEnabled').length === 0 && (
               <p className="text-sm text-gray-500">No configuration needed for this action type.</p>
             )}
           </div>
         </div>
 
-        {/* IVR Configuration Section - Only show for call actions when IVR is enabled */}
-        {formData.actionType === 'call' && formData.actionConfig?.ivrEnabled && (
+        {/* IVR Configuration Section - Only show for call actions when IVR is enabled and no dialerContext is set */}
+        {formData.actionType === 'call' && formData.actionConfig?.ivrEnabled && !formData.actionConfig?.dialerContext && (
           <div className="border border-blue-200 rounded-md p-3 bg-blue-50">
             <h4 className="text-sm font-medium text-blue-900 mb-3">IVR Configuration</h4>
             <div className="space-y-3">

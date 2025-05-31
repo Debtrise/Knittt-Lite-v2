@@ -292,7 +292,7 @@ export default function ProfilePage() {
                 </div>
               </div>
               <div className="pt-4">
-                <Button type="submit" variant="primary" disabled={saving}>
+                <Button type="submit" variant="default" disabled={saving}>
                   <Save className="w-4 h-4 mr-2" />
                   {saving ? 'Saving...' : 'Save Changes'}
                 </Button>
@@ -379,7 +379,7 @@ export default function ProfilePage() {
                 </div>
               </div>
               <div className="pt-4">
-                <Button type="submit" variant="primary" disabled={changingPassword}>
+                <Button type="submit" variant="default" disabled={changingPassword}>
                   <Lock className="w-4 h-4 mr-2" />
                   {changingPassword ? 'Changing...' : 'Change Password'}
                 </Button>

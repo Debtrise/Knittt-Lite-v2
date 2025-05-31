@@ -1,3 +1,5 @@
+import { Position } from 'reactflow';
+
 // Project Types
 export interface DialplanProject {
   id: number;
@@ -316,7 +318,7 @@ export interface DeploymentRequest {
 export interface DialplanCapabilities {
   message: string;
   capabilities: {
-    nodeTypes: any;
+    nodeTypes: Record<string, NodeType>;
     generator: boolean;
     validator: boolean;
     deployment: boolean;
@@ -332,6 +334,8 @@ export interface ReactFlowNode {
     nodeType: NodeType;
     properties: Record<string, any>;
     dialplanNode: DialplanNode;
+    isEntry?: boolean;
+    isExit?: boolean;
   };
   position: Position;
 }
@@ -360,4 +364,8 @@ export interface DialplanEdge {
   target: string;
   label?: string;
   type?: string;
+  data?: {
+    condition: string | null;
+    priority: number;
+  };
 } 

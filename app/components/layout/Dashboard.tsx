@@ -14,7 +14,7 @@ type NavItem = {
   adminOnly?: boolean;
 };
 
-const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
+function DashboardLayout({ children }: { children: React.ReactNode }): JSX.Element {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -217,6 +217,6 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
       </div>
     </div>
   );
-};
+}
 
 export default DashboardLayout; 

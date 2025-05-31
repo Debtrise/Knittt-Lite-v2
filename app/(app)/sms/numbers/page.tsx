@@ -191,7 +191,7 @@ export default function TwilioNumbersPage() {
             </Button>
           </div>
           <Button
-            variant="primary"
+            variant="default"
             onClick={() => setShowAddForm(!showAddForm)}
           >
             {showAddForm ? 'Cancel' : (
@@ -275,7 +275,7 @@ export default function TwilioNumbersPage() {
                   </Button>
                   <Button
                     type="submit"
-                    variant="primary"
+                    variant="default"
                     isLoading={isAdding}
                   >
                     Add Number
@@ -322,11 +322,11 @@ export default function TwilioNumbersPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
                         ${number.status === 'available' ? 'bg-green-100 text-green-800' :
-                          number.status === 'in-use' ? 'bg-blue-100 text-blue-800' :
+                          number.status === 'in_use' ? 'bg-blue-100 text-blue-800' :
                           'bg-red-100 text-red-800'}`}
                       >
                         {number.status === 'available' ? 'Available' :
-                          number.status === 'in-use' ? 'In Use' : 'Error'}
+                          number.status === 'in_use' ? 'In Use' : 'Error'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -360,7 +360,7 @@ export default function TwilioNumbersPage() {
               </Button>
               <Button
                 onClick={() => setShowAddForm(true)}
-                variant="primary"
+                variant="default"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Number

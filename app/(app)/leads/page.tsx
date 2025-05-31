@@ -22,10 +22,12 @@ type Lead = {
   attempts: number;
   lastAttempt: string | null;
   callDurations: number[];
-  status: string;
+  status: 'pending' | 'contacted' | 'transferred' | 'completed' | 'failed';
   createdAt: string;
   updatedAt: string;
   tags?: string[];
+  brand?: string;
+  source?: string;
 };
 
 type UploadFormData = {
@@ -43,7 +45,7 @@ export default function LeadsPage() {
   const [totalLeads, setTotalLeads] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [uploadIsLoading, setUploadIsLoading] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<string>('');
+  const [filterStatus, setFilterStatus] = useState<'pending' | 'contacted' | 'transferred' | 'completed' | 'failed' | ''>('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMethod, setUploadMethod] = useState<'text' | 'file'>('text');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -52,6 +54,7 @@ export default function LeadsPage() {
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [uniqueStatuses, setUniqueStatuses] = useState<string[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Function to calculate lead age in days
   const calculateLeadAge = (createdAt: string): number => {
@@ -101,7 +104,7 @@ export default function LeadsPage() {
       const response = await api.leads.list({
         page,
         limit: 10,
-        ...(filterStatus ? { status: filterStatus } : {})
+        ...(filterStatus ? { status: filterStatus as 'pending' | 'contacted' | 'transferred' | 'completed' | 'failed' } : {})
       });
       setLeads(response.leads);
       setTotalPages(response.totalPages);
@@ -113,11 +116,23 @@ export default function LeadsPage() {
         const statuses = Array.from(new Set(response.leads.map((lead: Lead) => lead.status))) as string[];
         setUniqueStatuses(statuses);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching leads:', error);
-      toast.error('Failed to load leads');
+      toast.error(error.response?.data?.error || 'Failed to load leads');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const refreshLeads = async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchLeads(currentPage);
+      toast.success('Leads refreshed successfully');
+    } catch (error) {
+      console.error('Error refreshing leads:', error);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -130,12 +145,13 @@ export default function LeadsPage() {
         autoDelete: data.autoDelete,
       });
       
-      toast.success(response.message || 'Leads uploaded successfully');
+      toast.success(response.data.message || 'Leads uploaded successfully');
       setIsUploading(false);
-      fetchLeads(1); // Refresh leads
+      await fetchLeads(1); // Refresh leads
     } catch (error: any) {
       console.error('Upload error:', error);
       toast.error(error.response?.data?.error || 'Failed to upload leads');
+      setIsUploading(false);
     } finally {
       setUploadIsLoading(false);
     }
@@ -147,6 +163,7 @@ export default function LeadsPage() {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
+      setIsUploading(true);
       try {
         const file = e.target.files[0];
         const fileContent = await file.text();
@@ -166,6 +183,8 @@ export default function LeadsPage() {
       } catch (error) {
         console.error('Error reading file:', error);
         toast.error('Failed to read CSV file');
+      } finally {
+        setIsUploading(false);
       }
     }
   };
@@ -179,13 +198,16 @@ export default function LeadsPage() {
   const handleDelete = async (id: number) => {
     if (!confirm('Are you sure you want to delete this lead?')) return;
     
+    setIsDeleting(true);
     try {
       await api.leads.delete(id.toString());
       toast.success('Lead deleted successfully');
-      fetchLeads(currentPage);
+      await fetchLeads(currentPage);
     } catch (error: any) {
       console.error('Error deleting lead:', error);
       toast.error(error.response?.data?.error || 'Failed to delete lead');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -202,7 +224,7 @@ export default function LeadsPage() {
       await api.leads.bulkDelete(selectedLeads);
       toast.success(`${selectedLeads.length} leads deleted successfully`);
       setSelectedLeads([]);
-      fetchLeads(currentPage);
+      await fetchLeads(currentPage);
     } catch (error: any) {
       console.error('Error deleting leads:', error);
       toast.error(error.response?.data?.error || 'Failed to delete leads');
@@ -231,10 +253,10 @@ export default function LeadsPage() {
     setIsDeletingAll(true);
     try {
       const response = await api.leads.list({ page: 1, limit: 1000 });
-      const leadIds = response.leads.map(lead => lead.id);
+      const leadIds = response.leads.map((lead: Lead) => lead.id);
       await api.leads.bulkDelete(leadIds);
       toast.success('All leads deleted successfully');
-      fetchLeads(1);
+      await fetchLeads(1);
     } catch (error: any) {
       console.error('Error deleting all leads:', error);
       toast.error(error.response?.data?.error || 'Failed to delete all leads');
@@ -275,16 +297,25 @@ export default function LeadsPage() {
           </div>
           <div className="flex space-x-3">
             <Button 
+              onClick={refreshLeads}
+              variant="outline"
+              disabled={isRefreshing}
+              isLoading={isRefreshing}
+            >
+              Refresh
+            </Button>
+            <Button 
               onClick={() => setShowDeleteAllConfirm(true)}
-              variant="danger"
+              variant="destructive"
               disabled={leads.length === 0 || isLoading}
             >
               <AlertTriangle className="w-4 h-4 mr-2" />
-              Delete All Leads
+              Delete All
             </Button>
             <Button
               onClick={() => setIsUploading(!isUploading)}
-              variant="primary"
+              variant="default"
+              disabled={isUploading}
             >
               <Upload className="w-4 h-4 mr-2" />
               Upload Leads
@@ -311,7 +342,7 @@ export default function LeadsPage() {
                   Cancel
                 </Button>
                 <Button
-                  variant="danger"
+                  variant="destructive"
                   onClick={handleDeleteAll}
                   isLoading={isDeletingAll}
                 >
@@ -418,7 +449,7 @@ export default function LeadsPage() {
                       </Button>
                       <Button
                         type="submit"
-                        variant="primary"
+                        variant="default"
                         isLoading={uploadIsLoading}
                       >
                         Upload
@@ -474,7 +505,7 @@ Jane Smith,8007654321,jane@example.com</pre>
                 <div className="flex items-center space-x-4">
                   {selectedLeads.length > 0 && (
                     <Button
-                      variant="danger"
+                      variant="destructive"
                       onClick={handleBulkDelete}
                       isLoading={isDeleting}
                       disabled={isDeleting}
@@ -487,7 +518,7 @@ Jane Smith,8007654321,jane@example.com</pre>
                     <select
                       className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-brand focus:border-brand sm:text-sm"
                       value={filterStatus}
-                      onChange={(e) => setFilterStatus(e.target.value)}
+                      onChange={(e) => setFilterStatus(e.target.value as 'pending' | 'contacted' | 'transferred' | 'completed' | 'failed' | '')}
                     >
                       <option value="">All Status</option>
                       {uniqueStatuses.map(status => (
@@ -597,17 +628,17 @@ Jane Smith,8007654321,jane@example.com</pre>
                             )}
                           </div>
                           <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize 
-                              ${lead.status === 'new' ? 'bg-brand bg-opacity-10 text-brand' : 
-                                lead.status === 'contacted' ? 'bg-brand bg-opacity-10 text-brand' :
-                                lead.status === 'qualified' ? 'bg-brand bg-opacity-10 text-brand' :
-                                lead.status === 'converted' ? 'bg-brand bg-opacity-10 text-brand' :
-                                'bg-brand bg-opacity-10 text-brand'
-                              }"
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize
+                              ${lead.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                                lead.status === 'contacted' ? 'bg-blue-100 text-blue-800' :
+                                lead.status === 'transferred' ? 'bg-purple-100 text-purple-800' :
+                                lead.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                'bg-red-100 text-red-800'
+                              }`}
                             >
-                              {lead.status === 'converted' ? (
+                              {lead.status === 'completed' ? (
                                 <CheckCircle className="mr-1 h-3 w-3" />
-                              ) : lead.status === 'rejected' ? (
+                              ) : lead.status === 'failed' ? (
                                 <XCircle className="mr-1 h-3 w-3" />
                               ) : null}
                               {lead.status}
@@ -653,7 +684,7 @@ Jane Smith,8007654321,jane@example.com</pre>
                           Previous
                         </button>
                         {[...Array(Math.min(5, totalPages))].map((_, i) => {
-                          let pageNum;
+                          let pageNum: number;
                           if (totalPages <= 5) {
                             pageNum = i + 1;
                           } else if (currentPage <= 3) {

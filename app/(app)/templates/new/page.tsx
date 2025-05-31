@@ -20,7 +20,7 @@ const TEMPLATE_TYPES = [
 
 export default function NewTemplatePage() {
   const router = useRouter();
-  const [type, setType] = useState('sms');
+  const [type, setType] = useState<'sms' | 'email' | 'script'>('sms');
   const [name, setName] = useState('');
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
@@ -48,8 +48,10 @@ export default function NewTemplatePage() {
   const finishSave = (templateContent: string) => {
     api.templates.create({
       name,
+      description: '',
       content: templateContent,
       type,
+      isActive: true,
     })
       .then(() => {
         toast.success('Template created successfully');
@@ -76,7 +78,7 @@ export default function NewTemplatePage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
             <select
               value={type}
-              onChange={e => setType(e.target.value)}
+              onChange={e => setType(e.target.value as 'sms' | 'email' | 'script')}
               className="border rounded px-3 py-2 w-full"
               required
             >
@@ -141,7 +143,7 @@ export default function NewTemplatePage() {
           )}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => router.push('/templates')}>Cancel</Button>
-            <Button type="submit" variant="primary" disabled={saving}>
+            <Button type="submit" variant="default" disabled={saving}>
               {saving ? 'Saving...' : 'Save Template'}
             </Button>
           </div>

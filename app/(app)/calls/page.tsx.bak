@@ -15,7 +15,7 @@ import { Badge } from '@/app/components/ui/badge';
 import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
 import { checkDialplanCapabilities, getProjects, createProject, getProjectDetails, generateDialplan } from '@/app/utils/dialplanApi';
-import { getCalls, getCallDetails } from '@/app/utils/api';
+import { listCalls, getCallDetails } from '@/app/utils/api';
 import MakeCallForm from '@/app/components/calls/MakeCallForm';
 import CallList from '@/app/components/calls/CallList';
 
@@ -83,25 +83,7 @@ type DialplanProject = {
 type DialplanCapabilities = {
   message: string;
   capabilities: {
-    nodeTypes: Record<string, {
-      id: number;
-      name: string;
-      description: string;
-      category: 'extension' | 'application' | 'flowcontrol' | 'action' | 'terminal';
-      inputHandles?: number;
-      outputHandles?: number;
-      defaultParams?: Record<string, any>;
-      paramDefs?: Array<{
-        id: string;
-        name: string;
-        type: 'string' | 'number' | 'boolean' | 'select' | 'template_select' | 'transfer_group_select' | 'recording_select' | 'ivr_options';
-        required: boolean;
-        default?: any;
-        options?: string[];
-        templateType?: 'sms' | 'email' | 'script' | 'voicemail' | 'transfer';
-        description?: string;
-      }>;
-    }>;
+    nodeTypes: number;
     generator: boolean;
     validator: boolean;
     deployment: boolean;
@@ -210,58 +192,6 @@ export default function CallsPage() {
     }
   }, [activeTab, dialplanTab]);
 
-  const loadCallTemplates = useCallback(async () => {
-    try {
-      // Load script templates
-      const scriptResponse = await api.templates.list({ 
-        type: 'script', 
-        isActive: true, 
-        limit: 100 
-      });
-      
-      // Load voicemail templates
-      const voicemailResponse = await api.templates.list({ 
-        type: 'voicemail', 
-        isActive: true, 
-        limit: 100 
-      });
-      
-      const scriptTemplates = scriptResponse.data?.templates || [];
-      const voicemailTemplates = voicemailResponse.data?.templates || [];
-      
-      const allTemplates = [
-        ...scriptTemplates.map((t: any) => ({ ...t, type: 'script' })),
-        ...voicemailTemplates.map((t: any) => ({ ...t, type: 'voicemail' }))
-      ];
-      
-      setCallTemplates(allTemplates);
-    } catch (error) {
-      console.error('Error loading call templates:', error);
-      throw error;
-    }
-  }, []);
-
-  const loadDialplanProjects = useCallback(async () => {
-    try {
-      const projects = await getProjects();
-      setDialplanProjects(Array.isArray(projects) ? projects : []);
-    } catch (error) {
-      console.error('Error loading dialplan projects:', error);
-      // Set empty array on error to prevent UI issues
-      setDialplanProjects([]);
-    }
-  }, []);
-
-  const loadDialplanCapabilities = useCallback(async () => {
-    try {
-      const capabilities = await checkDialplanCapabilities();
-      setDialplanCapabilities(capabilities);
-    } catch (error) {
-      console.error('Error loading dialplan capabilities:', error);
-      throw error;
-    }
-  }, []);
-
   const loadDialplanData = useCallback(async () => {
     setLoadingDialplan(true);
     try {
@@ -290,6 +220,58 @@ export default function CallsPage() {
     loadDialplanData();
   }, [isAuthenticated, router, loadDialplanData]);
 
+  const loadCallTemplates = async () => {
+    try {
+      // Load script templates
+      const scriptResponse = await api.templates.list({ 
+        type: 'script', 
+        isActive: true, 
+        limit: 100 
+      });
+      
+      // Load voicemail templates
+      const voicemailResponse = await api.templates.list({ 
+        type: 'voicemail', 
+        isActive: true, 
+        limit: 100 
+      });
+      
+      const scriptTemplates = scriptResponse.data?.templates || [];
+      const voicemailTemplates = voicemailResponse.data?.templates || [];
+      
+      const allTemplates = [
+        ...scriptTemplates.map((t: any) => ({ ...t, type: 'script' })),
+        ...voicemailTemplates.map((t: any) => ({ ...t, type: 'voicemail' }))
+      ];
+      
+      setCallTemplates(allTemplates);
+    } catch (error) {
+      console.error('Error loading call templates:', error);
+      throw error;
+    }
+  };
+
+  const loadDialplanProjects = async () => {
+    try {
+      const projects = await getProjects();
+      setDialplanProjects(Array.isArray(projects) ? projects : []);
+    } catch (error) {
+      console.error('Error loading dialplan projects:', error);
+      // Set empty array on error to prevent UI issues
+      setDialplanProjects([]);
+    }
+  };
+
+  const loadDialplanCapabilities = async () => {
+    try {
+      const capabilities = await checkDialplanCapabilities();
+      setDialplanCapabilities(capabilities);
+    } catch (error) {
+      console.error('Error loading dialplan capabilities:', error);
+      throw error;
+    }
+  };
+
   const fetchCallDetails = async (callId: number) => {
     setLoadingCall(true);
     try {
@@ -303,17 +285,21 @@ export default function CallsPage() {
     }
   };
 
-  const handleUpdateStatus = async (callId: number, newStatus: string) => {
+  const handleUpdateStatus = async (callId: number, newStatus: 'initiated' | 'answered' | 'transferred' | 'completed' | 'failed') => {
     setIsUpdatingStatus(true);
     try {
-      await api.calls.updateStatus(callId.toString(), newStatus as any);
+      await api.calls.updateStatus(callId.toString(), newStatus);
       toast.success(`Call status updated to ${newStatus}`);
+      
+      // Update the call in the UI
       if (selectedCall && selectedCall.id === callId) {
         setSelectedCall({
           ...selectedCall,
           status: newStatus
         });
       }
+      
+      // Refresh the call list
       fetchCalls();
     } catch (error: any) {
       console.error('Error updating call status:', error);
@@ -389,10 +375,11 @@ export default function CallsPage() {
 
     setLoadingDialplan(true);
     try {
-      const template = await api.templates.create({
+      await api.templates.create({
         name: newTemplate.name,
         description: newTemplate.description,
         type: newTemplate.type,
+        categoryId: 1, // Default category
         content: newTemplate.content,
         isActive: true
       });
@@ -526,8 +513,7 @@ export default function CallsPage() {
         {activeTab === 'make-call' ? (
           <MakeCallForm
             dids={dids}
-            onSubmit={onSubmit}
-            handleSubmit={handleSubmit}
+            onSubmit={handleSubmit(onSubmit)}
             isLoading={isLoading}
             errors={errors}
             register={register}
@@ -585,6 +571,7 @@ export default function CallsPage() {
                 </div>
               </div>
             </div>
+
             <div className="p-6">
               {loadingDialplan ? (
                 <div className="flex justify-center items-center h-64">
@@ -602,6 +589,7 @@ export default function CallsPage() {
                       Create Template
                     </Button>
                   </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {callTemplates.map((template) => (
                       <div key={template.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
@@ -649,6 +637,7 @@ export default function CallsPage() {
                       </div>
                     ))}
                   </div>
+
                   {callTemplates.length === 0 && (
                     <div className="text-center py-12">
                       <Phone className="mx-auto h-12 w-12 text-gray-400" />
@@ -675,6 +664,7 @@ export default function CallsPage() {
                       Create Project
                     </Button>
                   </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {dialplanProjects.map((project) => (
                       <div key={project.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
@@ -717,6 +707,7 @@ export default function CallsPage() {
                       </div>
                     ))}
                   </div>
+
                   {dialplanProjects.length === 0 && (
                     <div className="text-center py-12">
                       <Settings className="mx-auto h-12 w-12 text-gray-400" />
@@ -731,7 +722,7 @@ export default function CallsPage() {
                     </div>
                   )}
                 </div>
-              ) : null}
+              )}
             </div>
           </div>
         )}

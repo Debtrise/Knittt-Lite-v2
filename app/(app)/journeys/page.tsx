@@ -344,7 +344,7 @@ export default function JourneysPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge variant={journey.isActive ? "success" : "secondary"}>
+                      <Badge variant={journey.isActive ? "default" : "secondary"}>
                         {journey.isActive ? 'Active' : 'Paused'}
                       </Badge>
                     </td>

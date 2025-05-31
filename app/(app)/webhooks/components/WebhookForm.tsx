@@ -105,7 +105,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
         dataType: 'string' | 'number' | 'boolean' | 'date' | 'array';
       }>;
       actions: Array<{
-        type: 'create_lead' | 'update_lead' | 'send_notification' | 'enroll_journey' | 'call_webhook' | 'set_tags' | 'create_task';
+        type: 'create_lead' | 'update_lead' | 'delete_lead' | 'send_notification' | 'enroll_journey' | 'call_webhook' | 'set_tags' | 'create_task';
         config: Record<string, any>;
       }>;
     }>
@@ -477,15 +477,25 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
     setSaving(true);
     
     try {
+      const cleanedFieldMapping = Object.fromEntries(
+        Object.entries(formData.fieldMapping || {})
+          .filter(([_, v]) => typeof v === 'string' && v !== undefined && v !== '')
+      );
+      const cleanedAutoTagRules = (formData.autoTagRules || []).map(rule => ({
+        ...rule,
+        value: typeof rule.value === 'string' ? rule.value : ''
+      }));
       const submitData = {
         ...formData,
-        autoEnrollJourneyId: formData.autoEnrollJourneyId === '' ? null : formData.autoEnrollJourneyId,
+        fieldMapping: cleanedFieldMapping as Record<string, string>,
+        autoTagRules: cleanedAutoTagRules,
+        autoEnrollJourneyId: formData.autoEnrollJourneyId == null ? null : formData.autoEnrollJourneyId,
         conditionalRules: conditionalRules.enabled ? conditionalRules : null,
       };
 
       let response;
       if (webhookId) {
-        response = await api.webhooks.update(webhookId, submitData);
+        response = await api.webhooks.update(webhookId.toString(), submitData);
         toast.success('Webhook updated successfully');
       } else {
         response = await api.webhooks.create(submitData);
@@ -1299,11 +1309,6 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                                   value={condition.value}
                                   onChange={(e) => {
                                     let value = e.target.value;
-                                    if (condition.dataType === 'number') {
-                                      value = value === '' ? '' : Number(value);
-                                    } else if (condition.dataType === 'boolean') {
-                                      value = value === 'true';
-                                    }
                                     updateCondition(setIndex, conditionIndex, 'value', value);
                                   }}
                                 />
@@ -1409,26 +1414,49 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                                       </SelectContent>
                                     </Select>
                                   ) : field.type === 'textarea' ? (
-                                    <textarea
-                                      className="w-full p-2 text-xs border rounded resize-none"
-                                      rows={2}
-                                      placeholder={field.placeholder}
-                                      value={action.config[field.key] || ''}
-                                      onChange={(e) => {
-                                        const newConfig = { ...action.config, [field.key]: e.target.value };
-                                        updateAction(setIndex, actionIndex, 'config', newConfig);
-                                      }}
-                                    />
+                                    'placeholder' in field ? (
+                                      <textarea
+                                        className="w-full p-2 text-xs border rounded resize-none"
+                                        rows={2}
+                                        placeholder={field.placeholder}
+                                        value={action.config[field.key] || ''}
+                                        onChange={(e) => {
+                                          const newConfig = { ...action.config, [field.key]: e.target.value };
+                                          updateAction(setIndex, actionIndex, 'config', newConfig);
+                                        }}
+                                      />
+                                    ) : (
+                                      <textarea
+                                        className="w-full p-2 text-xs border rounded resize-none"
+                                        rows={2}
+                                        value={action.config[field.key] || ''}
+                                        onChange={(e) => {
+                                          const newConfig = { ...action.config, [field.key]: e.target.value };
+                                          updateAction(setIndex, actionIndex, 'config', newConfig);
+                                        }}
+                                      />
+                                    )
                                   ) : (
-                                    <Input
-                                      className="text-xs"
-                                      placeholder={field.placeholder}
-                                      value={action.config[field.key] || ''}
-                                      onChange={(e) => {
-                                        const newConfig = { ...action.config, [field.key]: e.target.value };
-                                        updateAction(setIndex, actionIndex, 'config', newConfig);
-                                      }}
-                                    />
+                                    'placeholder' in field ? (
+                                      <Input
+                                        className="text-xs"
+                                        placeholder={field.placeholder}
+                                        value={action.config[field.key] || ''}
+                                        onChange={(e) => {
+                                          const newConfig = { ...action.config, [field.key]: e.target.value };
+                                          updateAction(setIndex, actionIndex, 'config', newConfig);
+                                        }}
+                                      />
+                                    ) : (
+                                      <Input
+                                        className="text-xs"
+                                        value={action.config[field.key] || ''}
+                                        onChange={(e) => {
+                                          const newConfig = { ...action.config, [field.key]: e.target.value };
+                                          updateAction(setIndex, actionIndex, 'config', newConfig);
+                                        }}
+                                      />
+                                    )
                                   )}
                                 </div>
                               ))}

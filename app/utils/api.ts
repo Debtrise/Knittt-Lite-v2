@@ -1654,4 +1654,19 @@ export const importContactsSimplified = async (formData: FormData) => {
   return response.data;
 };
 
+export const getJourneyStatistics = async () => {
+  const response = await api.get('/journeys/stats');
+  return response.data;
+};
+
+export const getJourneyStatsByBrand = async () => {
+  const response = await api.get('/stats/journeys/by-brand');
+  return response.data;
+};
+
+export const getJourneyStatsBySource = async () => {
+  const response = await api.get('/stats/journeys/by-source');
+  return response.data;
+};
+
 export default api;

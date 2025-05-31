@@ -89,4 +89,13 @@ export type PaginatedResponse<T> = {
   page: number;
   totalPages: number;
   data: T[];
+};
+
+export type SmsMessage = {
+  id: number;
+  content: string;
+  direction: 'inbound' | 'outbound';
+  status: 'sent' | 'delivered' | 'failed';
+  sentAt: string;
+  contactId: number;
 }; 

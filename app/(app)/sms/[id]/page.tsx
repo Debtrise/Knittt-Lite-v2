@@ -222,7 +222,7 @@ export default function CampaignDetailPage() {
                     </Button>
                   ) : campaign.status !== 'completed' && (
                     <Button
-                      variant="primary"
+                      variant="default"
                       onClick={handleStartCampaign}
                       disabled={campaign.totalContacts === 0}
                     >
@@ -377,7 +377,7 @@ export default function CampaignDetailPage() {
               <p className="mt-1 text-sm text-gray-500">The requested campaign may have been deleted or doesn't exist.</p>
               <div className="mt-6">
                 <Button
-                  variant="primary"
+                  variant="default"
                   onClick={() => router.push('/sms')}
                 >
                   <ArrowLeft className="mr-2 h-4 w-4" />

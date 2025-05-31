@@ -5,6 +5,11 @@ if (typeof global.previewCache === 'undefined') {
   global.previewCache = new Map();
 }
 
+declare global {
+  // eslint-disable-next-line no-var
+  var previewCache: Map<string, any>;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ previewId: string }> }

@@ -143,18 +143,18 @@ export default function SettingsPage() {
         sortOrder: 'oldest',
         didDistribution: 'even'
       },
-      schedule: {
-        monday: { enabled: true, startTime: '09:00', endTime: '17:00' },
-        tuesday: { enabled: true, startTime: '09:00', endTime: '17:00' },
-        wednesday: { enabled: true, startTime: '09:00', endTime: '17:00' },
-        thursday: { enabled: true, startTime: '09:00', endTime: '17:00' },
-        friday: { enabled: true, startTime: '09:00', endTime: '17:00' },
-        saturday: { enabled: false, startTime: '09:00', endTime: '17:00' },
-        sunday: { enabled: false, startTime: '09:00', endTime: '17:00' }
-      },
+      schedule: [
+        { enabled: false, startTime: '09:00', endTime: '17:00' }, // Sunday
+        { enabled: true, startTime: '09:00', endTime: '17:00' },  // Monday
+        { enabled: true, startTime: '09:00', endTime: '17:00' },  // Tuesday
+        { enabled: true, startTime: '09:00', endTime: '17:00' },  // Wednesday
+        { enabled: true, startTime: '09:00', endTime: '17:00' },  // Thursday
+        { enabled: true, startTime: '09:00', endTime: '17:00' },  // Friday
+        { enabled: false, startTime: '09:00', endTime: '17:00' }, // Saturday
+      ],
       amiConfig: {
         host: '',
-        port: '',
+        port: 5038,
         trunk: '',
         context: '',
         username: '',
@@ -251,11 +251,22 @@ export default function SettingsPage() {
             setValue('dialerConfig.didDistribution', data.dialerConfig?.didDistribution || 'even');
             
             if (data.schedule) {
+              const dayToIndex: Record<string, number> = {
+                sunday: 0,
+                monday: 1,
+                tuesday: 2,
+                wednesday: 3,
+                thursday: 4,
+                friday: 5,
+                saturday: 6,
+              };
               Object.entries(data.schedule).forEach(([day, config]) => {
-                if (typeof config === 'object' && config !== null) {
-                  setValue(`schedule.${day}.enabled`, config.enabled || false);
-                  setValue(`schedule.${day}.startTime`, config.startTime || config.start || '09:00');
-                  setValue(`schedule.${day}.endTime`, config.endTime || config.end || '17:00');
+                const index = dayToIndex[day.toLowerCase()];
+                if (typeof config === 'object' && config !== null && index !== undefined) {
+                  const sched = config as { enabled?: boolean; startTime?: string; endTime?: string; start?: string; end?: string };
+                  setValue(`schedule.${index}.enabled`, sched.enabled || false);
+                  setValue(`schedule.${index}.startTime`, sched.startTime || sched.start || '09:00');
+                  setValue(`schedule.${index}.endTime`, sched.endTime || sched.end || '17:00');
                 }
               });
             }
@@ -316,7 +327,7 @@ export default function SettingsPage() {
       // Make sure the ingroup/ingroups is an array or create from comma-separated string
       let groups = data.apiConfig.groups;
       if (!Array.isArray(groups) && typeof groups === 'string') {
-        groups = groups.split(',').map(g => g.trim()).filter(Boolean);
+        groups = (groups as string).split(',').map(g => g.trim()).filter(Boolean);
       } else if (!Array.isArray(groups)) {
         groups = [];
       }
@@ -382,7 +393,7 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Settings</h1>
           <Button
             onClick={fetchAgentStatus}
-            variant="primary"
+            variant="default"
             isLoading={isRefreshing}
           >
             Refresh Status
@@ -530,7 +541,7 @@ export default function SettingsPage() {
               <div className="flex justify-end">
                 <Button
                   type="submit"
-                  variant="primary"
+                  variant="default"
                   isLoading={isSubmitting}
                 >
                   Save API Settings
@@ -622,7 +633,7 @@ export default function SettingsPage() {
             <div className="flex justify-end">
               <Button
                 type="submit"
-                variant="primary"
+                variant="default"
                 isLoading={isSubmitting}
               >
                 Save Dialer Settings
@@ -776,7 +787,7 @@ export default function SettingsPage() {
             <div className="flex justify-end">
               <Button
                 type="submit"
-                variant="primary"
+                variant="default"
                 isLoading={isSubmitting}
               >
                 Save AMI Settings
@@ -816,7 +827,7 @@ export default function SettingsPage() {
             <div className="flex justify-end">
               <Button
                 type="submit"
-                variant="primary"
+                variant="default"
                 isLoading={isSubmitting}
               >
                 Save Eleven Labs Settings
@@ -942,7 +953,7 @@ export default function SettingsPage() {
               </Button>
               <Button
                 type="submit"
-                variant="primary"
+                variant="default"
                 isLoading={isSubmitting}
               >
                 Save FreePBX Settings

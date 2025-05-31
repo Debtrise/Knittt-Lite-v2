@@ -168,7 +168,7 @@ export default function ContactPage() {
                 </div>
                 <Button
                   type="submit"
-                  variant="primary"
+                  variant="default"
                   isLoading={isSending}
                   disabled={isSending || !replyText.trim()}
                 >

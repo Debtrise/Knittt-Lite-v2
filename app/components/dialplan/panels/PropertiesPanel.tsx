@@ -6,14 +6,26 @@ import { Button } from '@/app/components/ui/button';
 import { XCircle } from 'lucide-react';
 
 // Simple Label component
-const Label = ({ htmlFor, children }) => (
+interface LabelProps {
+  htmlFor: string;
+  children: React.ReactNode;
+}
+const Label = ({ htmlFor, children }: LabelProps) => (
   <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700 mb-1">
     {children}
   </label>
 );
 
 // Simple Textarea component
-const Textarea = ({ id, value, onChange, placeholder, className, rows = 3 }) => (
+interface TextareaProps {
+  id: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  placeholder?: string;
+  className?: string;
+  rows?: number;
+}
+const Textarea = ({ id, value, onChange, placeholder, className, rows = 3 }: TextareaProps) => (
   <textarea
     id={id}
     value={value}
@@ -25,37 +37,65 @@ const Textarea = ({ id, value, onChange, placeholder, className, rows = 3 }) => 
 );
 
 // Simple Switch component
-const Switch = ({ id, checked, onCheckedChange }) => (
+interface SwitchProps {
+  id: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}
+const Switch = ({ id, checked, onCheckedChange }: SwitchProps) => (
   <div className="flex items-center">
     <button
       id={id}
       type="button"
-      className={`relative inline-flex h-6 w-11 items-center rounded-full ${checked ? 'bg-blue-600' : 'bg-gray-200'}`}
+      className={`w-10 h-6 rounded-full focus:outline-none transition-colors duration-200 ${checked ? 'bg-blue-600' : 'bg-gray-300'}`}
+      aria-pressed={checked}
       onClick={() => onCheckedChange(!checked)}
     >
-      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
+      <span
+        className={`inline-block w-4 h-4 transform bg-white rounded-full shadow transition-transform duration-200 ${checked ? 'translate-x-4' : 'translate-x-0'}`}
+      />
     </button>
   </div>
 );
 
 // Simple Select component
-const Select = ({ value, onValueChange, children }) => (
+interface SelectProps {
+  value: string;
+  onValueChange: (value: string) => void;
+  children: React.ReactNode;
+}
+const Select = ({ value, onValueChange, children }: SelectProps) => (
   <select 
     value={value}
     onChange={e => onValueChange(e.target.value)}
-    className="px-3 py-2 bg-white text-black border border-gray-300 focus:ring-blue-500 focus:border-blue-500 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 w-full"
+    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
   >
     {children}
   </select>
 );
 
-const SelectItem = ({ value, children }) => (
+interface SelectItemProps {
+  value: string;
+  children: React.ReactNode;
+}
+const SelectItem = ({ value, children }: SelectItemProps) => (
   <option value={value}>{children}</option>
 );
 
-const SelectTrigger = ({ children }) => children;
-const SelectValue = ({ placeholder }) => <span>{placeholder}</span>;
-const SelectContent = ({ children }) => children;
+interface SelectTriggerProps {
+  children: React.ReactNode;
+}
+const SelectTrigger = ({ children }: SelectTriggerProps) => children;
+
+interface SelectValueProps {
+  placeholder: string;
+}
+const SelectValue = ({ placeholder }: SelectValueProps) => <span>{placeholder}</span>;
+
+interface SelectContentProps {
+  children: React.ReactNode;
+}
+const SelectContent = ({ children }: SelectContentProps) => children;
 
 // Default parameter definitions for different node types
 const getDefaultParamDefs = (nodeType: NodeType): ParamDefinition[] => {
@@ -507,8 +547,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         </div>
         
         <Button
-          variant="primary"
-          fullWidth={true}
+          variant="default"
+          className="w-full"
           onClick={handleSave}
         >
           Apply Changes

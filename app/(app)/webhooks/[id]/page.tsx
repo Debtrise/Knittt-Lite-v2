@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
@@ -18,8 +18,9 @@ import { getWebhookDetails, getWebhookEvents, testWebhook, regenerateWebhookKey,
 import api from '@/app/lib/api';
 import { WebhookEndpoint, WebhookEvent } from '@/app/types/webhook';
 import { toast } from 'react-hot-toast';
-import { RefreshCwIcon, PencilIcon, ClipboardCopy, PlayIcon, KeyIcon, ShieldIcon } from 'lucide-react';
+import { RefreshCwIcon, PencilIcon, ClipboardCopy, PlayIcon, KeyIcon, ShieldIcon, ArrowLeft, Edit, Trash2 } from 'lucide-react';
 import { Textarea } from '@/app/components/ui/textarea';
+import WebhookForm from '../components/WebhookForm';
 
 interface Journey {
   id: number;
@@ -28,11 +29,16 @@ interface Journey {
   isActive: boolean;
 }
 
-export default function WebhookDetailPage({ params }: { params: Promise<{ id: string }> }) {
+interface WebhookDetailPageProps {
+  params: {
+    id: string;
+  };
+}
+
+export default function WebhookDetailPage({ params }: WebhookDetailPageProps) {
   const router = useRouter();
-  const resolvedParams = use(params);
-  const webhookId = parseInt(resolvedParams.id);
-  
+  const webhookId = parseInt(params.id);
+
   const [loading, setLoading] = useState(true);
   const [webhook, setWebhook] = useState<WebhookEndpoint | null>(null);
   const [events, setEvents] = useState<WebhookEvent[]>([]);
@@ -42,6 +48,7 @@ export default function WebhookDetailPage({ params }: { params: Promise<{ id: st
   const [testResult, setTestResult] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState('details');
   const [regenerating, setRegenerating] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   const fetchJourneyDetails = async (journeyId: number) => {
     try {
@@ -112,74 +119,70 @@ export default function WebhookDetailPage({ params }: { params: Promise<{ id: st
     fetchWebhookData().then(() => fetchEvents());
   }, [webhookId]);
 
-  const handleEdit = () => {
-    router.push(`/webhooks/edit/${webhookId}`);
-  };
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this webhook?')) {
+      return;
+    }
 
-  const handleCopyEndpoint = () => {
-    if (!webhook) return;
-    
-    const url = webhook.webhookUrl || `${process.env.NEXT_PUBLIC_API_URL}/api/webhook-receiver/${webhook.endpointKey}`;
-    navigator.clipboard.writeText(url);
-    toast.success('Webhook URL copied to clipboard');
-  };
-
-  const handleRegenerateKey = async () => {
-    if (!confirm('Are you sure? This will invalidate the current endpoint key.')) return;
-    
-    setRegenerating(true);
     try {
-      const response = await api.webhooks.regenerateKey(webhookId.toString());
-      const data = response.data || response;
-      setWebhook(prev => prev ? { ...prev, endpointKey: data.endpointKey } : null);
-      toast.success('Endpoint key regenerated');
+      await api.webhooks.delete(webhookId);
+      toast.success('Webhook deleted successfully');
+      router.push('/webhooks');
     } catch (error) {
-      console.error('Error regenerating key:', error);
-      toast.error('Failed to regenerate key');
-    } finally {
-      setRegenerating(false);
+      console.error('Error deleting webhook:', error);
+      toast.error('Failed to delete webhook');
     }
   };
 
-  const handleRegenerateToken = async () => {
-    if (!confirm('Are you sure? This will invalidate the current authentication token.')) return;
-    
-    setRegenerating(true);
-    try {
-      const response = await api.webhooks.regenerateToken(webhookId.toString());
-      const data = response.data || response;
-      setWebhook(prev => prev ? { ...prev, authToken: data.authToken } : null);
-      toast.success('Authentication token regenerated');
-    } catch (error) {
-      console.error('Error regenerating token:', error);
-      toast.error('Failed to regenerate token');
-    } finally {
-      setRegenerating(false);
-    }
-  };
+  if (loading) {
+    return (
+      <div className="container mx-auto p-4">
+        <div className="flex items-center justify-center h-64">
+          <p className="text-gray-500">Loading webhook details...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const handleTestSubmit = async () => {
-    setTestLoading(true);
-    setTestResult(null);
-    try {
-      let parsedPayload;
-      try {
-        parsedPayload = JSON.parse(testPayload);
-      } catch (e) {
-        toast.error('Invalid JSON payload');
-        return;
-      }
-      
-      const result = await api.webhooks.test(webhookId.toString(), parsedPayload);
-      setTestResult(result);
-      toast.success('Webhook test completed');
-    } catch (error) {
-      console.error('Error testing webhook:', error);
-      toast.error('Failed to test webhook');
-    } finally {
-      setTestLoading(false);
-    }
-  };
+  if (!webhook) {
+    return (
+      <div className="container mx-auto p-4">
+        <div className="flex items-center justify-center h-64">
+          <p className="text-gray-500">Webhook not found</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isEditing) {
+    return (
+      <div className="container mx-auto p-4">
+        <div className="mb-4">
+          <Button
+            variant="outline"
+            onClick={() => setIsEditing(false)}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Details
+          </Button>
+        </div>
+        <WebhookForm
+          webhookId={webhookId}
+          isEdit={true}
+          onSuccess={() => {
+            setIsEditing(false);
+            // Reload webhook data
+            setLoading(true);
+            api.webhooks.get(webhookId).then(response => {
+              setWebhook(response.data);
+              setLoading(false);
+            });
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -194,16 +197,29 @@ export default function WebhookDetailPage({ params }: { params: Promise<{ id: st
             )}
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleEdit} className="flex items-center gap-2">
-              <PencilIcon className="h-4 w-4" />
-              <span>Edit</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => router.push('/webhooks')} 
+            <Button
+              variant="outline"
+              onClick={() => router.push('/webhooks')}
               className="flex items-center gap-2"
             >
-              Back to List
+              <ArrowLeft className="h-4 w-4" />
+              Back to Webhooks
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setIsEditing(true)}
+              className="flex items-center gap-2"
+            >
+              <Edit className="h-4 w-4" />
+              Edit
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              className="flex items-center gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
             </Button>
           </div>
         </div>
@@ -263,14 +279,31 @@ export default function WebhookDetailPage({ params }: { params: Promise<{ id: st
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            onClick={handleCopyEndpoint}
+                            onClick={() => {
+                              const url = webhook.webhookUrl || `${process.env.NEXT_PUBLIC_API_URL}/api/webhook-receiver/${webhook.endpointKey}`;
+                              navigator.clipboard.writeText(url);
+                              toast.success('Webhook URL copied to clipboard');
+                            }}
                           >
                             <ClipboardCopy className="h-4 w-4" />
                           </Button>
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            onClick={handleRegenerateKey}
+                            onClick={() => {
+                              if (!confirm('Are you sure? This will invalidate the current endpoint key.')) return;
+                              setRegenerating(true);
+                              api.webhooks.regenerateKey(webhookId.toString())
+                                .then(response => {
+                                  setWebhook(prev => prev ? { ...prev, endpointKey: response.data.endpointKey } : null);
+                                  toast.success('Endpoint key regenerated');
+                                })
+                                .catch(error => {
+                                  console.error('Error regenerating key:', error);
+                                  toast.error('Failed to regenerate key');
+                                })
+                                .finally(() => setRegenerating(false));
+                            }}
                             disabled={regenerating}
                           >
                             <KeyIcon className="h-4 w-4 mr-1" />
@@ -397,7 +430,20 @@ export default function WebhookDetailPage({ params }: { params: Promise<{ id: st
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            onClick={handleRegenerateToken}
+                            onClick={() => {
+                              if (!confirm('Are you sure? This will invalidate the current authentication token.')) return;
+                              setRegenerating(true);
+                              api.webhooks.regenerateToken(webhookId.toString())
+                                .then(response => {
+                                  setWebhook(prev => prev ? { ...prev, authToken: response.data.authToken } : null);
+                                  toast.success('Authentication token regenerated');
+                                })
+                                .catch(error => {
+                                  console.error('Error regenerating token:', error);
+                                  toast.error('Failed to regenerate token');
+                                })
+                                .finally(() => setRegenerating(false));
+                            }}
                             disabled={regenerating}
                           >
                             <ShieldIcon className="h-4 w-4 mr-1" />
@@ -750,7 +796,28 @@ export default function WebhookDetailPage({ params }: { params: Promise<{ id: st
                   </CardContent>
                   <CardFooter>
                     <Button 
-                      onClick={handleTestSubmit} 
+                      onClick={() => {
+                        setTestLoading(true);
+                        setTestResult(null);
+                        let parsedPayload;
+                        try {
+                          parsedPayload = JSON.parse(testPayload);
+                        } catch (e) {
+                          toast.error('Invalid JSON payload');
+                          return;
+                        }
+                        
+                        api.webhooks.test(webhookId.toString(), parsedPayload)
+                          .then(result => {
+                            setTestResult(result);
+                            toast.success('Webhook test completed');
+                          })
+                          .catch(error => {
+                            console.error('Error testing webhook:', error);
+                            toast.error('Failed to test webhook');
+                          })
+                          .finally(() => setTestLoading(false));
+                      }}
                       disabled={testLoading}
                       className="ml-auto flex items-center gap-2"
                     >

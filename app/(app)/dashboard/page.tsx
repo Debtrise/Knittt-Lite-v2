@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { PhoneOutgoing, Users, Phone, Clock, Sliders, Upload, Route } from 'lucide-react';
@@ -10,6 +10,7 @@ import { useAuthStore } from '@/app/store/authStore';
 import { Input } from '@/app/components/ui/Input';
 import { Button } from '@/app/components/ui/button';
 import Link from 'next/link';
+import { useDebounce } from '@/app/hooks/useDebounce';
 
 type AgentStatus = {
   ingroup: string;
@@ -78,32 +79,55 @@ export default function DashboardPage() {
     journeys: { active: 0, totalLeads: 0, completed: 0 }
   });
 
-  const fetchAgentStatus = async () => {
-    console.log('Fetching agent status for group:', currentGroup);
-    if (!currentGroup) {
-      console.log('No group configured');
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 10000; // 10 seconds
+  const POLLING_INTERVAL = 10000; // 10 seconds
+  const isMounted = useRef(true);
+  
+  // Debounce the agent status updates
+  const debouncedSetAgentStatus = useDebounce((status: AgentStatus[]) => {
+    if (isMounted.current) {
+      setAgentStatus(status);
+    }
+  }, 500);
+
+  const fetchAgentStatus = useCallback(async () => {
+    if (!currentGroup || !isMounted.current) {
       return;
     }
 
     setIsRefreshing(true);
     try {
-      console.log('Making API call with group:', currentGroup);
       const response = await api.system.getAgentStatus({
         url: tenantConfig?.apiConfig?.url || '',
         ingroup: currentGroup,
         user: tenantConfig?.apiConfig?.user || user?.username || '',
         pass: tenantConfig?.apiConfig?.password || ''
       });
-      console.log('API response:', response.data);
-      setAgentStatus(Array.isArray(response.data) ? response.data : []);
+      
+      if (isMounted.current) {
+        const newStatus = Array.isArray(response.data) ? response.data : [];
+        debouncedSetAgentStatus(newStatus);
+        setRetryCount(0);
+      }
     } catch (error) {
+      if (!isMounted.current) return;
+      
       console.error('Error fetching agent status:', error);
-      toast.error('Failed to fetch agent status');
-      setAgentStatus([]);
+      if (retryCount < MAX_RETRIES) {
+        setRetryCount(prev => prev + 1);
+        toast.error(`Failed to fetch agent status. Retrying in ${RETRY_DELAY/1000} seconds...`);
+      } else {
+        toast.error('Failed to fetch agent status after multiple attempts. Please check your connection.');
+        debouncedSetAgentStatus([]);
+      }
     } finally {
-      setIsRefreshing(false);
+      if (isMounted.current) {
+        setIsRefreshing(false);
+      }
     }
-  };
+  }, [currentGroup, tenantConfig, user, retryCount, debouncedSetAgentStatus]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -112,103 +136,116 @@ export default function DashboardPage() {
     }
 
     const fetchData = async () => {
+      if (!isMounted.current) return;
+      
       setIsLoading(true);
       try {
-        // Fetch tenant config first
         if (user?.tenantId) {
           const response = await api.tenants.get(user.tenantId);
           const tenantData = response.data;
-          console.log('Retrieved tenant data:', tenantData);
+          
+          if (!isMounted.current) return;
+          
           setTenantConfig(tenantData);
           setDialerSpeed(tenantData.dialerConfig?.speed || 1);
           
-          // Set the current group from tenant config - try ingroup first, then ingroups
           const group = tenantData.apiConfig?.ingroup || tenantData.apiConfig?.ingroups || 'TaxSales';
           if (group) {
-            console.log('Setting current group to:', group);
             setCurrentGroup(group);
             localStorage.setItem('currentGroup', group);
             
-            // Only fetch agent status and daily report after we have the group
             try {
-              console.log('Fetching agent status for group:', group);
               const statusResponse = await api.system.getAgentStatus({
                 url: tenantData.apiConfig?.url || '',
                 ingroup: group,
                 user: tenantData.apiConfig?.user || user?.username || '',
                 pass: tenantData.apiConfig?.password || ''
               });
-              console.log('Agent status response:', statusResponse.data);
-              setAgentStatus(Array.isArray(statusResponse.data) ? statusResponse.data : []);
+              
+              if (isMounted.current) {
+                debouncedSetAgentStatus(Array.isArray(statusResponse.data) ? statusResponse.data : []);
+              }
             } catch (statusError) {
+              if (!isMounted.current) return;
               console.error('Error fetching agent status:', statusError);
               toast.error('Failed to fetch agent status');
-              setAgentStatus([]);
+              debouncedSetAgentStatus([]);
             }
             
             try {
               const reportResponse = await api.system.getDailyReport(new Date().toISOString().split('T')[0]);
-              setDailyReport(reportResponse.data);
+              if (isMounted.current) {
+                setDailyReport(reportResponse.data);
+              }
             } catch (reportError) {
+              if (!isMounted.current) return;
               console.error('Error fetching daily report:', reportError);
               toast.error('Failed to fetch daily report');
             }
           } else {
-            console.warn('No group found in tenant configuration');
-            toast('⚠️ No agent group configured. Please update in Settings.');
+            if (isMounted.current) {
+              toast('⚠️ No agent group configured. Please update in Settings.');
+            }
           }
         }
 
-        // Fetch dashboard stats
         try {
           const statsResponse = await api.dashboard.getStats();
-          const dashboardStats = statsResponse.data;
-          setStats({
-            leads: {
-              total: dashboardStats.todaysLeads || 0,
-              new: 0, // These would need to be calculated from other endpoints
-              contacted: 0,
-              converted: 0
-            },
-            calls: {
-              total: dashboardStats.todaysCalls || 0,
-              connected: 0, // These would need to be calculated from other endpoints
-              failed: 0
-            },
-            sms: {
-              campaigns: 0, // These would need to be calculated from other endpoints
-              sent: dashboardStats.todaysSms || 0,
-              responses: 0
-            },
-            journeys: {
-              active: dashboardStats.activeJourneys || 0,
-              totalLeads: 0, // These would need to be calculated from other endpoints
-              completed: 0
-            }
-          });
+          if (isMounted.current) {
+            const dashboardStats = statsResponse.data;
+            setStats({
+              leads: {
+                total: dashboardStats.todaysLeads || 0,
+                new: 0,
+                contacted: 0,
+                converted: 0
+              },
+              calls: {
+                total: dashboardStats.todaysCalls || 0,
+                connected: 0,
+                failed: 0
+              },
+              sms: {
+                campaigns: 0,
+                sent: dashboardStats.todaysSms || 0,
+                responses: 0
+              },
+              journeys: {
+                active: dashboardStats.activeJourneys || 0,
+                totalLeads: 0,
+                completed: 0
+              }
+            });
+          }
         } catch (error) {
+          if (!isMounted.current) return;
           console.error('Error fetching dashboard stats:', error);
         }
       } catch (error) {
+        if (!isMounted.current) return;
         console.error('Error fetching dashboard data:', error);
         toast.error('Failed to load dashboard data');
-        setAgentStatus([]);
+        debouncedSetAgentStatus([]);
       } finally {
-        setIsLoading(false);
+        if (isMounted.current) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchData();
     
-    // Refresh agent status every 5 seconds, but only if we have a group
     const interval = setInterval(() => {
-      if (currentGroup) {
+      if (currentGroup && retryCount < MAX_RETRIES && isMounted.current) {
         fetchAgentStatus();
       }
-    }, 5000);
+    }, POLLING_INTERVAL);
 
-    return () => clearInterval(interval);
-  }, [isAuthenticated, router, user]);
+    return () => {
+      isMounted.current = false;
+      clearInterval(interval);
+    };
+  }, [isAuthenticated, router, user, fetchAgentStatus, currentGroup, retryCount]);
 
   // Add a refresh button handler
   const handleRefresh = () => {

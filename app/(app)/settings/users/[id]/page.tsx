@@ -237,7 +237,7 @@ export default function UserDetailsPage() {
             <div className="flex gap-2">
               {!editing ? (
                 <>
-                  <Button variant="primary" onClick={handleEdit}>
+                  <Button variant="default" onClick={handleEdit}>
                     <Edit className="w-4 h-4 mr-2" />
                     Edit User
                   </Button>
@@ -253,7 +253,7 @@ export default function UserDetailsPage() {
                     <X className="w-4 h-4 mr-2" />
                     Cancel
                   </Button>
-                  <Button variant="primary" onClick={handleSave} disabled={saving}>
+                  <Button variant="default" onClick={handleSave} disabled={saving}>
                     <Save className="w-4 h-4 mr-2" />
                     {saving ? 'Saving...' : 'Save Changes'}
                   </Button>
@@ -442,7 +442,7 @@ export default function UserDetailsPage() {
                   className="w-full justify-start"
                   onClick={() => {
                     // TODO: Implement reset password functionality
-                    toast.info('Reset password functionality coming soon');
+                    toast('Reset password functionality coming soon');
                   }}
                 >
                   Reset Password
@@ -452,7 +452,7 @@ export default function UserDetailsPage() {
                   className="w-full justify-start"
                   onClick={() => {
                     // TODO: Implement view activity functionality
-                    toast.info('View activity functionality coming soon');
+                    toast('View activity functionality coming soon');
                   }}
                 >
                   View Activity Log

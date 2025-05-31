@@ -464,16 +464,8 @@ export const sms = {
 
 // Template endpoints
 export const templates = {
-  listCategories: (type: 'sms' | 'email' | 'transfer' | 'script' | 'voicemail') =>
-    api.get('/templates/categories', { params: { type } }),
-  createCategory: (data: {
-    name: string;
-    description: string;
-    type: 'sms' | 'email' | 'transfer' | 'script' | 'voicemail';
-  }) => api.post('/templates/categories', data),
   list: (params: {
     type?: 'sms' | 'email' | 'transfer' | 'script' | 'voicemail';
-    categoryId?: number;
     isActive?: boolean;
     page?: number;
     limit?: number;
@@ -483,7 +475,6 @@ export const templates = {
     name: string;
     description: string;
     type: 'sms' | 'email' | 'transfer' | 'script' | 'voicemail';
-    categoryId: number;
     subject?: string;
     content: string;
     htmlContent?: string;

@@ -14,6 +14,8 @@ import ReactFlow, {
   useReactFlow,
   NodeTypes,
   EdgeTypes,
+  NodeChange,
+  EdgeChange,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import toast from 'react-hot-toast';
@@ -25,8 +27,8 @@ import {
   updateConnection, 
   deleteConnection 
 } from '@/app/utils/dialplanApi';
-import { DialplanNode, DialplanConnection, Position, NodeType } from '@/app/types/dialplan';
-import NodePropertiesPanel from './NodePropertiesPanel';
+import { DialplanNode, DialplanConnection, NodeType } from '@/app/types/dialplan';
+import { Position } from 'reactflow';
 import CustomNode from './nodes/CustomNode';
 import CustomEdge from './edges/CustomEdge';
 
@@ -111,7 +113,7 @@ const FlowEditor: React.FC<FlowEditorProps> = ({
     setEdges(reactFlowEdges);
   }, [initialConnections]);
 
-  const onNodesChange = useCallback(async (changes) => {
+  const onNodesChange = useCallback(async (changes: NodeChange[]) => {
     // Handle node deletion
     for (const change of changes) {
       if (change.type === 'remove' && !readOnly) {
@@ -138,7 +140,7 @@ const FlowEditor: React.FC<FlowEditorProps> = ({
     }
   }, [selectedNode, readOnly, onSaveSuccess]);
 
-  const onEdgesChange = useCallback(async (changes) => {
+  const onEdgesChange = useCallback(async (changes: EdgeChange[]) => {
     // Handle edge deletion
     for (const change of changes) {
       if (change.type === 'remove' && !readOnly) {
@@ -240,19 +242,8 @@ const FlowEditor: React.FC<FlowEditorProps> = ({
                 else if (param.type === 'boolean') defaultProperties[param.id] = false;
               }
             });
-          } 
-          // Handle properties schema format
-          else if (nodeType.properties && Object.keys(nodeType.properties).length > 0) {
-            Object.entries(nodeType.properties).forEach(([key, schema]) => {
-              if (schema.default !== undefined) {
-                defaultProperties[key] = schema.default;
-              } else if (schema.required) {
-                // For required props, set some reasonable defaults based on type
-                if (schema.type === 'string') defaultProperties[key] = '';
-                else if (schema.type === 'integer' || schema.type === 'number') defaultProperties[key] = 0;
-                else if (schema.type === 'boolean') defaultProperties[key] = false;
-              }
-            });
+          } else if (nodeType.defaultParams) {
+            Object.assign(defaultProperties, nodeType.defaultParams);
           }
           
           // Create node in the backend
@@ -318,9 +309,9 @@ const FlowEditor: React.FC<FlowEditorProps> = ({
     
     try {
       // Find new node type if nodeTypeId is provided
-      let updatedNodeType = null;
+      let updatedNodeType: NodeType | null = null;
       if (data.nodeTypeId) {
-        updatedNodeType = availableNodeTypes.find(type => type.id === data.nodeTypeId);
+        updatedNodeType = availableNodeTypes.find(type => type.id === data.nodeTypeId) || null;
       }
       
       // Update node in the backend
@@ -422,16 +413,6 @@ const FlowEditor: React.FC<FlowEditorProps> = ({
           <Background gap={12} size={1} />
         </ReactFlow>
       </div>
-      
-      {selectedNode && !isDragging && (
-        <div className="w-80 border-l border-gray-200 overflow-y-auto">
-          <NodePropertiesPanel
-            selectedNode={selectedNode}
-            nodeTypes={availableNodeTypes}
-            onUpdateNodeProperties={(nodeId, properties) => handleNodeUpdate(nodeId, { properties })}
-          />
-        </div>
-      )}
     </div>
   );
 };

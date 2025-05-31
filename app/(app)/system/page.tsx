@@ -56,7 +56,7 @@ export default function SystemPage() {
   const fetchModuleStatus = async () => {
     try {
       const response = await api.system.getModuleStatus();
-      setModuleStatus(response.modules || []);
+      setModuleStatus(response.data.modules || []);
     } catch (error) {
       console.error('Error fetching module status:', error);
       toast.error('Failed to load module status');
@@ -66,7 +66,7 @@ export default function SystemPage() {
   const fetchDialplanCapabilities = async () => {
     try {
       const response = await api.system.getDialplanCapabilities();
-      setDialplanCapabilities(response.capabilities || []);
+      setDialplanCapabilities(response.data.capabilities || []);
     } catch (error) {
       console.error('Error fetching dialplan capabilities:', error);
       toast.error('Failed to load dialplan capabilities');
@@ -229,7 +229,7 @@ export default function SystemPage() {
             </div>
             <div className="mt-4">
               <Button
-                variant="primary"
+                variant="default"
                 onClick={handleAgentStatusCheck}
               >
                 <Activity className="w-4 h-4 mr-2" />

@@ -10,17 +10,9 @@ import { Input } from '@/app/components/ui/Input';
 import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
 
-type Category = {
-  id: number;
-  name: string;
-  description: string;
-  type: string;
-};
-
 export default function NewTemplatePage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
-  const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -30,7 +22,6 @@ export default function NewTemplatePage() {
   const [template, setTemplate] = useState({
     name: '',
     content: '',
-    categoryId: '',
     variables: [] as string[],
   });
 
@@ -39,27 +30,10 @@ export default function NewTemplatePage() {
       router.push('/login');
       return;
     }
-
-    fetchCategories();
   }, [isAuthenticated, router]);
 
-  const fetchCategories = async () => {
-    try {
-      const response = await api.templates.listCategories('sms');
-      setCategories(response.categories || []);
-      if (response.categories?.length > 0) {
-        setTemplate(prev => ({ ...prev, categoryId: response.categories[0].id.toString() }));
-      }
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      toast.error('Failed to load categories');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleSave = async () => {
-    if (!template.name || !template.content || !template.categoryId) {
+    if (!template.name || !template.content) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -68,10 +42,10 @@ export default function NewTemplatePage() {
     try {
       await api.templates.create({
         name: template.name,
+        description: '',
         content: template.content,
-        categoryId: parseInt(template.categoryId),
-        variables: template.variables,
         type: 'sms',
+        isActive: true,
       });
       toast.success('Template created successfully');
       router.push('/sms/templates');
@@ -160,7 +134,7 @@ export default function NewTemplatePage() {
               {showPreview ? 'Hide Preview' : 'Show Preview'}
             </Button>
             <Button
-              variant="primary"
+              variant="default"
               onClick={handleSave}
               isLoading={isSaving}
             >
@@ -184,21 +158,6 @@ export default function NewTemplatePage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Category</label>
-              <select
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand focus:ring-brand sm:text-sm"
-                value={template.categoryId}
-                onChange={(e) => setTemplate({ ...template, categoryId: e.target.value })}
-              >
-                {categories.map(category => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
               <label className="block text-sm font-medium text-gray-700">Content</label>
               <textarea
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand focus:ring-brand sm:text-sm"
@@ -208,7 +167,7 @@ export default function NewTemplatePage() {
                 placeholder="Enter your template content. Use {{variable}} for variables."
               />
               <p className="mt-1 text-xs text-gray-500">
-                Use {{variable}} syntax to add variables to your template.
+                Use {'{{variable}}'} syntax to add variables to your template.
               </p>
             </div>
 
@@ -241,7 +200,7 @@ export default function NewTemplatePage() {
                 <p className="text-sm text-gray-600 whitespace-pre-wrap">{previewContent}</p>
               </div>
               <div className="mt-4 text-xs text-gray-500">
-                <p>Variables not filled in will show as {{variable}} in the preview.</p>
+                <p>Variables not filled in will show as {'{{variable}}'} in the preview.</p>
               </div>
             </div>
           )}

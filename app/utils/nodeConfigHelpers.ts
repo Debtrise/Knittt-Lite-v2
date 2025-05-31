@@ -12,6 +12,13 @@ export const getActionTypeParams = (actionType: JourneyActionType): ParamDefinit
     case 'call':
       return [
         {
+          id: 'dialerContext',
+          name: 'Dialer Context',
+          type: 'string',
+          required: false,
+          description: 'Custom context name for the dialer (overrides most other options)'
+        },
+        {
           id: 'transferNumber',
           name: 'Transfer Number',
           type: 'string',

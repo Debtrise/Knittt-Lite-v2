@@ -327,7 +327,7 @@ export default function SmsPage() {
       const reassign = window.confirm('Reassign contacts to other numbers?');
       const force = window.confirm('Force delete even if used by active campaigns? This is a destructive action.')
       try {
-        const result = await bulkDeleteTwilioNumbers(selectedTwilioNumbers, { reassign, force });
+        const result = await bulkDeleteTwilioNumbers(selectedTwilioNumbers);
         toast.success(result.message || 'Selected Twilio numbers deleted');
         setSelectedTwilioNumbers([]);
         fetchTwilioNumbers();
@@ -856,12 +856,12 @@ export default function SmsPage() {
                               <div className="text-sm font-medium text-gray-900">{number.phoneNumber}</div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <Badge variant={number.isActive ? 'default' : 'secondary'}>
-                                {number.isActive ? 'Active' : 'Inactive'}
+                              <Badge variant={number.status === 'available' ? 'default' : 'secondary'}>
+                                {number.status === 'available' ? 'Active' : 'Inactive'}
                               </Badge>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {number.messagesSent || 0} messages sent
+                              {number.messagesCount || 0} messages sent
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               <Button

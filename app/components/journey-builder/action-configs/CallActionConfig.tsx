@@ -53,7 +53,7 @@ const CallActionConfig: React.FC<CallActionConfigProps> = ({ config, onChange })
       <div>
         <Label htmlFor="recordCall">Record Call</Label>
         <Select
-          value={config.recordCall ? 'yes' : 'no'}
+          value={config.recordCall === undefined ? 'yes' : (config.recordCall ? 'yes' : 'no')}
           onValueChange={(value) => handleChange('recordCall', value === 'yes')}
         >
           <SelectTrigger id="recordCall">

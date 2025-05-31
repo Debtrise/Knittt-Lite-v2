@@ -258,7 +258,7 @@ export default function ReportsPage() {
       ].map(({ key, label, icon: Icon }) => (
         <Button
           key={key}
-          variant={reportType === key ? 'primary' : 'outline'}
+          variant={reportType === key ? 'default' : 'outline'}
           onClick={() => setReportType(key as ReportType)}
           className="flex items-center gap-2"
         >
@@ -449,20 +449,20 @@ export default function ReportsPage() {
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Hourly Activity</h3>
           <div className="h-64 flex items-end justify-between space-x-2">
-            {Array.from({ length: 24 }, (_, i) => {
-              const hour = i.toString().padStart(2, '0');
-              const value = hourlyBreakdown[hour] || 0;
-              const maxValue = Math.max(...Object.values(hourlyBreakdown || {}));
-              const height = maxValue > 0 ? (value / maxValue) * 100 : 0;
+            {(hourlyBreakdown as Array<{ hour: string; calls: number }>).map((item) => {
+              const maxCalls = Math.max(...(hourlyBreakdown as Array<{ hour: string; calls: number }>).
+                map(h => h.calls));
+              const height = maxCalls > 0 ? (item.calls / maxCalls) * 100 : 0;
               
               return (
-                <div key={i} className="flex flex-col items-center">
+                <div key={item.hour} className="flex flex-col items-center flex-1">
                   <div
-                    className="bg-blue-500 rounded-t w-6"
+                    className="bg-blue-500 rounded-t w-full min-w-8"
                     style={{ height: `${height}%` }}
-                    title={`${hour}:00 - ${value} activities`}
+                    title={`Hour ${item.hour}: ${item.calls} calls`}
                   />
-                  <span className="text-xs text-gray-500 mt-1">{hour}</span>
+                  <span className="text-xs text-gray-500 mt-1">{item.hour}:00</span>
+                  <span className="text-xs text-gray-400">{item.calls}</span>
                 </div>
               );
             })}
@@ -697,9 +697,10 @@ export default function ReportsPage() {
             </div>
             <div className="p-6">
               <div className="h-64 flex items-end justify-between space-x-2">
-                {hourlyDistribution.map((item) => {
-                  const maxCalls = Math.max(...hourlyDistribution.map(h => parseInt(h.calls)));
-                  const height = maxCalls > 0 ? (parseInt(item.calls) / maxCalls) * 100 : 0;
+                {(hourlyDistribution as Array<{ hour: string; calls: number }>).map((item) => {
+                  const maxCalls = Math.max(...(hourlyDistribution as Array<{ hour: string; calls: number }>).
+                    map(h => h.calls));
+                  const height = maxCalls > 0 ? (item.calls / maxCalls) * 100 : 0;
                   
                   return (
                     <div key={item.hour} className="flex flex-col items-center flex-1">
@@ -726,9 +727,10 @@ export default function ReportsPage() {
             </div>
             <div className="p-6">
               <div className="space-y-4">
-                {topDIDs.map((did, index) => {
-                  const maxCalls = Math.max(...topDIDs.map(d => parseInt(d.callCount)));
-                  const percentage = maxCalls > 0 ? (parseInt(did.callCount) / maxCalls) * 100 : 0;
+                {(topDIDs as Array<{ from: string; callCount: number }>).map((did, index) => {
+                  const maxCalls = Math.max(...(topDIDs as Array<{ from: string; callCount: number }>).
+                    map((d) => d.callCount));
+                  const percentage = maxCalls > 0 ? (did.callCount / maxCalls) * 100 : 0;
                   
                   return (
                     <div key={did.from} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -749,7 +751,7 @@ export default function ReportsPage() {
                           ></div>
                         </div>
                         <span className="text-sm font-medium text-gray-900 w-16 text-right">
-                          {((parseInt(did.callCount) / summary.totalCalls) * 100).toFixed(1)}%
+                          {((did.callCount / summary.totalCalls) * 100).toFixed(1)}%
                         </span>
                       </div>
                     </div>
@@ -781,18 +783,28 @@ export default function ReportsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.map((day, index) => (
+                    {(data as Array<{
+                      date: string;
+                      totalCalls: number;
+                      answeredCalls: number;
+                      failedCalls: number;
+                      transferredCalls: number;
+                      avgDuration: number;
+                      totalDuration: number;
+                    }>).map((day, index) => (
                       <tr key={day.date} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
                         <td className="py-3 px-4 font-medium text-gray-900">
                           {new Date(day.date).toLocaleDateString()}
                         </td>
-                        <td className="py-3 px-4 text-gray-900">{parseInt(day.totalCalls).toLocaleString()}</td>
-                        <td className="py-3 px-4 text-gray-900">{parseInt(day.answeredCalls).toLocaleString()}</td>
-                        <td className="py-3 px-4 text-gray-900">{parseInt(day.failedCalls).toLocaleString()}</td>
-                        <td className="py-3 px-4 text-gray-900">{parseInt(day.transferredCalls).toLocaleString()}</td>
-                        <td className="py-3 px-4 text-gray-900">{parseFloat(day.avgDuration).toFixed(1)}s</td>
+                        <td className="py-3 px-4 text-gray-900">{day.totalCalls.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-gray-900">{day.answeredCalls.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-gray-900">{day.failedCalls.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-gray-900">{day.transferredCalls.toLocaleString()}</td>
                         <td className="py-3 px-4 text-gray-900">
-                          {Math.floor(parseInt(day.totalDuration) / 60)}m {parseInt(day.totalDuration) % 60}s
+                          {typeof day.avgDuration === 'number' ? day.avgDuration.toFixed(1) : '0.0'}s
+                        </td>
+                        <td className="py-3 px-4 text-gray-900">
+                          {Math.floor((day.totalDuration || 0) / 60)}m {(day.totalDuration || 0) % 60}s
                         </td>
                       </tr>
                     ))}
@@ -868,7 +880,8 @@ export default function ReportsPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Enrollments</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {journeys.reduce((sum, j) => sum + j.enrollments.totalEnrollments, 0)}
+                  {(journeys as Array<{ enrollments: { totalEnrollments: number } }>).
+                    reduce((sum: number, j) => sum + j.enrollments.totalEnrollments, 0)}
                 </p>
               </div>
             </div>
@@ -882,7 +895,8 @@ export default function ReportsPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Completed</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {journeys.reduce((sum, j) => sum + j.enrollments.completedEnrollments, 0)}
+                  {(journeys as Array<{ enrollments: { completedEnrollments: number } }>).
+                    reduce((sum: number, j) => sum + j.enrollments.completedEnrollments, 0)}
                 </p>
               </div>
             </div>
@@ -897,7 +911,8 @@ export default function ReportsPage() {
                 <p className="text-sm font-medium text-gray-500">Avg Conversion Rate</p>
                 <p className="text-2xl font-semibold text-gray-900">
                   {journeys.length > 0 
-                    ? (journeys.reduce((sum, j) => sum + parseFloat(j.conversionRate || '0'), 0) / journeys.length).toFixed(1)
+                    ? ((journeys as Array<{ conversionRate?: string }>).
+                        reduce((sum: number, j) => sum + parseFloat(j.conversionRate || '0'), 0) / journeys.length).toFixed(1)
                     : '0'
                   }%
                 </p>
@@ -926,7 +941,33 @@ export default function ReportsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {journeys.map((journey, index) => (
+                  {(journeys as Array<{
+                    journey: {
+                      id: string;
+                      name: string;
+                      description?: string;
+                      stepCount: number;
+                    };
+                    enrollments: {
+                      totalEnrollments: number;
+                      activeEnrollments: number;
+                      completedEnrollments: number;
+                      exitedEnrollments: number;
+                    };
+                    conversionRate?: string;
+                    conversionFunnel: {
+                      uniqueLeads: number;
+                      reachedFirstStep: string;
+                      reachedLastStep: string;
+                      completed: string;
+                    };
+                    stepPerformance: Record<string, {
+                      stepName: string;
+                      totalExecutions: number;
+                      completedExecutions: number;
+                      successRate?: number;
+                    }>;
+                  }>).map((journey, index) => (
                     <tr key={journey.journey.id} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
                       <td className="py-3 px-4">
                         <div>
@@ -966,7 +1007,33 @@ export default function ReportsPage() {
         </div>
 
         {/* Individual Journey Details */}
-        {journeys.map((journey) => (
+        {(journeys as Array<{
+          journey: {
+            id: string;
+            name: string;
+            description?: string;
+            stepCount: number;
+          };
+          enrollments: {
+            totalEnrollments: number;
+            activeEnrollments: number;
+            completedEnrollments: number;
+            exitedEnrollments: number;
+          };
+          conversionRate?: string;
+          conversionFunnel: {
+            uniqueLeads: number;
+            reachedFirstStep: string;
+            reachedLastStep: string;
+            completed: string;
+          };
+          stepPerformance: Record<string, {
+            stepName: string;
+            totalExecutions: number;
+            completedExecutions: number;
+            successRate?: number;
+          }>;
+        }>).map((journey) => (
           <div key={journey.journey.id} className="bg-white rounded-lg shadow">
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex justify-between items-center">
@@ -1022,7 +1089,7 @@ export default function ReportsPage() {
                         className="bg-green-600 h-2 rounded-full" 
                         style={{ 
                           width: `${journey.conversionFunnel.uniqueLeads > 0 
-                            ? (parseInt(journey.conversionFunnel.reachedFirstStep) / parseInt(journey.conversionFunnel.uniqueLeads)) * 100 
+                            ? (Number(journey.conversionFunnel.reachedFirstStep) / journey.conversionFunnel.uniqueLeads) * 100 
                             : 0}%` 
                         }}
                       ></div>
@@ -1038,7 +1105,7 @@ export default function ReportsPage() {
                         className="bg-purple-600 h-2 rounded-full" 
                         style={{ 
                           width: `${journey.conversionFunnel.uniqueLeads > 0 
-                            ? (parseInt(journey.conversionFunnel.reachedLastStep) / parseInt(journey.conversionFunnel.uniqueLeads)) * 100 
+                            ? (Number(journey.conversionFunnel.reachedLastStep) / journey.conversionFunnel.uniqueLeads) * 100 
                             : 0}%` 
                         }}
                       ></div>
@@ -1223,10 +1290,14 @@ export default function ReportsPage() {
                 </Button>
                 <Button
                   onClick={generateReport}
-                  isLoading={isLoading}
+                  disabled={isLoading}
                   className="flex items-center gap-2"
                 >
-                  <BarChart className="w-4 h-4" />
+                  {isLoading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <BarChart className="w-4 h-4" />
+                  )}
                   Generate Report
                 </Button>
               </>

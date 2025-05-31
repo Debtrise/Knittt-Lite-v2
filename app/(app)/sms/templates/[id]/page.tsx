@@ -19,25 +19,12 @@ type Template = {
   name: string;
   description: string;
   type: 'sms' | 'email' | 'transfer' | 'script' | 'voicemail';
-  categoryId: number;
-  subject?: string;
   content: string;
   htmlContent?: string;
   isActive: boolean;
-  category: {
-    id: number;
-    name: string;
-    type: string;
-  };
   createdAt: string;
   updatedAt: string;
-};
-
-type Category = {
-  id: number;
-  name: string;
-  description: string;
-  type: string;
+  variables: string[];
 };
 
 export default function EditTemplatePage({ params }: { params: Promise<{ id: string }> }) {
@@ -46,7 +33,6 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
   const templateId = resolvedParams.id;
   const { isAuthenticated } = useAuthStore();
   const [template, setTemplate] = useState<Template | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -60,7 +46,6 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
     }
 
     fetchTemplate();
-    fetchCategories();
   }, [isAuthenticated, router, templateId]);
 
   const fetchTemplate = async () => {
@@ -70,7 +55,7 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
       setTemplate(response.data);
       // Initialize preview variables
       const initialVariables: Record<string, string> = {};
-      response.data.variables.forEach(variable => {
+      response.data.variables.forEach((variable: string) => {
         initialVariables[variable] = '';
       });
       setPreviewVariables(initialVariables);
@@ -80,16 +65,6 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
       router.push('/sms/templates');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      const response = await api.templates.listCategories('sms');
-      setCategories(response.categories || []);
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      toast.error('Failed to load categories');
     }
   };
 
@@ -103,9 +78,6 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
         description: template.description,
         content: template.content,
         type: template.type,
-        categoryId: template.categoryId,
-        subject: template.subject,
-        htmlContent: template.htmlContent,
         isActive: template.isActive,
         variables: template.variables,
       });
@@ -199,14 +171,14 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
               {showPreview ? 'Hide Preview' : 'Show Preview'}
             </Button>
             <Button
-              variant="danger"
+              variant="destructive"
               onClick={handleDelete}
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Delete
             </Button>
             <Button
-              variant="primary"
+              variant="default"
               onClick={handleSave}
               isLoading={isSaving}
             >
@@ -227,21 +199,6 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
                 onChange={(e) => setTemplate({ ...template, name: e.target.value })}
                 placeholder="Template name"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Category</label>
-              <select
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand focus:ring-brand sm:text-sm"
-                value={template.categoryId}
-                onChange={(e) => setTemplate({ ...template, categoryId: parseInt(e.target.value) })}
-              >
-                {categories.map(category => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
             </div>
 
             <div>
@@ -282,7 +239,7 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
                 <p className="text-sm text-gray-600 whitespace-pre-wrap">{previewContent}</p>
               </div>
               <div className="mt-4 text-xs text-gray-500">
-                <p>Variables not filled in will show as {{variable}} in the preview.</p>
+                <p>Variables not filled in will show as {"{{variable}}"} in the preview.</p>
               </div>
             </div>
           )}

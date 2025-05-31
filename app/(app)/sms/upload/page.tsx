@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { Upload, File, ArrowLeft, Check, AlertTriangle, UploadCloud, Table, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, Check, AlertTriangle, UploadCloud, Table, X } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
 import { useAuthStore } from '@/app/store/authStore';
-import { previewCsv, importContacts, importContactsWithMapping, importContactsSimplified, listSmsCampaigns, checkSmsApiConnection, getSmsCampaignDetails } from '@/app/utils/api';
+import { previewCsv, importContactsSimplified, listSmsCampaigns, getSmsCampaignDetails } from '@/app/utils/api';
 import { CsvPreview, SmsCampaign } from '@/app/types/sms';
 
 // Field mapping component (simplified example)
@@ -78,7 +78,7 @@ const FieldMapping = ({ headers, recommendedMappings, fieldMapping, setFieldMapp
   );
 };
 
-export default function UploadLeadsPage() {
+function UploadLeadsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated } = useAuthStore();
@@ -267,7 +267,7 @@ export default function UploadLeadsPage() {
 
     try {
         // Use the simplified import approach
-        const response = await importContactsSimplified(formData, fieldMapping, campaignIdNum);
+        const response = await importContactsSimplified(formData);
         
         // Successful import means API is connected
         setApiConnected(true);
@@ -492,5 +492,13 @@ export default function UploadLeadsPage() {
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function UploadLeadsPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <UploadLeadsContent />
+    </Suspense>
   );
 } 

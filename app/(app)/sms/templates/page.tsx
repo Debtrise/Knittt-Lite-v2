@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { MessageSquare, Trash2, Plus, Edit, FolderPlus, Folder } from 'lucide-react';
+import { MessageSquare, Trash2, Plus, Edit } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
@@ -14,41 +14,22 @@ type Template = {
   id: number;
   name: string;
   content: string;
-  categoryId: number;
-  category: string;
   variables: string[];
   createdAt: string;
   updatedAt: string;
-};
-
-type Category = {
-  id: number;
-  name: string;
-  description: string;
-  type: string;
 };
 
 export default function SmsTemplatesPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showCategoryForm, setShowCategoryForm] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [newTemplate, setNewTemplate] = useState({
     name: '',
     content: '',
-    categoryId: '',
     variables: '',
-  });
-  const [newCategory, setNewCategory] = useState({
-    name: '',
-    description: '',
-    type: 'sms',
   });
 
   useEffect(() => {
@@ -58,17 +39,15 @@ export default function SmsTemplatesPage() {
     }
 
     fetchTemplates();
-    fetchCategories();
-  }, [isAuthenticated, router, selectedCategory]);
+  }, [isAuthenticated, router]);
 
   const fetchTemplates = async () => {
     setIsLoading(true);
     try {
       const response = await api.templates.list({
         type: 'sms',
-        categoryId: selectedCategory || undefined,
       });
-      setTemplates(response.templates || []);
+      setTemplates(response.data.templates || []);
     } catch (error) {
       console.error('Error fetching templates:', error);
       toast.error('Failed to load templates');
@@ -77,20 +56,10 @@ export default function SmsTemplatesPage() {
     }
   };
 
-  const fetchCategories = async () => {
-    try {
-      const response = await api.templates.listCategories('sms');
-      setCategories(response.categories || []);
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      toast.error('Failed to load categories');
-    }
-  };
-
   const handleCreateTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newTemplate.name || !newTemplate.content || !newTemplate.categoryId) {
+    if (!newTemplate.name || !newTemplate.content) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -104,19 +73,18 @@ export default function SmsTemplatesPage() {
       
       const template = await api.templates.create({
         name: newTemplate.name,
+        description: '',
         content: newTemplate.content,
-        categoryId: parseInt(newTemplate.categoryId),
-        variables,
         type: 'sms',
+        isActive: true,
       });
       
-      setTemplates([...templates, template]);
+      setTemplates([...templates, template.data]);
       toast.success('Template created successfully');
       setShowCreateForm(false);
       setNewTemplate({
         name: '',
         content: '',
-        categoryId: '',
         variables: '',
       });
     } catch (error) {
@@ -124,33 +92,6 @@ export default function SmsTemplatesPage() {
       toast.error('Failed to create template');
     } finally {
       setIsCreating(false);
-    }
-  };
-
-  const handleCreateCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!newCategory.name) {
-      toast.error('Please enter a category name');
-      return;
-    }
-    
-    setIsCreatingCategory(true);
-    try {
-      const category = await api.templates.createCategory(newCategory);
-      setCategories([...categories, category]);
-      toast.success('Category created successfully');
-      setShowCategoryForm(false);
-      setNewCategory({
-        name: '',
-        description: '',
-        type: 'sms',
-      });
-    } catch (error) {
-      console.error('Error creating category:', error);
-      toast.error('Failed to create category');
-    } finally {
-      setIsCreatingCategory(false);
     }
   };
 
@@ -171,20 +112,6 @@ export default function SmsTemplatesPage() {
     router.push(`/sms/templates/${id}`);
   };
 
-  const handleDeleteCategory = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this category? This will also delete all templates in this category.')) return;
-    
-    try {
-      await api.templates.deleteCategory(id.toString());
-      setCategories(categories.filter(c => c.id !== id));
-      setTemplates(templates.filter(t => t.categoryId !== id));
-      toast.success('Category deleted successfully');
-    } catch (error) {
-      console.error('Error deleting category:', error);
-      toast.error('Failed to delete category');
-    }
-  };
-
   return (
     <DashboardLayout>
       <div className="py-6">
@@ -192,47 +119,16 @@ export default function SmsTemplatesPage() {
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">SMS Templates</h1>
             <p className="mt-1 text-sm text-gray-500">
-              Manage your SMS templates and categories
+              Manage your SMS templates
             </p>
           </div>
-          <div className="flex space-x-3">
-            <Button
-              onClick={() => setShowCategoryForm(true)}
-              variant="secondary"
-            >
-              <FolderPlus className="w-4 h-4 mr-2" />
-              New Category
-            </Button>
-            <Button
-              onClick={() => setShowCreateForm(true)}
-              variant="primary"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              New Template
-            </Button>
-          </div>
-        </div>
-
-        {/* Category Filter */}
-        <div className="mb-6">
-          <div className="flex space-x-2 overflow-x-auto pb-2">
-            <Button
-              variant={selectedCategory === null ? "primary" : "secondary"}
-              onClick={() => setSelectedCategory(null)}
-            >
-              All Templates
-            </Button>
-            {categories.map(category => (
-              <Button
-                key={category.id}
-                variant={selectedCategory === category.id ? "primary" : "secondary"}
-                onClick={() => setSelectedCategory(category.id)}
-              >
-                <Folder className="w-4 h-4 mr-2" />
-                {category.name}
-              </Button>
-            ))}
-          </div>
+          <Button
+            onClick={() => setShowCreateForm(true)}
+            variant="default"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New Template
+          </Button>
         </div>
 
         {/* Create Template Form */}
@@ -251,22 +147,6 @@ export default function SmsTemplatesPage() {
                       placeholder="Template name"
                       required
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Category</label>
-                    <select
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand focus:ring-brand sm:text-sm"
-                      value={newTemplate.categoryId}
-                      onChange={(e) => setNewTemplate({ ...newTemplate, categoryId: e.target.value })}
-                      required
-                    >
-                      <option value="">Select a category</option>
-                      {categories.map(category => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      ))}
-                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Content</label>
@@ -299,59 +179,10 @@ export default function SmsTemplatesPage() {
                   </Button>
                   <Button
                     type="submit"
-                    variant="primary"
+                    variant="default"
                     isLoading={isCreating}
                   >
                     Create Template
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Create Category Form */}
-        {showCategoryForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full">
-              <h2 className="text-lg font-medium mb-4">Create New Category</h2>
-              <form onSubmit={handleCreateCategory}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Name</label>
-                    <Input
-                      type="text"
-                      value={newCategory.name}
-                      onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
-                      placeholder="Category name"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Description</label>
-                    <textarea
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand focus:ring-brand sm:text-sm"
-                      rows={3}
-                      value={newCategory.description}
-                      onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
-                      placeholder="Category description"
-                    />
-                  </div>
-                </div>
-                <div className="mt-6 flex justify-end space-x-3">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setShowCategoryForm(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    isLoading={isCreatingCategory}
-                  >
-                    Create Category
                   </Button>
                 </div>
               </form>
@@ -382,7 +213,6 @@ export default function SmsTemplatesPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="text-lg font-medium text-gray-900">{template.name}</h3>
-                    <p className="text-sm text-gray-500">{template.category}</p>
                   </div>
                   <div className="flex space-x-2">
                     <button

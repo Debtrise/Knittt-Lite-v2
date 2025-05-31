@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -37,11 +37,10 @@ import { BulkEnrollCriteria, JourneyMatchingStats } from '@/app/types/lead';
 import JourneyFlow from '@/app/components/journey-builder/JourneyFlow';
 import StepEditor from '@/app/components/journey-builder/StepEditor';
 
-export default function JourneyDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function JourneyDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const resolvedParams = use(params);
   const { isAuthenticated } = useAuthStore();
-  const journeyId = parseInt(resolvedParams.id, 10);
+  const journeyId = parseInt(params.id, 10);
   
   const [journey, setJourney] = useState<JourneyWithSteps | null>(null);
   const [steps, setSteps] = useState<JourneyStep[]>([]);
@@ -454,7 +453,7 @@ export default function JourneyDetailPage({ params }: { params: Promise<{ id: st
                   <CardTitle>Status</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Badge variant={journey.isActive ? "success" : "secondary"} className="text-sm">
+                  <Badge variant={journey.isActive ? "default" : "secondary"} className="text-sm">
                     {journey.isActive ? 'Active' : 'Paused'}
                   </Badge>
                   <p className="text-sm text-gray-500 mt-2">
@@ -603,9 +602,8 @@ export default function JourneyDetailPage({ params }: { params: Promise<{ id: st
                           <td className="px-6 py-4 whitespace-nowrap">
                             <Badge 
                               variant={
-                                lead.status === 'active' ? 'success' :
-                                lead.status === 'paused' ? 'warning' :
-                                lead.status === 'completed' ? 'default' :
+                                lead.status === 'active' || lead.status === 'completed' ? 'default' :
+                                lead.status === 'paused' ? 'secondary' :
                                 'destructive'
                               }
                               className="text-xs"

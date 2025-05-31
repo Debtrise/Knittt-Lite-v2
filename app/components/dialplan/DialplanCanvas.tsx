@@ -16,6 +16,8 @@ import ReactFlow, {
   Node,
   useReactFlow,
   MarkerType,
+  ConnectionMode,
+  ConnectionLineType,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { DialplanNode, DialplanEdge, NodeType, DialplanConnection } from '@/app/types/dialplan';
@@ -137,7 +139,6 @@ export default function DialplanCanvas({
       ...entryNodes.map((node, index) => ({
         id: node.id.toString(),
         type: 'customNode',
-        // Position entry nodes at the top, horizontally centered
         position: { 
           x: startX + index * nodeWidth, 
           y: entryY 
@@ -152,7 +153,8 @@ export default function DialplanCanvas({
           },
           properties: node.properties || {},
           dialplanNode: node,
-          isEntry: true
+          isEntry: true,
+          isExit: false
         }
       })),
       ...otherNodes.map(node => ({
@@ -168,13 +170,14 @@ export default function DialplanCanvas({
             description: 'Unknown node type'
           },
           properties: node.properties || {},
-          dialplanNode: node
+          dialplanNode: node,
+          isEntry: false,
+          isExit: false
         }
       })),
       ...exitNodes.map((node, index) => ({
         id: node.id.toString(),
         type: 'customNode',
-        // Position exit nodes at the bottom, horizontally centered
         position: { 
           x: exitStartX + index * nodeWidth, 
           y: exitY 
@@ -189,6 +192,7 @@ export default function DialplanCanvas({
           },
           properties: node.properties || {},
           dialplanNode: node,
+          isEntry: false,
           isExit: true
         }
       }))
@@ -394,6 +398,18 @@ export default function DialplanCanvas({
             label: nodeName,
             nodeType: nodeType,
             properties: nodeType.defaultParams || {},
+            dialplanNode: {
+              id: Number(tempId),
+              contextId: contextId,
+              nodeTypeId: nodeType.id,
+              name: nodeName,
+              label: nodeName,
+              position: finalPosition,
+              properties: nodeType.defaultParams || {},
+              metadata: {},
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
             isTemp: true, // Flag to indicate this is a temporary node
             isEntry: nodeType.category === 'extension' || nodeType.name?.toLowerCase().includes('entry'),
             isExit: nodeType.category === 'terminal' || nodeType.name?.toLowerCase().includes('exit') || nodeType.name?.toLowerCase().includes('hangup')
@@ -722,7 +738,7 @@ export default function DialplanCanvas({
       );
       
       // Update node mapping (temp ID to real ID)
-      const nodeMapping = {};
+      const nodeMapping: Record<string, string> = {};
       createdNodes.forEach(result => {
         if (!result.error) {
           nodeMapping[result.tempId] = result.createdNode.id.toString();
@@ -950,9 +966,9 @@ export default function DialplanCanvas({
         fitView
         fitViewOptions={{ padding: 0.2 }}
         attributionPosition="bottom-right"
-        connectionMode="loose" // Makes connection handles more visible
+        connectionMode={ConnectionMode.Loose} // Makes connection handles more visible
         connectionLineStyle={{ stroke: '#3b82f6', strokeWidth: 3 }} // Blue connection line for better visibility
-        connectionLineType="bezier" // Curved lines look better
+        connectionLineType={ConnectionLineType.Bezier} // Curved lines look better
         defaultEdgeOptions={{
           type: 'default',
           style: { stroke: '#64748b', strokeWidth: 2 },
@@ -986,7 +1002,7 @@ export default function DialplanCanvas({
           
           {/* Add Node button */}
           <Button
-            variant={showNodePalette ? "primary" : "outline"}
+            variant={showNodePalette ? "brand" : "outline"}
             size="sm"
             onClick={toggleNodePalette}
             disabled={readOnly}
@@ -1015,7 +1031,7 @@ export default function DialplanCanvas({
         
         {/* Properties Panel */}
         {showPropertiesPanel && selectedNode && (
-          <Panel position="right" className="w-80 max-h-full overflow-auto">
+          <Panel position="top-right" className="w-80 max-h-full overflow-auto">
             <PropertiesPanel
               selectedNode={selectedNode}
               onUpdateNodeProperties={handleUpdateNodeProperties}

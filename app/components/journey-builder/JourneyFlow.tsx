@@ -64,7 +64,15 @@ const getNodePosition = (index: number, stepsCount: number, existingNodes: Node[
   return { x, y };
 };
 
-const getEdgeType = (sourceStep: JourneyStep, targetStep: JourneyStep): { type: string, animated: boolean, style: any } => {
+const getEdgeType = (sourceStep: JourneyStep, targetStep: JourneyStep): { 
+  type: string; 
+  animated: boolean; 
+  style: { 
+    stroke: string;
+    strokeWidth: number;
+    strokeDasharray?: string;
+  }; 
+} => {
   // Default settings
   const defaultEdge = { 
     type: 'smoothstep' as const, 

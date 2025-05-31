@@ -168,7 +168,7 @@ export default function ConversationPage() {
                 </div>
                 <Button
                   type="submit"
-                  variant="primary"
+                  variant="default"
                   isLoading={isSending}
                   disabled={isSending || !replyText.trim()}
                 >

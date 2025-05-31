@@ -44,7 +44,7 @@ const NodeCategoriesPanel: React.FC<NodeCategoriesPanelProps> = ({ nodeTypes, on
                 <div className="space-y-1">
                   {types.map(nodeType => (
                     <div
-                      key={nodeType.type}
+                      key={nodeType.id}
                       className="flex items-center p-2 rounded-md cursor-move hover:bg-gray-50 border border-transparent hover:border-gray-200"
                       onDragStart={(e) => onDragStart(e, nodeType)}
                       draggable
