@@ -1610,4 +1610,48 @@ export const getDashboardStats = async () => {
   return response.data;
 };
 
+// SMS Campaign APIs (continue after existing SMS functions)
+export const getUnrespondedMessages = async ({ campaignId }: { campaignId: number }) => {
+  const response = await api.get(`/sms/${campaignId}/unresponded`);
+  return response.data;
+};
+
+export const markMessagesAsResolved = async (contactIds: number[]) => {
+  const response = await api.post('/sms/mark-resolved', { contactIds });
+  return response.data;
+};
+
+export const sendBulkReplies = async ({ contactIds, message }: { contactIds: number[]; message: string }) => {
+  const response = await api.post('/sms/bulk-replies', { contactIds, message });
+  return response.data;
+};
+
+export const sendContactReply = async (contactId: number, message: string) => {
+  const response = await api.post(`/sms/contacts/${contactId}/reply`, { message });
+  return response.data;
+};
+
+export const bulkDeleteTwilioNumbers = async (numberIds: number[]) => {
+  const response = await api.delete('/sms/twilio-numbers/bulk', { data: { numberIds } });
+  return response.data;
+};
+
+export const previewCsv = async (formData: FormData) => {
+  const response = await api.post('/sms/upload/preview', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
+export const importContactsSimplified = async (formData: FormData) => {
+  const response = await api.post('/sms/upload/import-simplified', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
 export default api;

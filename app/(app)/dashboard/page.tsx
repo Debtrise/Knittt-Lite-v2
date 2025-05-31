@@ -45,6 +45,8 @@ type TenantConfig = {
     url: string;
     ingroup: string;
     ingroups: string;
+    user?: string;
+    password?: string;
   };
 };
 
@@ -89,7 +91,7 @@ export default function DashboardPage() {
       const response = await api.system.getAgentStatus({
         url: tenantConfig?.apiConfig?.url || '',
         ingroup: currentGroup,
-        user: tenantConfig?.apiConfig?.user || user.username,
+        user: tenantConfig?.apiConfig?.user || user?.username || '',
         pass: tenantConfig?.apiConfig?.password || ''
       });
       console.log('API response:', response.data);
@@ -133,7 +135,7 @@ export default function DashboardPage() {
               const statusResponse = await api.system.getAgentStatus({
                 url: tenantData.apiConfig?.url || '',
                 ingroup: group,
-                user: tenantData.apiConfig?.user || user.username,
+                user: tenantData.apiConfig?.user || user?.username || '',
                 pass: tenantData.apiConfig?.password || ''
               });
               console.log('Agent status response:', statusResponse.data);
@@ -153,7 +155,7 @@ export default function DashboardPage() {
             }
           } else {
             console.warn('No group found in tenant configuration');
-            toast.warning('No agent group configured. Please update in Settings.');
+            toast('⚠️ No agent group configured. Please update in Settings.');
           }
         }
 
@@ -301,7 +303,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
           <Button
             onClick={handleRefresh}
-            variant="primary"
+            variant="default"
             isLoading={isRefreshing}
           >
             Refresh Status

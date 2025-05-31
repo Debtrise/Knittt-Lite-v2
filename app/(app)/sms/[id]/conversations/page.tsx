@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { MessageSquare, Send, ArrowLeft, AlertCircle, Smile, CheckCircle, MessageCircle } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
@@ -39,11 +39,11 @@ interface Contact {
   isUnresponded?: boolean;
 }
 
-export default async function ConversationsPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default function ConversationsPage() {
+  const params = useParams();
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
-  const campaignId = parseInt(id);
+  const campaignId = parseInt(params.id as string);
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [unrespondedContacts, setUnrespondedContacts] = useState<Contact[]>([]);

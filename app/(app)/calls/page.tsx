@@ -268,7 +268,7 @@ export default function CallsPage() {
     }
   };
 
-  const handleUpdateStatus = async (callId: number, newStatus: string) => {
+  const handleUpdateStatus = async (callId: number, newStatus: 'initiated' | 'answered' | 'transferred' | 'completed' | 'failed') => {
     setIsUpdatingStatus(true);
     try {
       await api.calls.updateStatus(callId.toString(), newStatus);
@@ -474,7 +474,7 @@ export default function CallsPage() {
           <div className="space-x-2">
             <Button
               type="button"
-              variant={activeTab === 'call-list' ? 'primary' : 'secondary'}
+              variant={activeTab === 'call-list' ? 'default' : 'secondary'}
               onClick={() => setActiveTab('call-list')}
             >
               <List className="w-4 h-4 mr-2" />
@@ -482,7 +482,7 @@ export default function CallsPage() {
             </Button>
             <Button
               type="button"
-              variant={activeTab === 'make-call' ? 'primary' : 'secondary'}
+              variant={activeTab === 'make-call' ? 'default' : 'secondary'}
               onClick={() => setActiveTab('make-call')}
             >
               <Phone className="w-4 h-4 mr-2" />
@@ -490,7 +490,7 @@ export default function CallsPage() {
             </Button>
             <Button
               type="button"
-              variant={activeTab === 'dialplan' ? 'primary' : 'secondary'}
+              variant={activeTab === 'dialplan' ? 'default' : 'secondary'}
               onClick={() => setActiveTab('dialplan')}
             >
               <Settings className="w-4 h-4 mr-2" />
@@ -785,7 +785,7 @@ export default function CallsPage() {
                 <div className="flex space-x-2">
                   <Button
                     type="button"
-                    variant={dialplanTab === 'templates' ? 'primary' : 'secondary'}
+                    variant={dialplanTab === 'templates' ? 'default' : 'secondary'}
                     size="sm"
                     onClick={() => setDialplanTab('templates')}
                   >
@@ -793,7 +793,7 @@ export default function CallsPage() {
                   </Button>
                   <Button
                     type="button"
-                    variant={dialplanTab === 'projects' ? 'primary' : 'secondary'}
+                    variant={dialplanTab === 'projects' ? 'default' : 'secondary'}
                     size="sm"
                     onClick={() => setDialplanTab('projects')}
                   >
@@ -801,7 +801,7 @@ export default function CallsPage() {
                   </Button>
                   <Button
                     type="button"
-                    variant={dialplanTab === 'capabilities' ? 'primary' : 'secondary'}
+                    variant={dialplanTab === 'capabilities' ? 'default' : 'secondary'}
                     size="sm"
                     onClick={() => setDialplanTab('capabilities')}
                   >

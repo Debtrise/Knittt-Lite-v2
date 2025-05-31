@@ -152,7 +152,7 @@ export default function DialPlanPage() {
             <div className="text-center py-10">
               <h3 className="text-lg font-medium text-red-600 mb-2">Error</h3>
               <p className="text-gray-500 mb-4">{error}</p>
-              <Button variant="primary" onClick={() => window.location.reload()}>
+              <Button variant="default" onClick={() => window.location.reload()}>
                 Retry
               </Button>
             </div>
@@ -192,7 +192,7 @@ export default function DialPlanPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Asterisk Dial Plan Builder</h1>
           <Button
             onClick={() => setShowNewProjectForm(!showNewProjectForm)}
-            variant="primary"
+            variant="default"
           >
             <Plus className="w-4 h-4 mr-2" />
             New Project
@@ -239,7 +239,7 @@ export default function DialPlanPage() {
                 </Button>
                 <Button
                   type="submit"
-                  variant="primary"
+                  variant="default"
                   disabled={!newProject.name}
                 >
                   Create Project
@@ -278,7 +278,7 @@ export default function DialPlanPage() {
                 </Button>
                 <Button
                   type="submit"
-                  variant="primary"
+                  variant="default"
                   disabled={!newProjectName}
                 >
                   Clone Project

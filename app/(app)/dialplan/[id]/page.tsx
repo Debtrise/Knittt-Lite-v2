@@ -210,7 +210,7 @@ export default function DialPlanEditor() {
       const connectionData = {
         sourceNodeId,
         targetNodeId,
-        condition: condition || null,
+        condition: condition || undefined,
         priority: 1 // Default priority
       };
       
@@ -274,7 +274,7 @@ export default function DialPlanEditor() {
       } else {
         toast.error(`Validation failed with ${validation.errors.length} errors`);
         // Display errors in console for now
-        validation.errors.forEach(err => console.error(err));
+        validation.errors.forEach((err: any) => console.error(err));
       }
     } catch (error) {
       console.error('Error validating project:', error);
@@ -331,7 +331,7 @@ export default function DialPlanEditor() {
             <div className="text-center py-10">
               <h3 className="text-lg font-medium text-red-600 mb-2">Error</h3>
               <p className="text-gray-500 mb-4">{error}</p>
-              <Button variant="primary" onClick={() => window.location.reload()}>
+              <Button variant="default" onClick={() => window.location.reload()}>
                 Retry
               </Button>
             </div>
@@ -410,7 +410,7 @@ export default function DialPlanEditor() {
                   </Button>
                   <Button
                     type="submit"
-                    variant="primary"
+                    variant="default"
                     disabled={!newContext.name}
                   >
                     Create Context

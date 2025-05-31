@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { MessageSquare, ArrowLeft, Play, Pause, Upload, Clock, Check, AlertTriangle } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
@@ -16,10 +16,8 @@ import {
 import { useAuthStore } from '@/app/store/authStore';
 import { SmsCampaign } from '@/app/types/sms';
 
-export default function CampaignDetailPage({ params }: { params: { id: string } }) {
-  // Directly unwrap the params promise as suggested in the error message
-  const resolvedParams = React.use(params as unknown as Promise<{ id: string }>);
-  
+export default function CampaignDetailPage() {
+  const params = useParams();
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const [campaign, setCampaign] = useState<SmsCampaign | null>(null);
@@ -28,7 +26,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const campaignId = parseInt(resolvedParams.id, 10);
+  const campaignId = parseInt(params.id as string, 10);
 
   useEffect(() => {
     if (!isAuthenticated) {

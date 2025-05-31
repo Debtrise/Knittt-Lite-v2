@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Send } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
@@ -14,9 +14,8 @@ import {
 import { useAuthStore } from '@/app/store/authStore';
 import { SmsContact, SmsMessage } from '@/app/types/sms';
 
-export default function ConversationPage({ params }: { params: { id: string } }) {
-  // Properly unwrap params using React.use()
-  const resolvedParams = React.use(params);
+export default function ConversationPage() {
+  const params = useParams();
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const [contact, setContact] = useState<SmsContact | null>(null);
@@ -26,7 +25,7 @@ export default function ConversationPage({ params }: { params: { id: string } })
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  const contactId = parseInt(resolvedParams.id, 10);
+  const contactId = parseInt(params.id as string, 10);
 
   useEffect(() => {
     if (!isAuthenticated) {
