@@ -37,10 +37,11 @@ import { BulkEnrollCriteria, JourneyMatchingStats } from '@/app/types/lead';
 import JourneyFlow from '@/app/components/journey-builder/JourneyFlow';
 import StepEditor from '@/app/components/journey-builder/StepEditor';
 
-export default function JourneyDetailPage({ params }: { params: { id: string } }) {
+export default async function JourneyDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
-  const journeyId = parseInt(params.id, 10);
+  const journeyId = parseInt(resolvedParams.id, 10);
   
   const [journey, setJourney] = useState<JourneyWithSteps | null>(null);
   const [steps, setSteps] = useState<JourneyStep[]>([]);

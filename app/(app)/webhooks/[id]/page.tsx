@@ -35,9 +35,10 @@ interface WebhookDetailPageProps {
   };
 }
 
-export default function WebhookDetailPage({ params }: WebhookDetailPageProps) {
+export default async function WebhookDetailPage({ params }: WebhookDetailPageProps) {
+  const resolvedParams = await params;
   const router = useRouter();
-  const webhookId = parseInt(params.id);
+  const webhookId = parseInt(resolvedParams.id);
 
   const [loading, setLoading] = useState(true);
   const [webhook, setWebhook] = useState<WebhookEndpoint | null>(null);

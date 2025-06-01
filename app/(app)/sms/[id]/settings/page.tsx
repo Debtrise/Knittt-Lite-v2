@@ -385,7 +385,7 @@ function SettingsPageContent({ campaignId }: SettingsPageProps) {
 }
 
 // Server Component
-export default function CampaignSettingsPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = React.use(params);
+export default async function CampaignSettingsPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
   return <SettingsPageContent campaignId={resolvedParams.id} />;
 } 

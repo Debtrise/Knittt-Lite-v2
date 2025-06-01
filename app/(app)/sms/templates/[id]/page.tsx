@@ -27,9 +27,9 @@ type Template = {
   variables: string[];
 };
 
-export default function EditTemplatePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditTemplatePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const resolvedParams = use(params);
+  const resolvedParams = await params;
   const templateId = resolvedParams.id;
   const { isAuthenticated } = useAuthStore();
   const [template, setTemplate] = useState<Template | null>(null);

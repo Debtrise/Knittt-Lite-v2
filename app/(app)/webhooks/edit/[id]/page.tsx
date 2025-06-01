@@ -4,8 +4,8 @@ import { use } from 'react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import WebhookForm from '../../components/WebhookForm';
 
-export default function EditWebhookPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params);
+export default async function EditWebhookPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
   const webhookId = parseInt(resolvedParams.id);
   
   return (
