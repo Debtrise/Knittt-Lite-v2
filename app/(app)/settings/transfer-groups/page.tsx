@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { transferGroups } from '@/app/lib/api';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
 import { Textarea } from '@/app/components/ui/textarea';
 import {

@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Phone, MapPin, Tag, Clock, ArrowLeft, Trash2, Calendar, Clock1 } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { getDIDDetails, deleteDID } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
 import Link from 'next/link';

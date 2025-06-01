@@ -1,6 +1,6 @@
 import React from 'react';
 import { Input } from '@/app/components/ui/Input';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { UseFormRegister, FieldErrors, SubmitHandler, UseFormHandleSubmit } from 'react-hook-form';
 
 type CallFormData = {

@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { Phone, PhoneCall, PhoneForwarded, Route, BarChart, Edit, Filter, Search, ChevronDown, ChevronRight, Eye, Mail, Database, PieChart, Activity, List, Settings, Play, Plus } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Input } from '@/app/components/ui/Input';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { Textarea } from '@/app/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 import { Label } from '@/app/components/ui/label';

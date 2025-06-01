@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from './button';
+import Button from './button';
 import { Input } from './Input';
 import { Textarea } from './textarea';
 import {

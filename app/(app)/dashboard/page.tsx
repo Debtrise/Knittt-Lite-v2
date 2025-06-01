@@ -8,7 +8,7 @@ import DashboardLayout from '@/app/components/layout/Dashboard';
 import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
 import { Input } from '@/app/components/ui/Input';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import Link from 'next/link';
 import { useDebounce } from '@/app/hooks/useDebounce';
 

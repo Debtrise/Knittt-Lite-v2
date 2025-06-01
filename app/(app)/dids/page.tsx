@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { Plus, PhoneOutgoing, CheckCircle, XCircle, Edit, Trash2, Upload } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
 import { getDIDs, createDID, updateDID, deleteDID, bulkDeleteDIDs, bulkUploadDIDs } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';

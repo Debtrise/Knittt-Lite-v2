@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { Input } from '@/app/components/ui/Input';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
 

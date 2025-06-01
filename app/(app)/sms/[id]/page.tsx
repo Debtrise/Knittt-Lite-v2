@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { MessageSquare, ArrowLeft, Play, Pause, Upload, Clock, Check, AlertTriangle } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import {
   getSmsCampaignDetails,
   uploadSmsCampaignContacts,

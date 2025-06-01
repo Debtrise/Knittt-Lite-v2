@@ -16,7 +16,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Plus, Minus, ChevronRight, PlusCircle, Download, ZoomIn, ZoomOut, Trash2 } from 'lucide-react';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { JourneyStep, JourneyWithSteps } from '@/app/types/journey';
 import StepNode from './StepNode';
 import { createJourneyStep, updateJourneyStep, deleteJourneyStep } from '@/app/utils/api';
