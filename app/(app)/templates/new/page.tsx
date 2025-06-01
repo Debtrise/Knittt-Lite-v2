@@ -141,7 +141,7 @@ export default function NewTemplatePage() {
           )}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => router.push('/templates')}>Cancel</Button>
-            <Button type="submit" variant="primary" disabled={saving}>
+            <Button type="submit" variant="brand" disabled={saving}>
               {saving ? 'Saving...' : 'Save Template'}
             </Button>
           </div>

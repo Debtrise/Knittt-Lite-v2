@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Button } from './button';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Button } from '@/app/components/ui/button';
+import { Card, CardContent } from '@/app/components/ui/card';
+import { Slider } from '@/app/components/ui/slider';
 import { Play, Pause, Download, Volume2, VolumeX } from 'lucide-react';
 import { recordings } from '@/app/lib/api';
 import { toast } from 'sonner';
@@ -33,7 +35,7 @@ export default function AudioPlayer({
 
   useEffect(() => {
     loadMetadata();
-  }, [recordingId]);
+  }, [loadMetadata]);
 
   useEffect(() => {
     const audio = audioRef.current;

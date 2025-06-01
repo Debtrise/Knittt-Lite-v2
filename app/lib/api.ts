@@ -1,5 +1,16 @@
-import axios from 'axios';
+import axios, { AxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/app/store/authStore';
+import {
+  ApiError,
+  ApiResponse,
+  LoginRequest,
+  LoginResponse,
+  RegisterRequest,
+  PaginatedResponse,
+  RequestConfig,
+  Metadata
+} from '@/app/types/api';
+import { Template, TemplateCategory, CreateTemplateData, TemplateListResponse, TemplateCategoryListResponse } from '@/app/types/templates';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://34.122.156.88:3001/api';
 const SMS_API_URL = process.env.NEXT_PUBLIC_SMS_API_URL || 'http://34.122.156.88:3100';
@@ -33,16 +44,18 @@ const smsApi = axios.create({
 });
 
 // Add request interceptor to add auth token and tenant ID
-const addAuthToken = (config: any) => {
+const addAuthToken = (config: AxiosRequestConfig): AxiosRequestConfig => {
   const token = useAuthStore.getState().token;
   const user = useAuthStore.getState().user;
   
   if (token) {
+    config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
   }
   
   // Add tenant ID to headers for all requests
   if (user?.tenantId) {
+    config.headers = config.headers || {};
     config.headers['X-Tenant-ID'] = user.tenantId;
     
     // For FreePBX related endpoints, also add as query parameter
@@ -62,7 +75,7 @@ smsApi.interceptors.request.use(addAuthToken);
 // Add response interceptor for error handling
 api.interceptors.response.use(
   response => response,
-  error => {
+  (error: ApiError) => {
     if (error.response?.status === 401) {
       useAuthStore.getState().logout();
       window.location.href = '/login';
@@ -73,7 +86,7 @@ api.interceptors.response.use(
 
 localApi.interceptors.response.use(
   response => response,
-  error => {
+  (error: ApiError) => {
     if (error.response?.status === 401) {
       useAuthStore.getState().logout();
       window.location.href = '/login';
@@ -85,14 +98,9 @@ localApi.interceptors.response.use(
 // Auth endpoints
 export const auth = {
   login: (username: string, password: string) =>
-    api.post('/login', { username, password }),
-  register: (data: {
-    username: string;
-    password: string;
-    email: string;
-    tenantId: string;
-    role: 'admin' | 'agent';
-  }) => api.post('/register', data),
+    api.post<ApiResponse<LoginResponse>>('/login', { username, password }),
+  register: (data: RegisterRequest) => 
+    api.post<ApiResponse<LoginResponse>>('/register', data),
 };
 
 // User Management endpoints
@@ -153,44 +161,76 @@ export const users = {
 };
 
 // Tenant endpoints
+export interface TenantApiConfig {
+  source: string;
+  endpoint: string;
+  user: string;
+  password: string;
+  ingroup: string;
+  url: string;
+  ingroups?: string;
+}
+
+export interface TenantAmiConfig {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  trunk: string;
+  context: string;
+}
+
+export interface TenantSchedule {
+  enabled: boolean;
+  start: string;
+  end: string;
+}
+
+export interface TenantData {
+  name: string;
+  apiConfig: TenantApiConfig;
+  amiConfig: TenantAmiConfig;
+  schedule: {
+    monday: TenantSchedule;
+    tuesday: TenantSchedule;
+    wednesday: TenantSchedule;
+    thursday: TenantSchedule;
+    friday: TenantSchedule;
+    saturday: TenantSchedule;
+    sunday: TenantSchedule;
+  };
+  timezone: string;
+  dialerConfig?: {
+    speed: number;
+    minAgentsAvailable: number;
+    autoDelete: boolean;
+    sortOrder: 'oldest' | 'fewest';
+    didDistribution: 'even' | 'local';
+  };
+}
+
 export const tenants = {
-  create: (data: {
-    name: string;
-    apiConfig: {
-      source: string;
-      endpoint: string;
-      user: string;
-      password: string;
-      ingroup: string;
-      url: string;
-    };
-    amiConfig: {
-      host: string;
-      port: number;
-      username: string;
-      password: string;
-      trunk: string;
-      context: string;
-    };
-    schedule: {
-      monday: { enabled: boolean; start: string; end: string };
-      tuesday: { enabled: boolean; start: string; end: string };
-      wednesday: { enabled: boolean; start: string; end: string };
-      thursday: { enabled: boolean; start: string; end: string };
-      friday: { enabled: boolean; start: string; end: string };
-      saturday: { enabled: boolean; start: string; end: string };
-      sunday: { enabled: boolean; start: string; end: string };
-    };
-    timezone: string;
-  }) => api.post('/tenants', data),
-  get: (id: string) => api.get(`/tenants/${id}`),
-  update: (id: string, data: any) => api.put(`/tenants/${id}`, data),
+  create: (data: TenantData) => api.post<ApiResponse<TenantData>>('/tenants', data),
+  get: (id: string) => api.get<ApiResponse<TenantData>>(`/tenants/${id}`),
+  update: (id: string, data: Partial<TenantData>) => api.put<ApiResponse<TenantData>>(`/tenants/${id}`, data),
 };
 
 // Lead endpoints
+export interface Lead {
+  id: number;
+  phone: string;
+  name?: string;
+  email?: string;
+  brand?: string;
+  source?: string;
+  status: 'pending' | 'contacted' | 'transferred' | 'completed' | 'failed';
+  additionalData?: Record<string, unknown>;
+}
+
 export const leads = {
-  upload: (fileContent: string, options: any) =>
-    api.post('/leads/upload', { fileContent, options }),
+  upload: (fileContent: string, options: Record<string, unknown>) =>
+    api.post<ApiResponse<{ count: number }>>('/leads/upload', { fileContent, options }),
+  
   list: async (params: {
     page?: number;
     limit?: number;
@@ -201,48 +241,57 @@ export const leads = {
     brand?: string;
     source?: string;
   }) => {
-    const response = await api.get('/leads', { params });
+    const response = await api.get<PaginatedResponse<Lead>>('/leads', { params });
     return response.data;
   },
-  get: (id: string) => api.get(`/leads/${id}`),
-  create: (data: {
-    phone: string;
-    name?: string;
-    email?: string;
-    brand?: string;
-    source?: string;
-    status?: 'pending' | 'contacted' | 'transferred' | 'completed' | 'failed';
-    additionalData?: Record<string, any>;
-  }) => api.post('/leads', data),
-  update: (id: string, data: any) => api.put(`/leads/${id}`, data),
-  delete: (id: string) => api.delete(`/leads/${id}`),
-  bulkDelete: (ids: number[]) => api.post('/leads/delete', { ids }),
+  
+  get: (id: string) => api.get<ApiResponse<Lead>>(`/leads/${id}`),
+  
+  create: (data: Omit<Lead, 'id'>) => api.post<ApiResponse<Lead>>('/leads', data),
+  
+  update: (id: string, data: Partial<Omit<Lead, 'id'>>) => 
+    api.put<ApiResponse<Lead>>(`/leads/${id}`, data),
+  
+  delete: (id: string) => api.delete<ApiResponse<void>>(`/leads/${id}`),
+  
+  bulkDelete: (ids: number[]) => api.post<ApiResponse<void>>('/leads/delete', { ids }),
 };
 
 // Call endpoints
+export interface Call {
+  id: string;
+  to: string;
+  transfer_number?: string;
+  from?: string;
+  leadId?: number;
+  trunk?: string;
+  context?: string;
+  exten?: string;
+  priority?: number;
+  timeout?: number;
+  async?: boolean;
+  variables?: Record<string, string>;
+  status: 'initiated' | 'answered' | 'transferred' | 'completed' | 'failed';
+  createdAt: string;
+  updatedAt: string;
+  duration?: number;
+}
+
 export const calls = {
-  make: (data: {
-    to: string;
-    transfer_number?: string;
-    from?: string;
-    leadId?: number;
-    trunk?: string;
-    context?: string;
-    exten?: string;
-    priority?: number;
-    timeout?: number;
-    async?: boolean;
-    variables?: Record<string, string>;
-  }) => api.post('/make-call', data),
-  updateStatus: (id: string, status: 'initiated' | 'answered' | 'transferred' | 'completed' | 'failed') =>
-    api.put(`/calls/${id}/status`, { status }),
-  get: (id: string) => api.get(`/calls/${id}`),
+  make: (data: Omit<Call, 'id' | 'status' | 'createdAt' | 'updatedAt'>) => 
+    api.post<ApiResponse<Call>>('/make-call', data),
+  
+  updateStatus: (id: string, status: Call['status']) =>
+    api.put<ApiResponse<Call>>(`/calls/${id}/status`, { status }),
+  
+  get: (id: string) => api.get<ApiResponse<Call>>(`/calls/${id}`),
+  
   list: (params: {
     page?: number;
     limit?: number;
     status?: string;
     leadId?: number;
-  }) => api.get('/calls', { params }),
+  }) => api.get<PaginatedResponse<Call>>('/calls', { params }),
 };
 
 // DID endpoints
@@ -347,66 +396,37 @@ export const journeys = {
     api.get('/executions/upcoming', { params: options }),
 };
 
-// Webhook endpoints
-export const webhooks = {
-  list: (params: {
-    page?: number;
-    limit?: number;
-    isActive?: boolean;
-  }) => api.get('/webhooks', { params }),
-  get: (id: string) => api.get(`/webhooks/${id}`),
-  create: (data: {
-    name: string;
-    description: string;
-    brand: string;
-    source: string;
-    fieldMapping: Record<string, string>;
-    validationRules: {
-      requirePhone: boolean;
-      requireName: boolean;
-      requireEmail: boolean;
-      allowDuplicatePhone: boolean;
-    };
-    autoTagRules?: Array<{
-      field: string;
-      operator: string;
-      value: string;
-      tag: string;
-    }>;
-    requiredHeaders?: Record<string, string>;
-    autoEnrollJourneyId?: number | null;
-  }) => api.post('/webhooks', data),
-  update: (id: string, data: any) => api.put(`/webhooks/${id}`, data),
-  delete: (id: string) => api.delete(`/webhooks/${id}`),
-  getEvents: (id: string, params: {
-    page?: number;
-    limit?: number;
-    status?: 'success' | 'partial_success' | 'failed';
-  }) => api.get(`/webhooks/${id}/events`, { params }),
-  test: (id: string, payload: Record<string, any>) => 
-    api.post(`/webhooks/${id}/test`, payload),
-  regenerateKey: (id: string) => api.post(`/webhooks/${id}/regenerate-key`),
-  regenerateToken: (id: string) => api.post(`/webhooks/${id}/regenerate-token`),
-  health: (endpointKey: string) => api.get(`/webhook-health/${endpointKey}`),
-  capabilities: () => api.get('/system/webhook-capabilities'),
-};
-
 // SMS/Twilio endpoints
+export interface TwilioConfig {
+  accountSid: string;
+  authToken: string;
+  defaultFromNumber: string;
+  settings: Record<string, unknown>;
+  rateLimits: Record<string, unknown>;
+}
+
+export interface SmsMessage {
+  id: string;
+  to: string;
+  from: string;
+  body: string;
+  status: 'queued' | 'sent' | 'delivered' | 'failed';
+  direction: 'inbound' | 'outbound';
+  leadId?: number;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const sms = {
   // Configuration
-  getConfig: () => api.get('/twilio/config'),
-  saveConfig: (data: {
-    accountSid: string;
-    authToken: string;
-    defaultFromNumber: string;
-    settings: Record<string, any>;
-    rateLimits: Record<string, any>;
-  }) => api.post('/twilio/config', data),
-  testConnection: () => api.post('/twilio/test'),
+  getConfig: () => api.get<ApiResponse<TwilioConfig>>('/twilio/config'),
+  saveConfig: (data: TwilioConfig) => api.post<ApiResponse<TwilioConfig>>('/twilio/config', data),
+  testConnection: () => api.post<ApiResponse<{ success: boolean }>>('/twilio/test'),
   
   // Phone Numbers
-  listNumbers: () => api.get('/twilio/numbers'),
-  syncNumbers: () => api.post('/twilio/numbers/sync'),
+  listNumbers: () => api.get<ApiResponse<string[]>>('/twilio/numbers'),
+  syncNumbers: () => api.post<ApiResponse<{ added: string[]; removed: string[] }>>('/twilio/numbers/sync'),
   
   // Messaging
   send: (data: {
@@ -414,40 +434,47 @@ export const sms = {
     body: string;
     from?: string;
     leadId?: number;
-    metadata?: Record<string, any>;
-  }) => api.post('/sms/send', data),
+    metadata?: Record<string, unknown>;
+  }) => api.post<ApiResponse<SmsMessage>>('/sms/send', data),
+  
   sendTemplate: (data: {
     to: string;
     templateId: number;
-    variables: Record<string, any>;
+    variables: Record<string, unknown>;
     leadId?: number;
     from?: string;
-    metadata?: Record<string, any>;
-  }) => api.post('/sms/send-template', data),
+    metadata?: Record<string, unknown>;
+  }) => api.post<ApiResponse<SmsMessage>>('/sms/send-template', data),
+  
   sendBulk: (data: {
     recipients: Array<{
       phone: string;
       leadId?: number;
-      variables?: Record<string, any>;
-      metadata?: Record<string, any>;
+      variables?: Record<string, unknown>;
+      metadata?: Record<string, unknown>;
     }>;
     body?: string;
     templateId?: number;
     from?: string;
     throttle?: number;
-  }) => api.post('/sms/send-bulk', data),
+  }) => api.post<ApiResponse<{ messages: SmsMessage[] }>>('/sms/send-bulk', data),
   
   // Conversations
   getConversation: (leadId: string, params: {
     page?: number;
     limit?: number;
     markAsRead?: boolean;
-  }) => api.get(`/sms/conversation/${leadId}`, { params }),
+  }) => api.get<PaginatedResponse<SmsMessage>>(`/sms/conversation/${leadId}`, { params }),
+  
   listConversations: (params: {
     page?: number;
     limit?: number;
     status?: string;
-  }) => api.get('/sms/conversations', { params }),
+  }) => api.get<PaginatedResponse<{
+    leadId: number;
+    lastMessage: SmsMessage;
+    unreadCount: number;
+  }>>('/sms/conversations', { params }),
   
   // Messages
   getMessages: (params: {
@@ -458,48 +485,48 @@ export const sms = {
     leadId?: number;
     startDate?: string;
     endDate?: string;
-  }) => api.get('/sms/messages', { params }),
-  getMessage: (id: string) => api.get(`/sms/messages/${id}`),
+  }) => api.get<PaginatedResponse<SmsMessage>>('/sms/messages', { params }),
+  
+  getMessage: (id: string) => api.get<ApiResponse<SmsMessage>>(`/sms/messages/${id}`),
 };
 
 // Template endpoints
 export const templates = {
-  listCategories: (type: 'sms' | 'email' | 'transfer' | 'script' | 'voicemail') =>
-    api.get('/templates/categories', { params: { type } }),
-  createCategory: (data: {
-    name: string;
-    description: string;
-    type: 'sms' | 'email' | 'transfer' | 'script' | 'voicemail';
-  }) => api.post('/templates/categories', data),
   list: (params: {
-    type?: 'sms' | 'email' | 'transfer' | 'script' | 'voicemail';
-    categoryId?: number;
+    type: TemplateType;
     isActive?: boolean;
+    categoryId?: number;
+    search?: string;
     page?: number;
     limit?: number;
-  }) => api.get('/templates', { params }),
-  get: (id: string) => api.get(`/templates/${id}`),
-  create: (data: {
-    name: string;
-    description: string;
-    type: 'sms' | 'email' | 'transfer' | 'script' | 'voicemail';
-    categoryId: number;
-    subject?: string;
-    content: string;
-    htmlContent?: string;
-    isActive: boolean;
-  }) => api.post('/templates', data),
-  update: (id: string, data: any) => api.put(`/templates/${id}`, data),
-  delete: (id: string) => api.delete(`/templates/${id}`),
+  }) => api.get<TemplateListResponse>('/templates', { params }),
+
+  get: (id: number) => api.get<ApiResponse<Template>>(`/templates/${id}`),
+
+  create: (data: CreateTemplateData) => 
+    api.post<ApiResponse<Template>>('/templates', data),
+
+  update: (id: number, data: Partial<CreateTemplateData>) => 
+    api.put<ApiResponse<Template>>(`/templates/${id}`, data),
+
+  delete: (id: number) => api.delete<ApiResponse<void>>(`/templates/${id}`),
+
+  listCategories: (type: TemplateType) => 
+    api.get<TemplateCategoryListResponse>('/templates/categories', { params: { type } }),
+
+  createCategory: (data: Omit<TemplateCategory, 'id'>) => 
+    api.post<ApiResponse<TemplateCategory>>('/templates/categories', data),
+
+  updateCategory: (id: number, data: Partial<Omit<TemplateCategory, 'id'>>) => 
+    api.put<ApiResponse<TemplateCategory>>(`/templates/categories/${id}`, data),
+
+  deleteCategory: (id: number) => 
+    api.delete<ApiResponse<void>>(`/templates/categories/${id}`),
+
   renderPreview: (id: string, data: {
-    variables: Record<string, any>;
-    context?: Record<string, any>;
-  }) => api.post(`/templates/${id}/render`, data),
-  clone: (id: string) => api.post(`/templates/${id}/clone`),
-  getUsage: (id: string, params: {
-    page?: number;
-    limit?: number;
-  }) => api.get(`/templates/${id}/usage`, { params }),
+    variables: Record<string, string>;
+    context?: Record<string, unknown>;
+  }) => api.post<ApiResponse<{ content: string }>>(`/templates/${id}/render`, data),
 };
 
 // Transfer group endpoints
@@ -544,102 +571,174 @@ export const transferGroups = {
 };
 
 // Email endpoints
+export interface EmailConfig {
+  provider: 'smtp' | 'sendgrid' | 'mailgun' | 'ses';
+  settings: Record<string, unknown>;
+  fromEmail: string;
+  fromName: string;
+  replyToEmail: string;
+  dailyLimit: number;
+}
+
+export interface EmailMessage {
+  id: string;
+  to: string;
+  from: string;
+  subject: string;
+  body: string;
+  status: 'queued' | 'sent' | 'delivered' | 'failed';
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const email = {
-  getConfig: () => api.get('/email/config'),
-  saveConfig: (data: {
-    provider: 'smtp' | 'sendgrid' | 'mailgun' | 'ses';
-    settings: Record<string, any>;
-    fromEmail: string;
-    fromName: string;
-    replyToEmail: string;
-    dailyLimit: number;
-  }) => api.post('/email/config', data),
-  test: (to: string) => api.post('/email/test', { to }),
+  getConfig: () => api.get<ApiResponse<EmailConfig>>('/email/config'),
+  saveConfig: (data: EmailConfig) => api.post<ApiResponse<EmailConfig>>('/email/config', data),
+  test: (to: string) => api.post<ApiResponse<{ success: boolean }>>('/email/test', { to }),
   send: (data: {
     to: string;
     templateId: number;
-    variables: Record<string, any>;
-    attachments?: any[];
-  }) => api.post('/email/send', data),
+    variables: Record<string, unknown>;
+    attachments?: Array<{
+      filename: string;
+      content: string;
+      contentType: string;
+    }>;
+  }) => api.post<ApiResponse<EmailMessage>>('/email/send', data),
 };
 
 // Report endpoints
+export interface ReportData {
+  startDate: string;
+  endDate: string;
+  groupBy?: 'hour' | 'day' | 'week' | 'month';
+  filters?: Record<string, unknown>;
+}
+
+export interface ReportSummary {
+  data: Array<{
+    timestamp: string;
+    count: number;
+    [key: string]: unknown;
+  }>;
+  totals: Record<string, number>;
+  metadata: Record<string, unknown>;
+}
+
 export const reports = {
-  generateCallSummary: (data: {
-    startDate: string;
-    endDate: string;
+  generateCallSummary: (data: ReportData & {
     groupBy: 'hour' | 'day' | 'week' | 'month';
     filters?: {
       status?: string;
       agentId?: number;
       didId?: number;
     };
-  }) => api.post('/reports/call-summary', data),
-  generateSmsSummary: (data: {
-    startDate: string;
-    endDate: string;
+  }) => api.post<ApiResponse<ReportSummary>>('/reports/call-summary', data),
+
+  generateSmsSummary: (data: ReportData & {
     groupBy: 'hour' | 'day' | 'month';
     filters?: {
       direction?: 'outbound' | 'inbound';
       status?: string;
       fromNumber?: string;
     };
-  }) => api.post('/reports/sms-summary', data),
+  }) => api.post<ApiResponse<ReportSummary>>('/reports/sms-summary', data),
+
   generateAgentPerformance: (data: {
     startDate: string;
     endDate: string;
     agentIds?: number[];
-  }) => api.post('/reports/agent-performance', data),
+  }) => api.post<ApiResponse<Array<{
+    agentId: number;
+    agentName: string;
+    totalCalls: number;
+    answeredCalls: number;
+    averageDuration: number;
+    totalTransfers: number;
+    conversionRate: number;
+  }>>>('/reports/agent-performance', data),
+
   generateLeadConversion: (data: {
     startDate: string;
     endDate: string;
     sources?: string[];
     brands?: string[];
-  }) => api.post('/reports/lead-conversion', data),
+  }) => api.post<ApiResponse<Array<{
+    source: string;
+    brand: string;
+    totalLeads: number;
+    convertedLeads: number;
+    conversionRate: number;
+    averageConversionTime: number;
+  }>>>('/reports/lead-conversion', data),
+
   generateJourneyAnalytics: (data: {
     startDate: string;
     endDate: string;
     journeyIds?: number[];
-  }) => api.post('/reports/journey-analytics', data),
+  }) => api.post<ApiResponse<Array<{
+    journeyId: number;
+    journeyName: string;
+    totalEnrollments: number;
+    completedEnrollments: number;
+    averageCompletionTime: number;
+    stepAnalytics: Array<{
+      stepId: number;
+      stepName: string;
+      totalExecutions: number;
+      successRate: number;
+      averageExecutionTime: number;
+    }>;
+  }>>>('/reports/journey-analytics', data),
+
   generateCustom: (data: {
     query: string;
-    parameters: Record<string, any>;
-  }) => api.post('/reports/custom', data),
+    parameters: Record<string, unknown>;
+  }) => api.post<ApiResponse<unknown>>('/reports/custom', data),
+
   export: (data: {
-    reportData: Record<string, any>;
+    reportData: Record<string, unknown>;
     format: 'csv' | 'excel' | 'pdf';
     filename: string;
-  }) => api.post('/reports/export', data),
+  }) => api.post<ApiResponse<{ url: string }>>('/reports/export', data),
 };
 
 // Report template endpoints
+export interface ReportTemplate {
+  id: string;
+  name: string;
+  type: 'call_summary' | 'sms_summary' | 'agent_performance' | 'lead_conversion' | 'journey_analytics' | 'custom';
+  config: Record<string, unknown>;
+  schedule?: {
+    enabled: boolean;
+    frequency: 'daily' | 'weekly' | 'monthly';
+    time: string;
+    timezone: string;
+    format: 'pdf' | 'csv' | 'excel';
+    recipients: string[];
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const reportTemplates = {
-  list: () => api.get('/report-templates'),
-  get: (id: string) => api.get(`/report-templates/${id}`),
-  create: (data: {
-    name: string;
-    type: 'call_summary' | 'sms_summary' | 'agent_performance' | 'lead_conversion' | 'journey_analytics' | 'custom';
-    config: Record<string, any>;
-    schedule?: {
-      enabled: boolean;
-      frequency: 'daily' | 'weekly' | 'monthly';
-      time: string;
-      timezone: string;
-      format: 'pdf' | 'csv' | 'excel';
-      recipients: string[];
-    };
-  }) => api.post('/report-templates', data),
-  update: (id: string, data: any) => api.put(`/report-templates/${id}`, data),
-  delete: (id: string) => api.delete(`/report-templates/${id}`),
+  list: () => api.get<ApiResponse<ReportTemplate[]>>('/report-templates'),
+  get: (id: string) => api.get<ApiResponse<ReportTemplate>>(`/report-templates/${id}`),
+  create: (data: Omit<ReportTemplate, 'id' | 'createdAt' | 'updatedAt'>) => 
+    api.post<ApiResponse<ReportTemplate>>('/report-templates', data),
+  update: (id: string, data: Partial<Omit<ReportTemplate, 'id' | 'createdAt' | 'updatedAt'>>) => 
+    api.put<ApiResponse<ReportTemplate>>(`/report-templates/${id}`, data),
+  delete: (id: string) => api.delete<ApiResponse<void>>(`/report-templates/${id}`),
   execute: (id: string, data: {
     exportFormat: 'csv' | 'excel' | 'pdf';
-  }) => api.post(`/report-templates/${id}/execute`, data),
+  }) => api.post<ApiResponse<{ url: string }>>(`/report-templates/${id}/execute`, data),
   schedule: (id: string, data: {
     enabled: boolean;
     frequency: 'daily' | 'weekly' | 'monthly';
     time: string;
     recipients: string[];
-  }) => api.post(`/report-templates/${id}/schedule`, data),
+  }) => api.post<ApiResponse<ReportTemplate>>(`/report-templates/${id}/schedule`, data),
 };
 
 // Dashboard endpoints
@@ -675,53 +774,117 @@ export const system = {
 };
 
 // Recording Management (Eleven Labs)
+export interface ElevenLabsConfig {
+  apiKey: string;
+}
+
+export interface ElevenLabsVoice {
+  id: string;
+  name: string;
+  category: string;
+  previewUrl: string;
+  settings?: {
+    stability: number;
+    similarityBoost: number;
+    style?: number;
+    useSpeakerBoost?: boolean;
+  };
+}
+
+export interface Recording {
+  id: string;
+  name: string;
+  description: string;
+  type: 'ivr' | 'voicemail' | 'prompt' | 'announcement';
+  scriptText: string;
+  templateId?: number;
+  templateVariables?: Record<string, unknown>;
+  elevenLabsVoiceId: string;
+  elevenLabsSettings?: {
+    stability: number;
+    similarityBoost: number;
+    style?: number;
+    useSpeakerBoost?: boolean;
+  };
+  audioUrl?: string;
+  duration?: number;
+  status: 'pending' | 'generating' | 'ready' | 'failed';
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RecordingAnalytics {
+  totalPlays: number;
+  uniqueLeads: number;
+  averagePlayDuration: number;
+  completionRate: number;
+  usageByJourney: Array<{
+    journeyId: number;
+    journeyName: string;
+    plays: number;
+  }>;
+  usageByDay: Array<{
+    date: string;
+    plays: number;
+  }>;
+}
+
 export const recordings = {
-  getConfig: () => api.get('/elevenlabs/config'),
+  getConfig: () => api.get<ApiResponse<ElevenLabsConfig>>('/elevenlabs/config'),
   configure: (data: { apiKey: string }) => 
-    api.post('/elevenlabs/config', data),
-  getVoices: () => api.get('/elevenlabs/voices'),
-  getUsage: () => api.get('/elevenlabs/usage'),
+    api.post<ApiResponse<ElevenLabsConfig>>('/elevenlabs/config', data),
+  getVoices: () => api.get<ApiResponse<ElevenLabsVoice[]>>('/elevenlabs/voices'),
+  getUsage: () => api.get<ApiResponse<{
+    character_count: number;
+    character_limit: number;
+    voice_limit: number;
+    can_extend_character_limit: boolean;
+  }>>('/elevenlabs/usage'),
+  
   list: (params: {
     type?: 'ivr' | 'voicemail' | 'prompt' | 'announcement';
     isActive?: boolean;
     page?: number;
     limit?: number;
-  }) => api.get('/recordings', { params }),
-  get: (id: string) => api.get(`/recordings/${id}`),
-  create: (data: {
-    name: string;
-    description: string;
-    type: 'ivr' | 'voicemail' | 'prompt' | 'announcement';
-    scriptText: string;
-    templateId?: number;
-    templateVariables?: Record<string, any>;
-    elevenLabsVoiceId: string;
-    elevenLabsSettings?: Record<string, any>;
-  }) => api.post('/recordings', data),
-  update: (id: string, data: any) => api.put(`/recordings/${id}`, data),
-  delete: (id: string) => api.delete(`/recordings/${id}`),
+  }) => api.get<PaginatedResponse<Recording>>('/recordings', { params }),
+  
+  get: (id: string) => api.get<ApiResponse<Recording>>(`/recordings/${id}`),
+  
+  create: (data: Omit<Recording, 'id' | 'status' | 'audioUrl' | 'duration' | 'createdAt' | 'updatedAt'>) => 
+    api.post<ApiResponse<Recording>>('/recordings', data),
+  
+  update: (id: string, data: Partial<Omit<Recording, 'id' | 'status' | 'audioUrl' | 'duration' | 'createdAt' | 'updatedAt'>>) => 
+    api.put<ApiResponse<Recording>>(`/recordings/${id}`, data),
+  
+  delete: (id: string) => api.delete<ApiResponse<void>>(`/recordings/${id}`),
+  
   generateAudio: (id: string) => 
-    api.post(`/recordings/${id}/generate`),
+    api.post<ApiResponse<{ status: string }>>(`/recordings/${id}/generate`),
+  
   uploadAudio: (formData: FormData) => {
     const user = useAuthStore.getState().user;
-    // Add tenant ID to form data
     if (user?.tenantId) {
       formData.append('tenantId', user.tenantId);
     }
-    return api.post('/recordings/upload', formData, {
+    return api.post<ApiResponse<Recording>>('/recordings/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
-  // New streaming endpoints
+  
   stream: (id: string) => 
-    api.get(`/recordings/${id}/stream`, {
+    api.get<Blob>(`/recordings/${id}/stream`, {
       responseType: 'blob',
-      headers: {
-        'Accept': 'audio/*',
-      },
+      headers: { 'Accept': 'audio/*' },
     }),
-  getMetadata: (id: string) => api.get(`/recordings/${id}/metadata`),
-  // Enhanced preview endpoints
+  
+  getMetadata: (id: string) => api.get<ApiResponse<{
+    duration: number;
+    format: string;
+    bitrate: number;
+    size: number;
+  }>>(`/recordings/${id}/metadata`),
+  
   preview: (data: {
     text: string;
     voiceId?: string;
@@ -732,14 +895,14 @@ export const recordings = {
       useSpeakerBoost?: boolean;
     };
     modelId?: string;
-  }) => api.post('/recordings/preview', data),
+  }) => api.post<ApiResponse<{ previewId: string }>>('/recordings/preview', data),
+  
   streamPreview: (previewId: string) => 
-    api.get(`/recordings/preview/${previewId}/stream`, {
+    api.get<Blob>(`/recordings/preview/${previewId}/stream`, {
       responseType: 'blob',
-      headers: {
-        'Accept': 'audio/*',
-      },
+      headers: { 'Accept': 'audio/*' },
     }),
+  
   batchPreview: (data: {
     text: string;
     voiceIds: string[];
@@ -749,16 +912,39 @@ export const recordings = {
       style?: number;
       useSpeakerBoost?: boolean;
     };
-  }) => api.post('/recordings/preview/batch', data),
-  getVoicePresets: () => api.get('/recordings/voice-presets'),
+  }) => api.post<ApiResponse<Array<{
+    voiceId: string;
+    previewId: string;
+  }>>>('/recordings/preview/batch', data),
+  
+  getVoicePresets: () => api.get<ApiResponse<Array<{
+    name: string;
+    settings: {
+      stability: number;
+      similarityBoost: number;
+      style?: number;
+      useSpeakerBoost?: boolean;
+    };
+  }>>>('/recordings/voice-presets'),
+  
   getAnalytics: (id: string, params: {
     startDate: string;
     endDate: string;
-  }) => api.get(`/recordings/${id}/analytics`, { params }),
+  }) => api.get<ApiResponse<RecordingAnalytics>>(`/recordings/${id}/analytics`, { params }),
+  
   getUsageHistory: (id: string, params: {
     page?: number;
     limit?: number;
-  }) => api.get(`/recordings/${id}/usage`, { params }),
+  }) => api.get<PaginatedResponse<{
+    timestamp: string;
+    usedIn: 'journey' | 'manual_call' | 'campaign' | 'test';
+    entityType: string;
+    entityId: number;
+    leadId?: number;
+    playDuration: number;
+    userAction: string;
+  }>>(`/recordings/${id}/usage`, { params }),
+  
   trackUsage: (id: string, data: {
     usedIn: 'journey' | 'manual_call' | 'campaign' | 'test';
     entityType: string;
@@ -766,77 +952,50 @@ export const recordings = {
     leadId?: number;
     playDuration: number;
     userAction: string;
-  }) => api.post(`/recordings/${id}/track-usage`, data),
+  }) => api.post<ApiResponse<void>>(`/recordings/${id}/track-usage`, data),
 };
 
-// Recording Templates
-export const recordingTemplates = {
-  list: (params: {
-    category?: string;
-    page?: number;
-    limit?: number;
-  }) => api.get('/recording-templates', { params }),
-  get: (id: string) => api.get(`/recording-templates/${id}`),
-  create: (data: {
-    name: string;
-    description: string;
-    category: string;
-    scriptTemplate: string;
-    suggestedVoiceId: string;
-  }) => api.post('/recording-templates', data),
-  update: (id: string, data: any) => api.put(`/recording-templates/${id}`, data),
-  delete: (id: string) => api.delete(`/recording-templates/${id}`),
-  createRecording: (id: string, data: {
-    name: string;
-    description: string;
-    type: 'ivr' | 'voicemail' | 'prompt' | 'announcement';
-    variables: Record<string, any>;
-    voiceId: string;
-  }) => api.post(`/recording-templates/${id}/create-recording`, data),
-};
+// FreePBX Integration
+export interface FreePBXConfig {
+  serverUrl: string;
+  username: string;
+  password: string;
+}
 
-// FreePBX Integration - Updated based on test results
 export const freepbx = {
-  // ✅ WORKING: Test FreePBX connection 
-  test: (data: {
-    serverUrl: string;
-    username: string;
-    password: string;
-  }) => {
+  test: (data: FreePBXConfig) => {
     const user = useAuthStore.getState().user;
-    return api.post('/recordings/test-freepbx', {
+    return api.post<ApiResponse<{ success: boolean }>>('/recordings/test-freepbx', {
       ...data,
-      tenantId: user?.tenantId || '1' // Include tenant ID explicitly
+      tenantId: user?.tenantId || '1'
     });
   },
   
-  // ✅ WORKING: Sync recording status with FreePBX
   syncRecording: async (recordingId: string) => {
     try {
       const user = useAuthStore.getState().user;
       const tenantId = user?.tenantId || '1';
       
-      return await api.post(`/recordings/${recordingId}/sync-freepbx?tenantId=${tenantId}`, {
-        tenantId: tenantId
-      });
-    } catch (error: any) {
+      return await api.post<ApiResponse<{ status: string }>>(
+        `/recordings/${recordingId}/sync-freepbx?tenantId=${tenantId}`,
+        { tenantId }
+      );
+    } catch (error: ApiError) {
       console.error('FreePBX sync error:', error);
       throw error;
     }
   },
 
-  // ⚠️ PARTIAL: Upload to FreePBX (endpoint exists but may fail)
   uploadRecording: async (recordingId: string) => {
     try {
       const user = useAuthStore.getState().user;
       const tenantId = user?.tenantId || '1';
       
-      // Include tenant ID in both body and query params
-      return await api.post(`/recordings/${recordingId}/upload-to-freepbx?tenantId=${tenantId}`, {
-        tenantId: tenantId // Include tenant ID explicitly in body
-      });
-    } catch (error: any) {
-      // Handle specific error cases
+      return await api.post<ApiResponse<{ status: string }>>(
+        `/recordings/${recordingId}/upload-to-freepbx?tenantId=${tenantId}`,
+        { tenantId }
+      );
+    } catch (error: ApiError) {
       if (error.response?.status === 404) {
         throw new Error('FreePBX upload functionality is not yet implemented on the backend. Please contact your system administrator.');
       }
@@ -846,12 +1005,72 @@ export const freepbx = {
       throw error;
     }
   },
+};
 
-  // ❌ NOT IMPLEMENTED: These endpoints don't exist or have issues on the backend
-  // configure: () => { throw new Error('Configure endpoint not implemented on backend'); },
-  // getConfig: () => { throw new Error('GetConfig endpoint not implemented on backend'); },
-  // listRecordings: () => { throw new Error('ListRecordings endpoint has routing issues on backend'); },
-  // setupDefault: () => { throw new Error('SetupDefault endpoint not implemented on backend'); },
+// Webhook endpoints
+export interface Webhook {
+  id: number;
+  name: string;
+  description: string;
+  brand: string;
+  source: string;
+  fieldMapping: Record<string, string>;
+  validationRules: {
+    requirePhone: boolean;
+    requireName: boolean;
+    requireEmail: boolean;
+    allowDuplicatePhone: boolean;
+  };
+  autoTagRules?: Array<{
+    field: string;
+    operator: string;
+    value: string;
+    tag: string;
+  }>;
+  requiredHeaders?: Record<string, string>;
+  autoEnrollJourneyId?: number | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const webhooks = {
+  list: (params: {
+    page?: number;
+    limit?: number;
+    isActive?: boolean;
+  }) => api.get<PaginatedResponse<Webhook>>('/webhooks', { params }),
+  
+  get: (id: string) => api.get<ApiResponse<Webhook>>(`/webhooks/${id}`),
+  
+  create: (data: Omit<Webhook, 'id' | 'createdAt' | 'updatedAt'>) => 
+    api.post<ApiResponse<Webhook>>('/webhooks', data),
+  
+  update: (id: string, data: Partial<Omit<Webhook, 'id' | 'createdAt' | 'updatedAt'>>) => 
+    api.put<ApiResponse<Webhook>>(`/webhooks/${id}`, data),
+  
+  delete: (id: string) => api.delete<ApiResponse<void>>(`/webhooks/${id}`),
+  
+  getEvents: (id: string, params: {
+    page?: number;
+    limit?: number;
+    status?: 'success' | 'partial_success' | 'failed';
+  }) => api.get<PaginatedResponse<WebhookEvent>>(`/webhooks/${id}/events`, { params }),
+  
+  test: (id: string, payload: Record<string, unknown>) => 
+    api.post<ApiResponse<WebhookTestResponse>>(`/webhooks/${id}/test`, payload),
+  
+  regenerateKey: (id: string) => 
+    api.post<ApiResponse<{ key: string }>>(`/webhooks/${id}/regenerate-key`),
+  
+  regenerateToken: (id: string) => 
+    api.post<ApiResponse<{ token: string }>>(`/webhooks/${id}/regenerate-token`),
+  
+  health: (endpointKey: string) => 
+    api.get<ApiResponse<{ status: 'healthy' | 'unhealthy'; lastCheck: string }>>(`/webhook-health/${endpointKey}`),
+  
+  capabilities: () => 
+    api.get<ApiResponse<{ fields: string[]; operators: string[]; tags: string[] }>>('/system/webhook-capabilities'),
 };
 
 export default {
@@ -872,6 +1091,5 @@ export default {
   dashboard,
   system,
   recordings,
-  recordingTemplates,
   freepbx,
 }; 

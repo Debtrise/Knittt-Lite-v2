@@ -22,6 +22,10 @@ import StepNode from './StepNode';
 import { createJourneyStep, updateJourneyStep, deleteJourneyStep } from '@/app/utils/api';
 import toast from 'react-hot-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/app/components/ui/tooltip';
+import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { useToast } from '@/app/components/ui/use-toast';
+import { JourneyConnection } from '@/app/types/journey';
+import CustomEdge from './edges/CustomEdge';
 
 // Register custom node types
 const nodeTypes = {
@@ -323,6 +327,21 @@ const JourneyFlow: React.FC<JourneyFlowProps> = ({
       reactFlowInstance.fitView();
     }
   };
+  
+  // Add nodes to useEffect dependencies
+  useEffect(() => {
+    const layout = new DagreLayout();
+    const { nodes: layoutedNodes } = layout.layout({
+      nodes,
+      edges,
+      options: {
+        rankdir: 'TB',
+        ranksep: 50,
+        nodesep: 50,
+      },
+    });
+    setNodes(layoutedNodes);
+  }, [nodes]);
   
   return (
     <div className="h-[600px] w-full border border-gray-200 rounded-lg bg-white shadow-sm">

@@ -229,7 +229,7 @@ export default function SystemPage() {
             </div>
             <div className="mt-4">
               <Button
-                variant="primary"
+                variant="brand"
                 onClick={handleAgentStatusCheck}
               >
                 <Activity className="w-4 h-4 mr-2" />

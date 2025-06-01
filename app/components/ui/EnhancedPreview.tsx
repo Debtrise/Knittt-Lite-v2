@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from './button';
 import { Input } from './Input';
 import { Textarea } from './textarea';
@@ -41,6 +41,7 @@ import {
   PreviewResponse, 
   BatchPreviewResponse 
 } from '@/app/types/recordings';
+import { renderPreview } from '@/app/utils/api';
 
 interface EnhancedPreviewProps {
   text: string;
@@ -80,6 +81,12 @@ export default function EnhancedPreview({
     loadInitialData();
     checkApiConfiguration();
   }, []);
+
+  useEffect(() => {
+    if (text && Object.keys(variables).length > 0) {
+      generatePreview();
+    }
+  }, [text, variables, generatePreview]);
 
   const loadInitialData = async () => {
     try {

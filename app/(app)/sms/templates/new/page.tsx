@@ -9,29 +9,33 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
 import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
+import { 
+  TemplateType, 
+  TemplateCategory, 
+  CreateTemplateData, 
+  TemplateCategoryListResponse 
+} from '@/app/types/templates';
 
-type Category = {
-  id: number;
-  name: string;
-  description: string;
-  type: string;
-};
+interface TemplateFormData extends Omit<CreateTemplateData, 'categoryId'> {
+  categoryId: string; // We keep this as string for form handling, convert to number on submit
+}
 
 export default function NewTemplatePage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<TemplateCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewVariables, setPreviewVariables] = useState<Record<string, string>>({});
   const [previewContent, setPreviewContent] = useState('');
 
-  const [template, setTemplate] = useState({
+  const [template, setTemplate] = useState<TemplateFormData>({
     name: '',
     content: '',
     categoryId: '',
-    variables: [] as string[],
+    type: 'sms',
+    isActive: true,
   });
 
   useEffect(() => {
@@ -46,9 +50,10 @@ export default function NewTemplatePage() {
   const fetchCategories = async () => {
     try {
       const response = await api.templates.listCategories('sms');
-      setCategories(response.categories || []);
-      if (response.categories?.length > 0) {
-        setTemplate(prev => ({ ...prev, categoryId: response.categories[0].id.toString() }));
+      const data = response.data as TemplateCategoryListResponse;
+      setCategories(data.categories || []);
+      if (data.categories?.length > 0) {
+        setTemplate(prev => ({ ...prev, categoryId: data.categories[0].id.toString() }));
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -66,13 +71,12 @@ export default function NewTemplatePage() {
 
     setIsSaving(true);
     try {
-      await api.templates.create({
-        name: template.name,
-        content: template.content,
+      const createData: CreateTemplateData = {
+        ...template,
         categoryId: parseInt(template.categoryId),
-        variables: template.variables,
-        type: 'sms',
-      });
+      };
+
+      await api.templates.create(createData);
       toast.success('Template created successfully');
       router.push('/sms/templates');
     } catch (error) {
@@ -89,7 +93,6 @@ export default function NewTemplatePage() {
     const variableRegex = /{{([^}]+)}}/g;
     const matches = content.match(variableRegex) || [];
     const variables = matches.map(match => match.slice(2, -2));
-    setTemplate(prev => ({ ...prev, variables }));
     
     // Initialize preview variables for new variables
     const newPreviewVariables = { ...previewVariables };
@@ -160,12 +163,12 @@ export default function NewTemplatePage() {
               {showPreview ? 'Hide Preview' : 'Show Preview'}
             </Button>
             <Button
-              variant="primary"
+              variant="brand"
               onClick={handleSave}
-              isLoading={isSaving}
+              disabled={isSaving}
             >
               <Save className="w-4 h-4 mr-2" />
-              Create Template
+              {isSaving ? 'Creating...' : 'Create Template'}
             </Button>
           </div>
         </div>
@@ -201,47 +204,54 @@ export default function NewTemplatePage() {
             <div>
               <label className="block text-sm font-medium text-gray-700">Content</label>
               <textarea
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand focus:ring-brand sm:text-sm"
                 rows={6}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand focus:ring-brand sm:text-sm"
                 value={template.content}
                 onChange={(e) => handleContentChange(e.target.value)}
-                placeholder="Enter your template content. Use {{variable}} for variables."
+                placeholder="Template content. Use {{variable}} for dynamic content."
               />
-              <p className="mt-1 text-xs text-gray-500">
-                Use {{variable}} syntax to add variables to your template.
+              <p className="mt-2 text-sm text-gray-500">
+                Use {'{{'} variable {'}}'}  syntax for dynamic content. Example: Hello {'{{'} name {'}}'}!
               </p>
             </div>
+          </div>
 
-            {template.variables.length > 0 && (
+          {/* Preview Panel */}
+          {showPreview && (
+            <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Variables</label>
-                <div className="mt-2 space-y-2">
-                  {template.variables.map((variable) => (
-                    <div key={variable} className="flex items-center space-x-2">
-                      <span className="text-sm text-gray-500">{variable}:</span>
+                <h3 className="text-lg font-medium text-gray-900">Preview</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Fill in the variables below to preview the template
+                </p>
+              </div>
+
+              {/* Variable inputs */}
+              {Object.keys(previewVariables).length > 0 && (
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium text-gray-700">Variables</h4>
+                  {Object.entries(previewVariables).map(([variable, value]) => (
+                    <div key={variable}>
+                      <label className="block text-sm font-medium text-gray-700">
+                        {variable}
+                      </label>
                       <Input
                         type="text"
-                        value={previewVariables[variable] || ''}
+                        value={value}
                         onChange={(e) => handlePreviewChange(variable, e.target.value)}
-                        placeholder={`Enter ${variable}`}
-                        className="flex-1"
+                        placeholder={`Value for ${variable}`}
                       />
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-          </div>
+              )}
 
-          {/* Preview */}
-          {showPreview && (
-            <div className="bg-gray-50 rounded-lg p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Preview</h3>
-              <div className="bg-white rounded-lg p-4 shadow-sm">
-                <p className="text-sm text-gray-600 whitespace-pre-wrap">{previewContent}</p>
-              </div>
-              <div className="mt-4 text-xs text-gray-500">
-                <p>Variables not filled in will show as {{variable}} in the preview.</p>
+              {/* Preview content */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700">Result</h4>
+                <div className="mt-1 p-4 rounded-md bg-gray-50 text-gray-900">
+                  {previewContent || 'Preview will appear here'}
+                </div>
               </div>
             </div>
           )}

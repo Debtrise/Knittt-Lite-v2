@@ -385,7 +385,7 @@ const NodePropertiesPanel: React.FC<NodePropertiesPanelProps> = ({
         </div>
 
         <div className="pt-2">
-          <Button onClick={handleSave} variant="primary" size="sm" disabled={isUpdatingNodeType}>
+          <Button onClick={handleSave} variant="brand" size="sm" disabled={isUpdatingNodeType}>
             Apply Changes
           </Button>
         </div>

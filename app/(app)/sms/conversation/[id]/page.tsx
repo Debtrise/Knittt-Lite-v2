@@ -12,14 +12,23 @@ import {
   sendContactReply
 } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
-import { SmsContact, SmsMessage } from '@/app/types/sms';
+import { SmsContact } from '@/app/types/sms';
+
+interface Message {
+  id: number;
+  content: string;
+  direction: 'inbound' | 'outbound';
+  status: 'sent' | 'delivered' | 'read' | 'failed';
+  sentAt: string;
+  isReplied?: boolean;
+}
 
 export default function ConversationPage() {
   const params = useParams();
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const [contact, setContact] = useState<SmsContact | null>(null);
-  const [messages, setMessages] = useState<SmsMessage[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [replyText, setReplyText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -168,7 +177,7 @@ export default function ConversationPage() {
                 </div>
                 <Button
                   type="submit"
-                  variant="primary"
+                  variant="brand"
                   isLoading={isSending}
                   disabled={isSending || !replyText.trim()}
                 >

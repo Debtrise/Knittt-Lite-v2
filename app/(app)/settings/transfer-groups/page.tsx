@@ -72,12 +72,24 @@ export default function TransferGroupsPage() {
   const [showForm, setShowForm] = useState(false);
   const [showNumberForm, setShowNumberForm] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<TransferGroup | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    description: string;
+    brand: string;
+    ingroup: string;
+    type: 'roundrobin' | 'simultaneous' | 'priority' | 'percentage';
+    isActive: boolean;
+    settings: {
+      ringTimeout: number;
+      voicemailEnabled: boolean;
+      callRecording: boolean;
+    };
+  }>({
     name: '',
     description: '',
     brand: '',
     ingroup: '',
-    type: 'roundrobin' as const,
+    type: 'roundrobin',
     isActive: true,
     settings: {
       ringTimeout: 30,

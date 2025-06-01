@@ -929,6 +929,11 @@ export default function DialplanCanvas({
     }
   }, [reactFlowInstance, nodes.length]);
 
+  // Add processInitialNodes to useEffect dependencies
+  useEffect(() => {
+    processInitialNodes();
+  }, [processInitialNodes]);
+
   return (
     <div className="h-full w-full relative" ref={reactFlowWrapper}>
       <ReactFlow

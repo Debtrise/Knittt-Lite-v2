@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Search, X, RefreshCw, UserPlus, CheckCircle, Users } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
@@ -50,10 +49,9 @@ interface JourneyLead {
   };
 }
 
-export default function JourneyLeadsPage({ params }: { params: Promise<{ id: string }> }) {
+export default function JourneyLeadsPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const resolvedParams = use(params);
-  const journeyId = parseInt(resolvedParams.id, 10);
+  const journeyId = parseInt(params.id, 10);
   const { isAuthenticated } = useAuthStore();
   
   const [journey, setJourney] = useState<Journey | null>(null);
@@ -386,12 +384,11 @@ export default function JourneyLeadsPage({ params }: { params: Promise<{ id: str
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Badge 
                           variant={
-                            lead.status === 'active' ? 'success' :
-                            lead.status === 'paused' ? 'warning' :
-                            lead.status === 'completed' ? 'default' :
+                            lead.status === 'active' ? 'default' :
+                            lead.status === 'paused' ? 'secondary' :
+                            lead.status === 'completed' ? 'outline' :
                             'destructive'
                           }
-                          className="text-xs"
                         >
                           {lead.status}
                         </Badge>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -14,14 +14,15 @@ import { Label } from '@/app/components/ui/label';
 import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
 import { checkDialplanCapabilities, getProjects, createProject, getProjectDetails, generateDialplan } from '@/app/utils/dialplanApi';
+import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
+import { useToast } from '@/app/components/ui/use-toast';
+import type { Call } from '@/app/lib/api';
 
 type CallFormData = {
   to: string;
-  transfer_number: string;
   from: string;
-  trunk?: string;
-  context?: string;
-  leadId?: number;
+  message?: string;
 };
 
 type DID = {
@@ -38,20 +39,6 @@ type Lead = {
   email: string;
   status: string;
   callDurations?: number[];
-};
-
-type Call = {
-  id: number;
-  tenantId: string;
-  leadId: number;
-  from: string;
-  to: string;
-  transferNumber: string;
-  startTime: string;
-  endTime?: string;
-  duration: number;
-  status: string;
-  Lead?: Lead;
 };
 
 type CallTemplate = {
@@ -133,6 +120,29 @@ export default function CallsPage() {
     formState: { errors },
   } = useForm<CallFormData>();
 
+  const fetchCalls = async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.calls.list({ 
+        page: currentPage, 
+        limit: callLimit,
+        ...(statusFilter ? { status: statusFilter } : {})
+      });
+      setCalls(response.data.data);
+      setTotalPages(response.data.totalPages);
+      // Extract unique statuses from the data for filter options
+      if (!statusFilter) {
+        const statuses = Array.from(new Set(response.data.data.map((call: Call) => call.status))) as string[];
+        setUniqueStatuses(statuses);
+      }
+    } catch (error) {
+      console.error('Error fetching calls:', error);
+      toast.error('Failed to load calls');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/login');
@@ -151,14 +161,7 @@ export default function CallsPage() {
 
     fetchDIDs();
     fetchCalls();
-  }, [isAuthenticated, router, currentPage, statusFilter]);
-
-  // Load dialplan data when dialplan tab is active
-  useEffect(() => {
-    if (activeTab === 'dialplan') {
-      loadDialplanData();
-    }
-  }, [activeTab, dialplanTab]);
+  }, [isAuthenticated, router, currentPage, statusFilter, fetchCalls]);
 
   const loadDialplanData = async () => {
     setLoadingDialplan(true);
@@ -178,6 +181,12 @@ export default function CallsPage() {
       setLoadingDialplan(false);
     }
   };
+
+  useEffect(() => {
+    if (activeTab === 'dialplan') {
+      loadDialplanData();
+    }
+  }, [activeTab, dialplanTab, loadDialplanData]);
 
   const loadCallTemplates = async () => {
     try {
@@ -231,35 +240,11 @@ export default function CallsPage() {
     }
   };
 
-  const fetchCalls = async () => {
-    setIsLoading(true);
-    try {
-      const response = await api.calls.list({ 
-        page: currentPage, 
-        limit: callLimit,
-        ...(statusFilter ? { status: statusFilter } : {})
-      });
-      setCalls(response.data.calls);
-      setTotalPages(response.data.totalPages);
-      
-      // Extract unique statuses from the data for filter options
-      if (!statusFilter) {
-        const statuses = Array.from(new Set(response.data.calls.map((call: Call) => call.status))) as string[];
-        setUniqueStatuses(statuses);
-      }
-    } catch (error) {
-      console.error('Error fetching calls:', error);
-      toast.error('Failed to load calls');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const fetchCallDetails = async (callId: number) => {
     setLoadingCall(true);
     try {
       const response = await api.calls.get(callId.toString());
-      setSelectedCall(response.data);
+      setSelectedCall(response.data.data);
     } catch (error) {
       console.error('Error fetching call details:', error);
       toast.error('Failed to load call details');
@@ -275,7 +260,7 @@ export default function CallsPage() {
       toast.success(`Call status updated to ${newStatus}`);
       
       // Update the call in the UI
-      if (selectedCall && selectedCall.id === callId) {
+      if (selectedCall && selectedCall.id === callId.toString()) {
         setSelectedCall({
           ...selectedCall,
           status: newStatus
@@ -299,22 +284,11 @@ export default function CallsPage() {
       const callData = {
         to: data.to,
         from: data.from,
-        transfer_number: data.transfer_number,
-        leadId: data.leadId || 0, // Provide a default value if leadId is not specified
+        message: data.message,
       };
       
-      // Only add variables if we have trunk or context
-      const variables: Record<string, string> = {};
-      if (data.trunk) variables.trunk = data.trunk;
-      if (data.context) variables.context = data.context;
-      
-      // Only add variables property if we have any variables
-      if (Object.keys(variables).length > 0) {
-        Object.assign(callData, { variables });
-      }
-      
       const response = await api.calls.make(callData);
-      setCurrentCallId(response.data.callId);
+      setCurrentCallId(Number(response.data.data.id));
       toast.success('Call initiated successfully');
       fetchCalls(); // Refresh call list after making a call
     } catch (error: any) {
@@ -420,7 +394,7 @@ export default function CallsPage() {
         }
       });
       
-      setTemplatePreview(response.data?.content || template.content);
+      setTemplatePreview(response.data?.data.content || template.content);
       setSelectedTemplate(template);
       setShowTemplatePreview(true);
     } catch (error) {
@@ -503,91 +477,33 @@ export default function CallsPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>
-                <label htmlFor="to" className="block text-sm font-medium text-gray-700">
-                  To Number
-                </label>
+                <Label htmlFor="to">To Number</Label>
                 <Input
                   id="to"
+                  name="to"
                   type="tel"
-                  {...register('to', { required: 'Phone number is required' })}
-                  className="mt-1"
-                  placeholder="Enter phone number"
+                  placeholder="+1234567890"
+                  required
                 />
-                {errors.to && (
-                  <p className="mt-1 text-sm text-red-500">{errors.to.message}</p>
-                )}
               </div>
 
               <div>
-                <label htmlFor="from" className="block text-sm font-medium text-gray-700">
-                  From Number
-                </label>
-                <select
+                <Label htmlFor="from">From Number</Label>
+                <Input
                   id="from"
-                  {...register('from', { required: 'From number is required' })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                >
-                  <option value="">Select a number</option>
-                  {dids.map((did) => (
-                    <option key={did.id} value={did.phoneNumber}>
-                      {did.phoneNumber} - {did.description}
-                    </option>
-                  ))}
-                </select>
-                {errors.from && (
-                  <p className="mt-1 text-sm text-red-500">{errors.from.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="transfer_number" className="block text-sm font-medium text-gray-700">
-                  Transfer Number (Optional)
-                </label>
-                <Input
-                  id="transfer_number"
+                  name="from"
                   type="tel"
-                  {...register('transfer_number')}
-                  className="mt-1"
-                  placeholder="Enter transfer number"
+                  placeholder="+1234567890"
+                  required
                 />
               </div>
 
               <div>
-                <label htmlFor="leadId" className="block text-sm font-medium text-gray-700">
-                  Lead ID (Optional)
-                </label>
-                <Input
-                  id="leadId"
-                  type="number"
-                  {...register('leadId')}
-                  className="mt-1"
-                  placeholder="Enter lead ID"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="trunk" className="block text-sm font-medium text-gray-700">
-                  Trunk (Optional)
-                </label>
-                <Input
-                  id="trunk"
-                  type="text"
-                  {...register('trunk')}
-                  className="mt-1"
-                  placeholder="Enter trunk"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="context" className="block text-sm font-medium text-gray-700">
-                  Context (Optional)
-                </label>
-                <Input
-                  id="context"
-                  type="text"
-                  {...register('context')}
-                  className="mt-1"
-                  placeholder="Enter context"
+                <Label htmlFor="message">Message (Optional)</Label>
+                <Textarea
+                  id="message"
+                  name="message"
+                  placeholder="Enter a message to be read to the recipient"
                 />
               </div>
 
@@ -597,7 +513,7 @@ export default function CallsPage() {
                   disabled={isLoading}
                   className="w-full"
                 >
-                  {isLoading ? 'Making Call...' : 'Make Call'}
+                  {isLoading ? 'Initiating Call...' : 'Make Call'}
                 </Button>
               </div>
             </form>
@@ -673,15 +589,15 @@ export default function CallsPage() {
                         {call.to}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatDateTime(call.startTime)}
+                        {formatDateTime(call.createdAt)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatDuration(call.duration)}
+                        {formatDuration(call.duration ?? 0)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <Button
                           type="button"
-                          onClick={() => fetchCallDetails(call.id)}
+                          onClick={() => fetchCallDetails(Number(call.id))}
                           disabled={loadingCall}
                         >
                           Details
@@ -706,7 +622,7 @@ export default function CallsPage() {
                   <div>
                     <p className="text-sm text-gray-500">Duration</p>
                     <p className="text-sm font-medium text-gray-900">
-                      {formatDuration(selectedCall.duration)}
+                      {formatDuration(selectedCall.duration ?? 0)}
                     </p>
                   </div>
                   <div>
@@ -717,23 +633,23 @@ export default function CallsPage() {
                     <p className="text-sm text-gray-500">To</p>
                     <p className="text-sm font-medium text-gray-900">{selectedCall.to}</p>
                   </div>
-                  {selectedCall.transferNumber && (
+                  {selectedCall.transfer_number && (
                     <div>
                       <p className="text-sm text-gray-500">Transfer Number</p>
-                      <p className="text-sm font-medium text-gray-900">{selectedCall.transferNumber}</p>
+                      <p className="text-sm font-medium text-gray-900">{selectedCall.transfer_number}</p>
                     </div>
                   )}
                   <div>
                     <p className="text-sm text-gray-500">Start Time</p>
                     <p className="text-sm font-medium text-gray-900">
-                      {formatDateTime(selectedCall.startTime)}
+                      {formatDateTime(selectedCall.createdAt)}
                     </p>
                   </div>
-                  {selectedCall.endTime && (
+                  {selectedCall.updatedAt && (
                     <div>
                       <p className="text-sm text-gray-500">End Time</p>
                       <p className="text-sm font-medium text-gray-900">
-                        {formatDateTime(selectedCall.endTime)}
+                        {formatDateTime(selectedCall.updatedAt)}
                       </p>
                     </div>
                   )}
@@ -743,7 +659,7 @@ export default function CallsPage() {
                   <div className="mt-4">
                     <Button
                       type="button"
-                      onClick={() => handleUpdateStatus(selectedCall.id, 'completed')}
+                      onClick={() => handleUpdateStatus(Number(selectedCall.id), 'completed')}
                       disabled={isUpdatingStatus}
                     >
                       Mark as Completed

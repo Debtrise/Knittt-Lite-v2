@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
@@ -20,6 +20,9 @@ import { WebhookEndpoint, WebhookEvent } from '@/app/types/webhook';
 import { toast } from 'react-hot-toast';
 import { RefreshCwIcon, PencilIcon, ClipboardCopy, PlayIcon, KeyIcon, ShieldIcon } from 'lucide-react';
 import { Textarea } from '@/app/components/ui/textarea';
+import { Input } from '@/app/components/ui/Input';
+import { Label } from '@/app/components/ui/label';
+import { useToast } from '@/app/components/ui/use-toast';
 
 interface Journey {
   id: number;
@@ -28,10 +31,22 @@ interface Journey {
   isActive: boolean;
 }
 
-export default function WebhookDetailPage({ params }: { params: Promise<{ id: string }> }) {
+interface WebhookData {
+  id: string;
+  name: string;
+  description: string;
+  endpoint: string;
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  headers: Record<string, string>;
+  body: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export default function WebhookDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const resolvedParams = use(params);
-  const webhookId = parseInt(resolvedParams.id);
+  const webhookId = parseInt(params.id);
   
   const [loading, setLoading] = useState(true);
   const [webhook, setWebhook] = useState<WebhookEndpoint | null>(null);
@@ -109,8 +124,11 @@ export default function WebhookDetailPage({ params }: { params: Promise<{ id: st
   };
 
   useEffect(() => {
-    fetchWebhookData().then(() => fetchEvents());
-  }, [webhookId]);
+    if (params.id) {
+      fetchWebhookData();
+      fetchEvents();
+    }
+  }, [params.id, fetchWebhookData, fetchEvents]);
 
   const handleEdit = () => {
     router.push(`/webhooks/edit/${webhookId}`);

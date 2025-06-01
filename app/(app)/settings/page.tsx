@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -12,6 +12,10 @@ import { getAgentStatus, updateTenantSettings, getTenant, updateTenant } from '@
 import { useAuthStore } from '@/app/store/authStore';
 import api from '@/app/utils/api';
 import { recordings, freepbx } from '@/app/lib/api';
+import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { Label } from '@/app/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
+import { useToast } from '@/app/components/ui/use-toast';
 
 type AgentStatus = {
   ingroup: string;
@@ -143,18 +147,18 @@ export default function SettingsPage() {
         sortOrder: 'oldest',
         didDistribution: 'even'
       },
-      schedule: {
-        monday: { enabled: true, startTime: '09:00', endTime: '17:00' },
-        tuesday: { enabled: true, startTime: '09:00', endTime: '17:00' },
-        wednesday: { enabled: true, startTime: '09:00', endTime: '17:00' },
-        thursday: { enabled: true, startTime: '09:00', endTime: '17:00' },
-        friday: { enabled: true, startTime: '09:00', endTime: '17:00' },
-        saturday: { enabled: false, startTime: '09:00', endTime: '17:00' },
-        sunday: { enabled: false, startTime: '09:00', endTime: '17:00' }
-      },
+      schedule: [
+        { enabled: true, startTime: '09:00', endTime: '17:00' }, // monday
+        { enabled: true, startTime: '09:00', endTime: '17:00' }, // tuesday
+        { enabled: true, startTime: '09:00', endTime: '17:00' }, // wednesday
+        { enabled: true, startTime: '09:00', endTime: '17:00' }, // thursday
+        { enabled: true, startTime: '09:00', endTime: '17:00' }, // friday
+        { enabled: false, startTime: '09:00', endTime: '17:00' }, // saturday
+        { enabled: false, startTime: '09:00', endTime: '17:00' }  // sunday
+      ],
       amiConfig: {
         host: '',
-        port: '',
+        port: 0,
         trunk: '',
         context: '',
         username: '',
@@ -251,11 +255,11 @@ export default function SettingsPage() {
             setValue('dialerConfig.didDistribution', data.dialerConfig?.didDistribution || 'even');
             
             if (data.schedule) {
-              Object.entries(data.schedule).forEach(([day, config]) => {
+              data.schedule.forEach((config: { enabled: boolean; startTime: string; endTime: string }, idx: number) => {
                 if (typeof config === 'object' && config !== null) {
-                  setValue(`schedule.${day}.enabled`, config.enabled || false);
-                  setValue(`schedule.${day}.startTime`, config.startTime || config.start || '09:00');
-                  setValue(`schedule.${day}.endTime`, config.endTime || config.end || '17:00');
+                  setValue(`schedule.${idx}.enabled`, config.enabled || false);
+                  setValue(`schedule.${idx}.startTime`, config.startTime || '09:00');
+                  setValue(`schedule.${idx}.endTime`, config.endTime || '17:00');
                 }
               });
             }
@@ -305,6 +309,16 @@ export default function SettingsPage() {
     fetchData();
   }, [isAuthenticated, router, user, setValue]);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (tenantData?.apiConfig?.ingroup || tenantData?.apiConfig?.ingroups) {
+        fetchAgentStatus();
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [fetchAgentStatus, tenantData?.apiConfig?.ingroup, tenantData?.apiConfig?.ingroups]);
+
   const onSubmit = async (data: SettingsFormData) => {
     if (!user?.tenantId) return;
     
@@ -314,7 +328,7 @@ export default function SettingsPage() {
       console.log('Submitting form data:', data);
       
       // Make sure the ingroup/ingroups is an array or create from comma-separated string
-      let groups = data.apiConfig.groups;
+      let groups = data.apiConfig.groups as string | string[];
       if (!Array.isArray(groups) && typeof groups === 'string') {
         groups = groups.split(',').map(g => g.trim()).filter(Boolean);
       } else if (!Array.isArray(groups)) {
@@ -382,7 +396,7 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Settings</h1>
           <Button
             onClick={fetchAgentStatus}
-            variant="primary"
+            variant="brand"
             isLoading={isRefreshing}
           >
             Refresh Status
@@ -530,7 +544,7 @@ export default function SettingsPage() {
               <div className="flex justify-end">
                 <Button
                   type="submit"
-                  variant="primary"
+                  variant="brand"
                   isLoading={isSubmitting}
                 >
                   Save API Settings
@@ -622,7 +636,7 @@ export default function SettingsPage() {
             <div className="flex justify-end">
               <Button
                 type="submit"
-                variant="primary"
+                variant="brand"
                 isLoading={isSubmitting}
               >
                 Save Dialer Settings
@@ -776,7 +790,7 @@ export default function SettingsPage() {
             <div className="flex justify-end">
               <Button
                 type="submit"
-                variant="primary"
+                variant="brand"
                 isLoading={isSubmitting}
               >
                 Save AMI Settings
@@ -816,7 +830,7 @@ export default function SettingsPage() {
             <div className="flex justify-end">
               <Button
                 type="submit"
-                variant="primary"
+                variant="brand"
                 isLoading={isSubmitting}
               >
                 Save Eleven Labs Settings
@@ -942,7 +956,7 @@ export default function SettingsPage() {
               </Button>
               <Button
                 type="submit"
-                variant="primary"
+                variant="brand"
                 isLoading={isSubmitting}
               >
                 Save FreePBX Settings

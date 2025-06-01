@@ -12,14 +12,23 @@ import {
   sendContactReply
 } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
-import { SmsContact, SmsMessage } from '@/app/types/sms';
+import { SmsContact } from '@/app/types/sms';
+
+interface Message {
+  id: number;
+  content: string;
+  direction: 'inbound' | 'outbound';
+  status: 'sent' | 'delivered' | 'read' | 'failed';
+  sentAt: string;
+  isReplied?: boolean;
+}
 
 export default function ContactPage() {
   const params = useParams();
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const [contact, setContact] = useState<SmsContact | null>(null);
-  const [messages, setMessages] = useState<SmsMessage[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [replyText, setReplyText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -53,9 +62,12 @@ export default function ContactPage() {
       const data = await getContactConversation(contactId);
       setContact(data.contact);
       setMessages(data.messages);
+      
+      // Scroll to bottom after loading messages
+      setTimeout(scrollToBottom, 100);
     } catch (error) {
       console.error('Error fetching conversation:', error);
-      toast.error('Failed to load conversation');
+      toast.error('Failed to load conversation. Please refresh the page.');
     } finally {
       if (showLoading) setIsLoading(false);
     }
@@ -72,17 +84,26 @@ export default function ContactPage() {
       toast.error('Please enter a message');
       return;
     }
+
+    // Validate message length
+    if (replyText.length > 1600) {
+      toast.error('Message is too long. Maximum length is 1600 characters.');
+      return;
+    }
     
     setIsSending(true);
     try {
       const data = await sendContactReply(contactId, replyText);
       // Add the new message to the list
-      setMessages([...messages, data.sentMessage]);
+      setMessages(prev => [...prev, data.sentMessage]);
       setReplyText('');
-      toast.success('Reply sent');
+      toast.success('Reply sent successfully');
+      
+      // Scroll to bottom after a short delay to ensure the new message is rendered
+      setTimeout(scrollToBottom, 100);
     } catch (error) {
       console.error('Error sending reply:', error);
-      toast.error('Failed to send reply');
+      toast.error('Failed to send reply. Please try again.');
     } finally {
       setIsSending(false);
     }
@@ -92,6 +113,38 @@ export default function ContactPage() {
     const date = new Date(dateString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + 
       ' ' + date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
+  // Add message status indicator
+  const getMessageStatus = (status: string) => {
+    switch (status) {
+      case 'sent':
+        return '✓';
+      case 'delivered':
+        return '✓✓';
+      case 'read':
+        return '✓✓ Read';
+      case 'failed':
+        return '✕';
+      default:
+        return '';
+    }
+  };
+
+  // Add message status color
+  const getMessageStatusColor = (status: string) => {
+    switch (status) {
+      case 'sent':
+        return 'text-blue-100';
+      case 'delivered':
+        return 'text-blue-100';
+      case 'read':
+        return 'text-green-100';
+      case 'failed':
+        return 'text-red-100';
+      default:
+        return 'text-blue-100';
+    }
   };
 
   if (!isAuthenticated) {
@@ -142,8 +195,13 @@ export default function ContactPage() {
                             : 'bg-gray-200 text-gray-900 rounded-bl-none'}`}
                       >
                         <div className="text-sm">{message.content}</div>
-                        <div className={`text-xs mt-1 ${message.direction === 'outbound' ? 'text-blue-100' : 'text-gray-500'}`}>
-                          {formatMessageDate(message.sentAt)}
+                        <div className={`text-xs mt-1 flex items-center justify-between ${message.direction === 'outbound' ? 'text-blue-100' : 'text-gray-500'}`}>
+                          <span>{formatMessageDate(message.sentAt)}</span>
+                          {message.direction === 'outbound' && (
+                            <span className={`ml-2 ${getMessageStatusColor(message.status)}`}>
+                              {getMessageStatus(message.status)}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -168,7 +226,7 @@ export default function ContactPage() {
                 </div>
                 <Button
                   type="submit"
-                  variant="primary"
+                  variant="brand"
                   isLoading={isSending}
                   disabled={isSending || !replyText.trim()}
                 >

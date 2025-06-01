@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { PhoneOutgoing, Users, Phone, Clock, Sliders, Upload, Route } from 'lucide-react';
@@ -10,6 +10,12 @@ import { useAuthStore } from '@/app/store/authStore';
 import { Input } from '@/app/components/ui/Input';
 import { Button } from '@/app/components/ui/button';
 import Link from 'next/link';
+import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
+import { PhoneCall, PhoneForwarded, PhoneOff } from 'lucide-react';
+import { useToast } from '@/app/components/ui/use-toast';
+import { getAgentStatus } from '@/app/utils/api';
+import type { TenantApiConfig } from '@/app/lib/api';
 
 type AgentStatus = {
   ingroup: string;
@@ -41,13 +47,7 @@ type TenantConfig = {
     sortOrder: 'oldest' | 'fewest';
     didDistribution: 'even' | 'local';
   };
-  apiConfig: {
-    url: string;
-    ingroup: string;
-    ingroups: string;
-    user?: string;
-    password?: string;
-  };
+  apiConfig: TenantApiConfig;
 };
 
 export default function DashboardPage() {
@@ -119,11 +119,30 @@ export default function DashboardPage() {
           const response = await api.tenants.get(user.tenantId);
           const tenantData = response.data;
           console.log('Retrieved tenant data:', tenantData);
-          setTenantConfig(tenantData);
-          setDialerSpeed(tenantData.dialerConfig?.speed || 1);
+          // Merge tenantData.data with a default dialerConfig to form TenantConfig
+          setTenantConfig({
+            ...tenantData.data,
+            dialerConfig: tenantData.data.dialerConfig || {
+              speed: 1,
+              minAgentsAvailable: 1,
+              autoDelete: false,
+              sortOrder: 'oldest',
+              didDistribution: 'even',
+            },
+            apiConfig: {
+              source: tenantData.data.apiConfig?.source || '',
+              endpoint: tenantData.data.apiConfig?.endpoint || '',
+              user: tenantData.data.apiConfig?.user || '',
+              password: tenantData.data.apiConfig?.password || '',
+              ingroup: tenantData.data.apiConfig?.ingroup || '',
+              ingroups: tenantData.data.apiConfig?.ingroups || '',
+              url: tenantData.data.apiConfig?.url || '',
+            },
+          });
+          setDialerSpeed((tenantData.data.dialerConfig?.speed ?? 1));
           
           // Set the current group from tenant config - try ingroup first, then ingroups
-          const group = tenantData.apiConfig?.ingroup || tenantData.apiConfig?.ingroups || 'TaxSales';
+          const group = tenantData.data.apiConfig?.ingroup || tenantData.data.apiConfig?.ingroups || 'TaxSales';
           if (group) {
             console.log('Setting current group to:', group);
             setCurrentGroup(group);
@@ -133,10 +152,10 @@ export default function DashboardPage() {
             try {
               console.log('Fetching agent status for group:', group);
               const statusResponse = await api.system.getAgentStatus({
-                url: tenantData.apiConfig?.url || '',
+                url: tenantData.data.apiConfig?.url || '',
                 ingroup: group,
-                user: tenantData.apiConfig?.user || user?.username || '',
-                pass: tenantData.apiConfig?.password || ''
+                user: tenantData.data.apiConfig?.user || user?.username || '',
+                pass: tenantData.data.apiConfig?.password || ''
               });
               console.log('Agent status response:', statusResponse.data);
               setAgentStatus(Array.isArray(statusResponse.data) ? statusResponse.data : []);
@@ -208,7 +227,7 @@ export default function DashboardPage() {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [isAuthenticated, router, user]);
+  }, [isAuthenticated, router, user, currentGroup, fetchAgentStatus]);
 
   // Add a refresh button handler
   const handleRefresh = () => {
@@ -229,6 +248,16 @@ export default function DashboardPage() {
         dialerConfig: {
           ...tenantConfig.dialerConfig,
           speed: dialerSpeed
+        },
+        apiConfig: {
+          ...tenantConfig.apiConfig,
+          source: tenantConfig.apiConfig.source || '',
+          endpoint: tenantConfig.apiConfig.endpoint || '',
+          user: tenantConfig.apiConfig.user || '',
+          password: tenantConfig.apiConfig.password || '',
+          ingroup: tenantConfig.apiConfig.ingroup || '',
+          ingroups: tenantConfig.apiConfig.ingroups || '',
+          url: tenantConfig.apiConfig.url || '',
         }
       };
       

@@ -1,12 +1,16 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Plus, Save } from 'lucide-react';
+import { ArrowLeft, Plus, Save, Play, Pause, Settings } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { Input } from '@/app/components/ui/Input';
+import { Label } from '@/app/components/ui/label';
+import { useToast } from '@/app/components/ui/use-toast';
 import { 
   getProjectDetails, 
   getContextsForProject, 
@@ -20,7 +24,9 @@ import {
   deleteNode,
   updateConnection,
   deleteConnection,
-  validateProject
+  validateProject,
+  updateProject,
+  generateDialplan
 } from '@/app/utils/dialplanApi';
 import { 
   DialplanProject, 
@@ -31,6 +37,17 @@ import {
 } from '@/app/types/dialplan';
 import { WrappedDialplanCanvas } from '@/app/components/dialplan/DialplanCanvas';
 import Link from 'next/link';
+
+interface ProjectData {
+  id: string;
+  name: string;
+  description: string;
+  nodes: DialplanNode[];
+  connections: DialplanConnection[];
+  status: 'active' | 'inactive';
+  createdAt: string;
+  updatedAt: string;
+}
 
 export default function DialPlanEditor() {
   const router = useRouter();
@@ -161,49 +178,22 @@ export default function DialPlanEditor() {
     }
   };
 
-  const handleUpdateNode = async (nodeId: number, data: { 
-    name?: string; 
-    label?: string; 
-    position?: { x: number; y: number };
-    properties?: Record<string, any>;
-  }) => {
-    try {
-      const updatedNode = await updateNode(nodeId, data);
-      console.log('Updated node:', updatedNode);
-      
-      // Update the node in state
-      setNodes(prevNodes => 
-        prevNodes.map(node => node.id === nodeId ? updatedNode : node)
-      );
-      
-      return updatedNode;
-    } catch (error) {
-      console.error('Error updating node:', error);
-      toast.error('Failed to update node');
-      return null;
-    }
-  };
+  const handleUpdateNode = useCallback((nodeId: string, data: Partial<DialplanNode>) => {
+    setNodes(prevNodes => 
+      prevNodes.map(node => 
+        String(node.id) === String(nodeId) ? { ...node, ...data } : node
+      )
+    );
+  }, []);
 
-  const handleDeleteNode = async (nodeId: number) => {
-    try {
-      await deleteNode(nodeId);
-      
-      // Remove the node from state
-      setNodes(prevNodes => prevNodes.filter(node => node.id !== nodeId));
-      
-      // Also remove any connections to/from this node
-      setConnections(prevConnections => 
-        prevConnections.filter(conn => 
-          conn.sourceNodeId !== nodeId && conn.targetNodeId !== nodeId
-        )
-      );
-      
-      toast.success('Node deleted successfully');
-    } catch (error) {
-      console.error('Error deleting node:', error);
-      toast.error('Failed to delete node');
-    }
-  };
+  const handleDeleteNode = useCallback((nodeId: string) => {
+    setNodes(prevNodes => prevNodes.filter(node => String(node.id) !== String(nodeId)));
+    setConnections(prevConnections => 
+      prevConnections.filter(conn => 
+        String(conn.sourceNodeId) !== String(nodeId) && String(conn.targetNodeId) !== String(nodeId)
+      )
+    );
+  }, []);
 
   const handleCreateConnection = async (sourceNodeId: number, targetNodeId: number, condition?: string) => {
     try {
@@ -228,39 +218,19 @@ export default function DialPlanEditor() {
     }
   };
 
-  const handleUpdateConnection = async (connectionId: number, data: { condition?: string; priority?: number }) => {
-    try {
-      const updatedConnection = await updateConnection(connectionId, data);
-      console.log('Updated connection:', updatedConnection);
-      
-      // Update the connection in state
-      setConnections(prevConnections => 
-        prevConnections.map(conn => conn.id === connectionId ? updatedConnection : conn)
-      );
-      
-      return updatedConnection;
-    } catch (error) {
-      console.error('Error updating connection:', error);
-      toast.error('Failed to update connection');
-      return null;
-    }
-  };
+  const handleUpdateConnection = useCallback((connectionId: string, data: Partial<DialplanConnection>) => {
+    setConnections(prevConnections => 
+      prevConnections.map(conn => 
+        String(conn.id) === String(connectionId) ? { ...conn, ...data } : conn
+      )
+    );
+  }, []);
 
-  const handleDeleteConnection = async (connectionId: number) => {
-    try {
-      await deleteConnection(connectionId);
-      
-      // Remove the connection from state
-      setConnections(prevConnections => 
-        prevConnections.filter(conn => conn.id !== connectionId)
-      );
-      
-      toast.success('Connection deleted successfully');
-    } catch (error) {
-      console.error('Error deleting connection:', error);
-      toast.error('Failed to delete connection');
-    }
-  };
+  const handleDeleteConnection = useCallback((connectionId: string) => {
+    setConnections(prevConnections => 
+      prevConnections.filter(conn => String(conn.id) !== String(connectionId))
+    );
+  }, []);
 
   const handleValidateProject = async () => {
     if (!projectId) return;
@@ -282,16 +252,33 @@ export default function DialPlanEditor() {
     }
   };
 
-  const handleNodeDrop = async (nodeType: NodeType, position: { x: number, y: number }) => {
-    if (!activeContextId) return;
-    
-    const name = `${nodeType.name}_${Date.now()}`;
-    await handleCreateNode(nodeType.id, name, position);
-  };
+  const handleNodeDrop = useCallback((type: NodeType, position: { x: number; y: number }) => {
+    const newNode: DialplanNode = {
+      id: Date.now(),
+      contextId: activeContextId || 0,
+      nodeTypeId: type.id,
+      name: `New ${type.name} Node`,
+      label: `New ${type.name} Node`,
+      position,
+      properties: {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setNodes(prevNodes => [...prevNodes, newNode]);
+  }, [activeContextId]);
 
-  const handleConnectionCreate = async (sourceId: number, targetId: number) => {
-    await handleCreateConnection(sourceId, targetId);
-  };
+  const handleConnectionCreate = useCallback((params: { source: string; target: string }) => {
+    const newConnection: DialplanConnection = {
+      id: Date.now(),
+      sourceNodeId: Number(params.source),
+      targetNodeId: Number(params.target),
+      condition: null,
+      priority: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setConnections(prevConnections => [...prevConnections, newConnection]);
+  }, []);
 
   if (isLoading) {
     return (

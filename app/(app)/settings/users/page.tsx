@@ -252,7 +252,7 @@ export default function UserManagementPage() {
               Manage users and their roles within your organization
             </p>
           </div>
-          <Button variant="primary" onClick={() => setShowForm(true)}>
+          <Button variant="brand" onClick={() => setShowForm(true)}>
             <Plus className="w-4 h-4 mr-2" />
             New User
           </Button>
@@ -285,7 +285,7 @@ export default function UserManagementPage() {
               </select>
             </div>
             <div className="flex gap-2">
-              <Button type="submit" variant="primary">Search</Button>
+              <Button type="submit" variant="brand">Search</Button>
               <Button type="button" variant="ghost" onClick={clearFilters}>Clear</Button>
             </div>
           </form>
@@ -372,7 +372,7 @@ export default function UserManagementPage() {
                 <Button type="button" variant="ghost" onClick={resetForm}>
                   Cancel
                 </Button>
-                <Button type="submit" variant="primary" disabled={saving}>
+                <Button type="submit" variant="brand" disabled={saving}>
                   {saving ? 'Saving...' : editingUser ? 'Update User' : 'Create User'}
                 </Button>
               </div>

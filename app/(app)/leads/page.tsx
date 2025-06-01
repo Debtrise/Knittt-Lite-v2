@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -11,6 +11,11 @@ import { Input } from '@/app/components/ui/Input';
 import { Badge } from '@/app/components/ui/badge';
 import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
+import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { Label } from '@/app/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
+import { useToast } from '@/app/components/ui/use-toast';
+import { getLeads, createLead, updateLead, deleteLead } from '@/app/utils/api';
 
 type Lead = {
   id: number;
@@ -92,16 +97,18 @@ export default function LeadsPage() {
       return;
     }
 
-    fetchLeads(currentPage);
-  }, [isAuthenticated, router, currentPage, filterStatus]);
+    fetchLeads();
+  }, [isAuthenticated, router, currentPage, filterStatus, fetchLeads]);
 
-  const fetchLeads = async (page: number) => {
+  const fetchLeads = async (page: number = 1) => {
     setIsLoading(true);
     try {
+      const allowedStatuses = ["pending", "contacted", "transferred", "completed", "failed"] as const;
+      const statusFilter = allowedStatuses.includes(filterStatus as any) ? filterStatus as typeof allowedStatuses[number] : undefined;
       const response = await api.leads.list({
         page,
         limit: 10,
-        ...(filterStatus ? { status: filterStatus } : {})
+        ...(statusFilter ? { status: statusFilter } : {})
       });
       setLeads(response.leads);
       setTotalPages(response.totalPages);
@@ -130,7 +137,7 @@ export default function LeadsPage() {
         autoDelete: data.autoDelete,
       });
       
-      toast.success(response.message || 'Leads uploaded successfully');
+      toast.success(response.data.message || 'Leads uploaded successfully');
       setIsUploading(false);
       fetchLeads(1); // Refresh leads
     } catch (error: any) {
@@ -231,7 +238,7 @@ export default function LeadsPage() {
     setIsDeletingAll(true);
     try {
       const response = await api.leads.list({ page: 1, limit: 1000 });
-      const leadIds = response.leads.map(lead => lead.id);
+      const leadIds = response.leads.map((lead: { id: string }) => lead.id);
       await api.leads.bulkDelete(leadIds);
       toast.success('All leads deleted successfully');
       fetchLeads(1);
@@ -276,7 +283,7 @@ export default function LeadsPage() {
           <div className="flex space-x-3">
             <Button 
               onClick={() => setShowDeleteAllConfirm(true)}
-              variant="danger"
+              variant="destructive"
               disabled={leads.length === 0 || isLoading}
             >
               <AlertTriangle className="w-4 h-4 mr-2" />
@@ -284,7 +291,7 @@ export default function LeadsPage() {
             </Button>
             <Button
               onClick={() => setIsUploading(!isUploading)}
-              variant="primary"
+              variant="brand"
             >
               <Upload className="w-4 h-4 mr-2" />
               Upload Leads
@@ -311,7 +318,7 @@ export default function LeadsPage() {
                   Cancel
                 </Button>
                 <Button
-                  variant="danger"
+                  variant="destructive"
                   onClick={handleDeleteAll}
                   isLoading={isDeletingAll}
                 >
@@ -418,7 +425,7 @@ export default function LeadsPage() {
                       </Button>
                       <Button
                         type="submit"
-                        variant="primary"
+                        variant="brand"
                         isLoading={uploadIsLoading}
                       >
                         Upload
@@ -474,7 +481,7 @@ Jane Smith,8007654321,jane@example.com</pre>
                 <div className="flex items-center space-x-4">
                   {selectedLeads.length > 0 && (
                     <Button
-                      variant="danger"
+                      variant="destructive"
                       onClick={handleBulkDelete}
                       isLoading={isDeleting}
                       disabled={isDeleting}
@@ -653,7 +660,7 @@ Jane Smith,8007654321,jane@example.com</pre>
                           Previous
                         </button>
                         {[...Array(Math.min(5, totalPages))].map((_, i) => {
-                          let pageNum;
+                          let pageNum: number;
                           if (totalPages <= 5) {
                             pageNum = i + 1;
                           } else if (currentPage <= 3) {

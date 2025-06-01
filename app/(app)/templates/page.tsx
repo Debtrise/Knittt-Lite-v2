@@ -67,7 +67,7 @@ export default function TemplatesPage() {
             </p>
           </div>
           <Link href="/templates/new" passHref legacyBehavior>
-            <Button as="a" variant="primary" className="flex items-center">
+            <Button as="a" variant="brand" className="flex items-center">
               <Plus className="w-4 h-4 mr-2" />
               New Template
             </Button>

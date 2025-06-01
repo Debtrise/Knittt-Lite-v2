@@ -14,6 +14,9 @@ import { useAuthStore } from '@/app/store/authStore';
 import toast from 'react-hot-toast';
 import { Trash2, Save, Eye, Play, Pause } from 'lucide-react';
 import AudioPlayer from '@/app/components/ui/AudioPlayer';
+import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
+import { useToast } from '@/app/components/ui/use-toast';
 
 interface StepEditorProps {
   step: JourneyStep;

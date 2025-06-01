@@ -10,7 +10,8 @@ import { Input } from '@/app/components/ui/Input';
 import {
   listTwilioNumbers,
   addTwilioNumber,
-  uploadTwilioNumbers
+  uploadTwilioNumbers,
+  deleteTwilioNumber
 } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
 import { TwilioNumber } from '@/app/types/sms';
@@ -59,15 +60,30 @@ export default function TwilioNumbersPage() {
   const handleAddNumber = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newNumber.phoneNumber || !newNumber.accountSid || !newNumber.authToken) {
-      toast.error('Please fill in all required fields');
+    // Validate phone number format
+    const phoneRegex = /^\+[1-9]\d{1,14}$/;
+    if (!phoneRegex.test(newNumber.phoneNumber)) {
+      toast.error('Please enter a valid phone number in E.164 format (e.g., +15551234567)');
+      return;
+    }
+    
+    // Validate Account SID format
+    const sidRegex = /^AC[a-f0-9]{32}$/;
+    if (!sidRegex.test(newNumber.accountSid)) {
+      toast.error('Please enter a valid Twilio Account SID');
+      return;
+    }
+    
+    // Validate Auth Token
+    if (!newNumber.authToken || newNumber.authToken.length < 32) {
+      toast.error('Please enter a valid Twilio Auth Token');
       return;
     }
     
     setIsAdding(true);
     try {
       const data = await addTwilioNumber(newNumber);
-      setNumbers([...numbers, data]);
+      setNumbers(prev => [...prev, data]);
       toast.success('Twilio number added successfully');
       setShowAddForm(false);
       setNewNumber({
@@ -75,9 +91,10 @@ export default function TwilioNumbersPage() {
         accountSid: '',
         authToken: ''
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding Twilio number:', error);
-      toast.error('Failed to add Twilio number');
+      const errorMessage = error.response?.data?.message || 'Failed to add Twilio number';
+      toast.error(errorMessage);
     } finally {
       setIsAdding(false);
     }
@@ -89,6 +106,12 @@ export default function TwilioNumbersPage() {
     const file = e.target.files[0];
     if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
       toast.error('Please select a CSV file');
+      return;
+    }
+    
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File size must be less than 5MB');
       return;
     }
     
@@ -117,20 +140,37 @@ export default function TwilioNumbersPage() {
       );
       
       setUploadProgress(100);
-      fetchNumbers();
+      await fetchNumbers();
       toast.success('Twilio numbers uploaded successfully');
       
       // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading Twilio numbers:', error);
-      toast.error('Failed to upload Twilio numbers');
+      const errorMessage = error.response?.data?.message || 'Failed to upload Twilio numbers';
+      toast.error(errorMessage);
     } finally {
       setIsUploading(false);
       // Reset progress after a delay
       setTimeout(() => setUploadProgress(0), 2000);
+    }
+  };
+
+  const handleDeleteNumber = async (numberId: number) => {
+    if (!window.confirm('Are you sure you want to delete this Twilio number? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      await deleteTwilioNumber(numberId);
+      setNumbers(prev => prev.filter(n => n.id !== numberId));
+      toast.success('Twilio number deleted successfully');
+    } catch (error: any) {
+      console.error('Error deleting Twilio number:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to delete Twilio number';
+      toast.error(errorMessage);
     }
   };
 
@@ -191,7 +231,7 @@ export default function TwilioNumbersPage() {
             </Button>
           </div>
           <Button
-            variant="primary"
+            variant="brand"
             onClick={() => setShowAddForm(!showAddForm)}
           >
             {showAddForm ? 'Cancel' : (
@@ -275,7 +315,7 @@ export default function TwilioNumbersPage() {
                   </Button>
                   <Button
                     type="submit"
-                    variant="primary"
+                    variant="brand"
                     isLoading={isAdding}
                   >
                     Add Number
@@ -310,6 +350,9 @@ export default function TwilioNumbersPage() {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Created
                   </th>
+                  <th scope="col" className="px-6 py-3 text-right text-sm font-medium">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -322,11 +365,11 @@ export default function TwilioNumbersPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
                         ${number.status === 'available' ? 'bg-green-100 text-green-800' :
-                          number.status === 'in-use' ? 'bg-blue-100 text-blue-800' :
+                          number.status === 'in_use' ? 'bg-blue-100 text-blue-800' :
                           'bg-red-100 text-red-800'}`}
                       >
                         {number.status === 'available' ? 'Available' :
-                          number.status === 'in-use' ? 'In Use' : 'Error'}
+                          number.status === 'in_use' ? 'In Use' : 'Error'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -337,6 +380,15 @@ export default function TwilioNumbersPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {formatDate(number.createdAt)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <Button
+                        variant="ghost"
+                        onClick={() => handleDeleteNumber(number.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -360,7 +412,7 @@ export default function TwilioNumbersPage() {
               </Button>
               <Button
                 onClick={() => setShowAddForm(true)}
-                variant="primary"
+                variant="brand"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Number

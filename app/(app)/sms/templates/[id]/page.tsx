@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Save, Trash2, Eye } from 'lucide-react';
@@ -13,6 +13,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/ca
 import { Badge } from '@/app/components/ui/badge';
 import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
+import { useToast } from '@/app/components/ui/use-toast';
+import { getTemplate, updateTemplate, deleteTemplate, renderPreview } from '@/app/utils/api';
 
 type Template = {
   id: number;
@@ -31,6 +34,12 @@ type Template = {
   };
   createdAt: string;
   updatedAt: string;
+  variables: Array<{
+    name: string;
+    type: 'text' | 'number' | 'date' | 'boolean';
+    required: boolean;
+    defaultValue?: string;
+  }>;
 };
 
 type Category = {
@@ -40,10 +49,9 @@ type Category = {
   type: string;
 };
 
-export default function EditTemplatePage({ params }: { params: Promise<{ id: string }> }) {
+export default function EditTemplatePage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const resolvedParams = use(params);
-  const templateId = resolvedParams.id;
+  const templateId = params.id;
   const { isAuthenticated } = useAuthStore();
   const [template, setTemplate] = useState<Template | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -66,18 +74,21 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
   const fetchTemplate = async () => {
     setIsLoading(true);
     try {
-      const response = await api.templates.get(templateId);
+      const response = await api.templates.get(parseInt(templateId));
       setTemplate(response.data);
       // Initialize preview variables
       const initialVariables: Record<string, string> = {};
-      response.data.variables.forEach(variable => {
-        initialVariables[variable] = '';
-      });
+      if (response.data.content) {
+        const matches = response.data.content.match(/\{\{([^}]+)\}\}/g) || [];
+        matches.forEach((match: string) => {
+          const variable = match.replace(/[{}]/g, '');
+          initialVariables[variable] = '';
+        });
+      }
       setPreviewVariables(initialVariables);
     } catch (error) {
       console.error('Error fetching template:', error);
       toast.error('Failed to load template');
-      router.push('/sms/templates');
     } finally {
       setIsLoading(false);
     }
@@ -86,7 +97,7 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
   const fetchCategories = async () => {
     try {
       const response = await api.templates.listCategories('sms');
-      setCategories(response.categories || []);
+      setCategories(response.data.categories || []);
     } catch (error) {
       console.error('Error fetching categories:', error);
       toast.error('Failed to load categories');
@@ -98,7 +109,7 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
     
     setIsSaving(true);
     try {
-      const updatedTemplate = await api.templates.update(templateId, {
+      const updatedTemplate = await api.templates.update(parseInt(templateId), {
         name: template.name,
         description: template.description,
         content: template.content,
@@ -107,7 +118,6 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
         subject: template.subject,
         htmlContent: template.htmlContent,
         isActive: template.isActive,
-        variables: template.variables,
       });
       setTemplate(updatedTemplate.data);
       toast.success('Template updated successfully');
@@ -125,7 +135,7 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
     }
     
     try {
-      await api.templates.delete(templateId);
+      await api.templates.delete(parseInt(templateId));
       toast.success('Template deleted successfully');
       router.push('/sms/templates');
     } catch (error) {
@@ -153,8 +163,16 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
   };
 
   useEffect(() => {
-    generatePreview();
-  }, [previewVariables, template?.content]);
+    if (params.id) {
+      fetchTemplate();
+    }
+  }, [params.id, fetchTemplate]);
+
+  useEffect(() => {
+    if (template?.content) {
+      generatePreview();
+    }
+  }, [template?.content, generatePreview]);
 
   if (isLoading) {
     return (
@@ -199,14 +217,14 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
               {showPreview ? 'Hide Preview' : 'Show Preview'}
             </Button>
             <Button
-              variant="danger"
+              variant="destructive"
               onClick={handleDelete}
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Delete
             </Button>
             <Button
-              variant="primary"
+              variant="brand"
               onClick={handleSave}
               isLoading={isSaving}
             >
@@ -258,7 +276,7 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
             <div>
               <label className="block text-sm font-medium text-gray-700">Variables</label>
               <div className="mt-2 space-y-2">
-                {template.variables.map((variable) => (
+                {Object.keys(previewVariables).map((variable) => (
                   <div key={variable} className="flex items-center space-x-2">
                     <span className="text-sm text-gray-500">{variable}:</span>
                     <Input
@@ -282,7 +300,7 @@ export default function EditTemplatePage({ params }: { params: Promise<{ id: str
                 <p className="text-sm text-gray-600 whitespace-pre-wrap">{previewContent}</p>
               </div>
               <div className="mt-4 text-xs text-gray-500">
-                <p>Variables not filled in will show as {{variable}} in the preview.</p>
+                <p>Variables not filled in will show as {'{variable}'} in the preview.</p>
               </div>
             </div>
           )}

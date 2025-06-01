@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { 
@@ -10,11 +10,11 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
+import getJourneyStatistics from "@/app/utils/api";
+import getJourneyStatsByBrand from "@/app/utils/api";
+import getJourneyStatsBySource from "@/app/utils/api";
 import { 
   getDailyReport, 
-  getJourneyStatistics, 
-  getJourneyStatsByBrand, 
-  getJourneyStatsBySource,
   generateCallSummaryReport,
   generateSmsSummaryReport,
   generateAgentPerformanceReport,
@@ -22,13 +22,12 @@ import {
   generateJourneyAnalyticsReport,
   generateCustomReport,
   exportReport,
-  listReportTemplates,
   createReportTemplate,
-  executeReportTemplate,
-  listReportExecutions,
   getTodaysStats,
-  getHourlyBreakdown
-} from '@/app/utils/api';
+  getHourlyBreakdown,
+  listReportTemplates,
+  listReportExecutions
+} from "@/app/utils/api";
 import { useAuthStore } from '@/app/store/authStore';
 
 type ReportType = 'dashboard' | 'call-summary' | 'sms-summary' | 'agent-performance' | 'lead-conversion' | 'journey-analytics' | 'custom' | 'templates';
@@ -258,7 +257,7 @@ export default function ReportsPage() {
       ].map(({ key, label, icon: Icon }) => (
         <Button
           key={key}
-          variant={reportType === key ? 'primary' : 'outline'}
+          variant={reportType === key ? 'default' : 'outline'}
           onClick={() => setReportType(key as ReportType)}
           className="flex items-center gap-2"
         >
@@ -452,7 +451,7 @@ export default function ReportsPage() {
             {Array.from({ length: 24 }, (_, i) => {
               const hour = i.toString().padStart(2, '0');
               const value = hourlyBreakdown[hour] || 0;
-              const maxValue = Math.max(...Object.values(hourlyBreakdown || {}));
+              const maxValue = Math.max(...Object.values(hourlyBreakdown || {}).map(Number));
               const height = maxValue > 0 ? (value / maxValue) * 100 : 0;
               
               return (
@@ -697,8 +696,8 @@ export default function ReportsPage() {
             </div>
             <div className="p-6">
               <div className="h-64 flex items-end justify-between space-x-2">
-                {hourlyDistribution.map((item) => {
-                  const maxCalls = Math.max(...hourlyDistribution.map(h => parseInt(h.calls)));
+                {hourlyDistribution.map((item: { hour: string; calls: string }) => {
+                  const maxCalls = Math.max(...hourlyDistribution.map((h: { hour: string; calls: string }) => parseInt(h.calls)));
                   const height = maxCalls > 0 ? (parseInt(item.calls) / maxCalls) * 100 : 0;
                   
                   return (
@@ -726,8 +725,8 @@ export default function ReportsPage() {
             </div>
             <div className="p-6">
               <div className="space-y-4">
-                {topDIDs.map((did, index) => {
-                  const maxCalls = Math.max(...topDIDs.map(d => parseInt(d.callCount)));
+                {topDIDs.map((did: { from: string; callCount: string }, index: number) => {
+                  const maxCalls = Math.max(...topDIDs.map((d: { from: string; callCount: string }) => parseInt(d.callCount)));
                   const percentage = maxCalls > 0 ? (parseInt(did.callCount) / maxCalls) * 100 : 0;
                   
                   return (
@@ -781,7 +780,7 @@ export default function ReportsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.map((day, index) => (
+                    {data.map((day: { date: string; totalCalls: string; answeredCalls: string; failedCalls: string; transferredCalls: string; avgDuration: string; totalDuration: string }, index: number) => (
                       <tr key={day.date} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
                         <td className="py-3 px-4 font-medium text-gray-900">
                           {new Date(day.date).toLocaleDateString()}
@@ -868,7 +867,7 @@ export default function ReportsPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Enrollments</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {journeys.reduce((sum, j) => sum + j.enrollments.totalEnrollments, 0)}
+                  {journeys.reduce((sum: number, j: any) => sum + j.enrollments.totalEnrollments, 0)}
                 </p>
               </div>
             </div>
@@ -882,7 +881,7 @@ export default function ReportsPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Completed</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {journeys.reduce((sum, j) => sum + j.enrollments.completedEnrollments, 0)}
+                  {journeys.reduce((sum: number, j: any) => sum + j.enrollments.completedEnrollments, 0)}
                 </p>
               </div>
             </div>
@@ -897,7 +896,7 @@ export default function ReportsPage() {
                 <p className="text-sm font-medium text-gray-500">Avg Conversion Rate</p>
                 <p className="text-2xl font-semibold text-gray-900">
                   {journeys.length > 0 
-                    ? (journeys.reduce((sum, j) => sum + parseFloat(j.conversionRate || '0'), 0) / journeys.length).toFixed(1)
+                    ? (journeys.reduce((sum: number, j: any) => sum + parseFloat(j.conversionRate || '0'), 0) / journeys.length).toFixed(1)
                     : '0'
                   }%
                 </p>
@@ -926,7 +925,7 @@ export default function ReportsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {journeys.map((journey, index) => (
+                  {journeys.map((journey: any, index: number) => (
                     <tr key={journey.journey.id} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
                       <td className="py-3 px-4">
                         <div>
@@ -966,7 +965,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Individual Journey Details */}
-        {journeys.map((journey) => (
+        {journeys.map((journey: any) => (
           <div key={journey.journey.id} className="bg-white rounded-lg shadow">
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex justify-between items-center">
@@ -1055,7 +1054,7 @@ export default function ReportsPage() {
               <div>
                 <h4 className="text-md font-medium text-gray-900 mb-3">Step Performance</h4>
                 <div className="space-y-3">
-                  {Object.entries(journey.stepPerformance).map(([stepId, step]) => {
+                  {Object.entries(journey.stepPerformance).map(([stepId, step]: [string, any]) => {
                     const successRate = parseFloat(step.successRate?.toString() || '0');
                     return (
                       <div key={stepId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -1095,174 +1094,4 @@ export default function ReportsPage() {
       </div>
     );
   };
-
-  const renderTemplates = () => (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium text-gray-900">Report Templates</h3>
-        <Button
-          onClick={() => setShowTemplateModal(true)}
-          className="flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Create Template
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {reportTemplates.map((template) => (
-          <div key={template.id} className="bg-white p-6 rounded-lg shadow">
-            <div className="flex justify-between items-start mb-4">
-              <h4 className="text-lg font-medium text-gray-900">{template.name}</h4>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => executeReportTemplate(template.id, { exportFormat: 'pdf' })}
-                >
-                  <Play className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedTemplate(template)}
-                >
-                  <Edit className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-            <p className="text-sm text-gray-500 mb-2">Type: {template.type}</p>
-            {template.schedule?.enabled && (
-              <p className="text-sm text-green-600">
-                Scheduled: {template.schedule.frequency} at {template.schedule.time}
-              </p>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Recent Executions */}
-      <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Recent Executions</h3>
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Template
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Started
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {reportExecutions.map((execution) => (
-                <tr key={execution.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {reportTemplates.find(t => t.id === execution.templateId)?.name || 'Unknown'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      execution.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      execution.status === 'failed' ? 'bg-red-100 text-red-800' :
-                      execution.status === 'running' ? 'bg-blue-100 text-blue-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {execution.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(execution.startedAt).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {execution.downloadUrl && (
-                      <a
-                        href={execution.downloadUrl}
-                        className="text-blue-600 hover:text-blue-900"
-                        download
-                      >
-                        <Download className="w-4 h-4" />
-                      </a>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-
-  if (!isAuthenticated) {
-    return null;
-  }
-
-  return (
-    <DashboardLayout>
-      <div className="py-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Reports & Analytics</h1>
-          <div className="flex items-center gap-2">
-            {reportType !== 'dashboard' && reportType !== 'templates' && (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="flex items-center gap-2"
-                >
-                  <Filter className="w-4 h-4" />
-                  Filters
-                </Button>
-                <Button
-                  onClick={generateReport}
-                  isLoading={isLoading}
-                  className="flex items-center gap-2"
-                >
-                  <BarChart className="w-4 h-4" />
-                  Generate Report
-                </Button>
-              </>
-            )}
-            <Button
-              variant="outline"
-              onClick={() => window.location.reload()}
-              className="flex items-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </Button>
-          </div>
-        </div>
-
-        {renderReportTypeSelector()}
-
-        {reportType !== 'dashboard' && reportType !== 'templates' && (
-          <>
-            {renderDateRangeSelector()}
-            {renderFilters()}
-          </>
-        )}
-
-        {isLoading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700"></div>
-          </div>
-        ) : (
-          <>
-            {reportType === 'dashboard' && renderDashboard()}
-            {reportType === 'templates' && renderTemplates()}
-            {reportType !== 'dashboard' && reportType !== 'templates' && renderReportData()}
-          </>
-        )}
-      </div>
-    </DashboardLayout>
-  );
-} 
+}

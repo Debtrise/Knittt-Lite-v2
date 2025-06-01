@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Upload, File, ArrowLeft, Check, AlertTriangle, UploadCloud, Table, X, Loader2 } from 'lucide-react';
@@ -78,7 +78,15 @@ const FieldMapping = ({ headers, recommendedMappings, fieldMapping, setFieldMapp
   );
 };
 
-export default function UploadLeadsPage() {
+export default function UploadLeadsPageWrapper() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <UploadLeadsPage />
+    </Suspense>
+  );
+}
+
+function UploadLeadsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated } = useAuthStore();

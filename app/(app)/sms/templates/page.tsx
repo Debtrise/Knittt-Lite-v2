@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { MessageSquare, Trash2, Plus, Edit, FolderPlus, Folder } from 'lucide-react';
@@ -51,6 +51,32 @@ export default function SmsTemplatesPage() {
     type: 'sms',
   });
 
+  const fetchTemplates = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.templates.list({
+        type: 'sms',
+        categoryId: selectedCategory || undefined,
+      });
+      setTemplates(response.data.templates || []);
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+      toast.error('Failed to load templates');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedCategory]);
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      const response = await api.templates.listCategories('sms');
+      setCategories(response.data.categories || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      toast.error('Failed to load categories');
+    }
+  }, []);
+
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/login');
@@ -59,33 +85,7 @@ export default function SmsTemplatesPage() {
 
     fetchTemplates();
     fetchCategories();
-  }, [isAuthenticated, router, selectedCategory]);
-
-  const fetchTemplates = async () => {
-    setIsLoading(true);
-    try {
-      const response = await api.templates.list({
-        type: 'sms',
-        categoryId: selectedCategory || undefined,
-      });
-      setTemplates(response.templates || []);
-    } catch (error) {
-      console.error('Error fetching templates:', error);
-      toast.error('Failed to load templates');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      const response = await api.templates.listCategories('sms');
-      setCategories(response.categories || []);
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      toast.error('Failed to load categories');
-    }
-  };
+  }, [isAuthenticated, router, selectedCategory, fetchTemplates, fetchCategories]);
 
   const handleCreateTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,7 +110,7 @@ export default function SmsTemplatesPage() {
         type: 'sms',
       });
       
-      setTemplates([...templates, template]);
+      setTemplates([...templates, template.data]);
       toast.success('Template created successfully');
       setShowCreateForm(false);
       setNewTemplate({
@@ -138,7 +138,7 @@ export default function SmsTemplatesPage() {
     setIsCreatingCategory(true);
     try {
       const category = await api.templates.createCategory(newCategory);
-      setCategories([...categories, category]);
+      setCategories([...categories, category.data]);
       toast.success('Category created successfully');
       setShowCategoryForm(false);
       setNewCategory({
@@ -158,7 +158,7 @@ export default function SmsTemplatesPage() {
     if (!confirm('Are you sure you want to delete this template?')) return;
     
     try {
-      await api.templates.delete(id.toString());
+      await api.templates.delete(Number(id));
       setTemplates(templates.filter(t => t.id !== id));
       toast.success('Template deleted successfully');
     } catch (error) {
@@ -175,7 +175,7 @@ export default function SmsTemplatesPage() {
     if (!confirm('Are you sure you want to delete this category? This will also delete all templates in this category.')) return;
     
     try {
-      await api.templates.deleteCategory(id.toString());
+      await api.templates.deleteCategory(Number(id));
       setCategories(categories.filter(c => c.id !== id));
       setTemplates(templates.filter(t => t.categoryId !== id));
       toast.success('Category deleted successfully');
@@ -205,7 +205,7 @@ export default function SmsTemplatesPage() {
             </Button>
             <Button
               onClick={() => setShowCreateForm(true)}
-              variant="primary"
+              variant="brand"
             >
               <Plus className="w-4 h-4 mr-2" />
               New Template
@@ -217,7 +217,7 @@ export default function SmsTemplatesPage() {
         <div className="mb-6">
           <div className="flex space-x-2 overflow-x-auto pb-2">
             <Button
-              variant={selectedCategory === null ? "primary" : "secondary"}
+              variant={selectedCategory === null ? "brand" : "secondary"}
               onClick={() => setSelectedCategory(null)}
             >
               All Templates
@@ -225,7 +225,7 @@ export default function SmsTemplatesPage() {
             {categories.map(category => (
               <Button
                 key={category.id}
-                variant={selectedCategory === category.id ? "primary" : "secondary"}
+                variant={selectedCategory === category.id ? "brand" : "secondary"}
                 onClick={() => setSelectedCategory(category.id)}
               >
                 <Folder className="w-4 h-4 mr-2" />
@@ -299,7 +299,7 @@ export default function SmsTemplatesPage() {
                   </Button>
                   <Button
                     type="submit"
-                    variant="primary"
+                    variant="brand"
                     isLoading={isCreating}
                   >
                     Create Template
@@ -348,7 +348,7 @@ export default function SmsTemplatesPage() {
                   </Button>
                   <Button
                     type="submit"
-                    variant="primary"
+                    variant="brand"
                     isLoading={isCreatingCategory}
                   >
                     Create Category

@@ -7,8 +7,46 @@ import { Plus, Pencil, Trash2 } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
-import api from '@/app/lib/api';
+import axios from 'axios';
 import { useAuthStore } from '@/app/store/authStore';
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://34.122.156.88:3001/api';
+
+const api = axios.create({
+  baseURL: BASE_URL,
+  timeout: 15000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add request interceptor to add auth token and tenant ID
+api.interceptors.request.use((config) => {
+  const token = useAuthStore.getState().token;
+  const user = useAuthStore.getState().user;
+  
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  
+  if (user?.tenantId) {
+    config.headers['X-Tenant-ID'] = user.tenantId;
+  }
+  
+  return config;
+});
+
+// Add response interceptor for error handling
+api.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response?.status === 401) {
+      useAuthStore.getState().logout();
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 type Category = {
   id: number;
@@ -42,8 +80,10 @@ export default function CategoriesPage() {
 
   const fetchCategories = async () => {
     try {
-      const response = await api.templates.listCategories('sms');
-      setCategories(response.categories || []);
+      const response = await api.get('/templates/categories', {
+        params: { type: 'sms' }
+      });
+      setCategories(response.data.categories || []);
     } catch (error) {
       console.error('Error fetching categories:', error);
       toast.error('Failed to load categories');
@@ -60,7 +100,7 @@ export default function CategoriesPage() {
 
     setIsSaving(true);
     try {
-      await api.templates.createCategory({
+      const response = await api.post('/templates/categories', {
         name: newCategory.name,
         description: newCategory.description,
         type: 'sms',
@@ -68,7 +108,7 @@ export default function CategoriesPage() {
       toast.success('Category created successfully');
       setShowCreateForm(false);
       setNewCategory({ name: '', description: '' });
-      fetchCategories();
+      setCategories([...categories, response.data.category]);
     } catch (error) {
       console.error('Error creating category:', error);
       toast.error('Failed to create category');
@@ -85,14 +125,18 @@ export default function CategoriesPage() {
 
     setIsSaving(true);
     try {
-      await api.templates.updateCategory(editingCategory.id, {
+      const response = await api.put(`/templates/categories/${editingCategory.id}`, {
         name: editingCategory.name,
         description: editingCategory.description,
         type: 'sms',
       });
-      toast.success('Category updated successfully');
+      setCategories(categories.map(cat => 
+        cat.id === editingCategory.id 
+          ? response.data.category
+          : cat
+      ));
       setEditingCategory(null);
-      fetchCategories();
+      toast.success('Category updated successfully');
     } catch (error) {
       console.error('Error updating category:', error);
       toast.error('Failed to update category');
@@ -101,18 +145,23 @@ export default function CategoriesPage() {
     }
   };
 
-  const handleDelete = async (categoryId: number) => {
-    if (!confirm('Are you sure you want to delete this category? This will also delete all templates in this category.')) {
-      return;
-    }
-
+  const handleDelete = async (id: number) => {
     try {
-      await api.templates.deleteCategory(categoryId);
+      await api.delete(`/templates/categories/${id}`);
+      setCategories(categories.filter(cat => cat.id !== id));
       toast.success('Category deleted successfully');
-      fetchCategories();
     } catch (error) {
-      console.error('Error deleting category:', error);
       toast.error('Failed to delete category');
+      console.error('Delete error:', error);
+    }
+  };
+
+  const handleEdit = async (id: number, newName: string) => {
+    try {
+      await api.put(`/templates/categories/${id}`, { name: newName });
+      toast.success('Category updated successfully');
+    } catch (error) {
+      toast.error('Failed to update category');
     }
   };
 
@@ -137,7 +186,7 @@ export default function CategoriesPage() {
             </p>
           </div>
           <Button
-            variant="primary"
+            variant="brand"
             onClick={() => setShowCreateForm(true)}
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -176,7 +225,7 @@ export default function CategoriesPage() {
                   Cancel
                 </Button>
                 <Button
-                  variant="primary"
+                  variant="brand"
                   onClick={handleCreate}
                   isLoading={isSaving}
                 >
@@ -240,7 +289,7 @@ export default function CategoriesPage() {
                           Cancel
                         </Button>
                         <Button
-                          variant="primary"
+                          variant="brand"
                           onClick={handleUpdate}
                           isLoading={isSaving}
                         >
@@ -256,7 +305,7 @@ export default function CategoriesPage() {
                           <Pencil className="w-4 h-4" />
                         </Button>
                         <Button
-                          variant="danger"
+                          variant="destructive"
                           onClick={() => handleDelete(category.id)}
                         >
                           <Trash2 className="w-4 h-4" />

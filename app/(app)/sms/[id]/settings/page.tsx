@@ -79,7 +79,7 @@ function SettingsPageContent({ campaignId }: SettingsPageProps) {
       });
     } catch (error) {
       console.error('Error fetching campaign settings:', error);
-      toast.error('Failed to load campaign settings');
+      toast('Failed to load campaign settings');
     } finally {
       setIsLoading(false);
     }
@@ -88,6 +88,27 @@ function SettingsPageContent({ campaignId }: SettingsPageProps) {
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
+
+    // Validate rate limit
+    if (settings.rateLimit < 1 || settings.rateLimit > 10000) {
+      toast.error('Rate limit must be between 1 and 10000 messages per hour');
+      setIsSaving(false);
+      return;
+    }
+
+    // Validate message template
+    if (!settings.messageTemplate.trim()) {
+      toast.error('Message template cannot be empty');
+      setIsSaving(false);
+      return;
+    }
+
+    // Validate auto-reply template if enabled
+    if (settings.autoReplyEnabled && !settings.replyTemplate.trim()) {
+      toast.error('Auto-reply template cannot be empty when auto-reply is enabled');
+      setIsSaving(false);
+      return;
+    }
 
     // First, try to save rate limit
     let rateLimitSaved = false;
@@ -102,23 +123,19 @@ function SettingsPageContent({ campaignId }: SettingsPageProps) {
         console.error(`Error saving rate limit (attempt ${retryCount + 1}/${maxRetries + 1}):`, error);
         retryCount++;
         
-        // If this is the last retry and it still failed, ask user what to do
         if (retryCount > maxRetries) {
           if (window.confirm(
             'Having trouble connecting to save rate limit settings. Do you want to:\n\n' +
             '- Click OK to continue with other settings without rate limit change\n' +
             '- Click Cancel to stop the save process entirely'
           )) {
-            // User chose to continue with other settings
-            toast.warning('Rate limit not saved due to connection issues, continuing with other settings.');
+            toast('Rate limit not saved due to connection issues, continuing with other settings.');
           } else {
-            // User chose to stop entirely
             toast.error('Settings save cancelled.');
             setIsSaving(false);
             return;
           }
         } else {
-          // Wait before retrying (increasing delay with each retry)
           await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
         }
       }
@@ -147,33 +164,48 @@ function SettingsPageContent({ campaignId }: SettingsPageProps) {
   };
 
   const handleStatusToggle = async () => {
+    if (!window.confirm(
+      `Are you sure you want to ${settings.status === 'active' ? 'pause' : 'start'} this campaign?`
+    )) {
+      return;
+    }
+
     try {
       if (settings.status === 'active') {
         await pauseSmsCampaign(settings.id);
         setSettings(prev => ({ ...prev, status: 'paused' }));
-        toast.success('Campaign paused');
+        toast.success('Campaign paused successfully');
       } else {
         await startSmsCampaign(settings.id);
         setSettings(prev => ({ ...prev, status: 'active' }));
-        toast.success('Campaign started');
+        toast.success('Campaign started successfully');
       }
     } catch (error) {
       console.error('Error toggling campaign status:', error);
-      toast.error('Failed to update campaign status');
+      toast.error('Failed to update campaign status. Please try again.');
     }
   };
 
   const handleClearUnresponded = async () => {
     if (!settings.id) return;
-    if (window.confirm('Are you sure you want to mark all unresponded messages for this campaign as resolved?')) {
+    
+    const unrespondedCount = settings.contactStats?.unresponded || 0;
+    if (unrespondedCount === 0) {
+      toast('No unresponded messages to clear');
+      return;
+    }
+
+    if (window.confirm(
+      `Are you sure you want to mark all ${unrespondedCount} unresponded messages for this campaign as resolved?`
+    )) {
       setIsClearing(true);
       try {
         const response = await clearUnrespondedMessages(settings.id);
-        toast.success(response.message || 'Unresponded messages cleared.');
+        toast.success(response.message || 'Unresponded messages cleared successfully');
         fetchCampaignSettings();
       } catch (error) {
         console.error('Error clearing unresponded messages:', error);
-        toast.error('Failed to clear unresponded messages.');
+        toast.error('Failed to clear unresponded messages. Please try again.');
       } finally {
         setIsClearing(false);
       }
@@ -341,7 +373,7 @@ function SettingsPageContent({ campaignId }: SettingsPageProps) {
                   <h3 className="text-lg font-medium text-gray-900">Manage Unresponded Messages</h3>
                   <p className="mt-1 text-sm text-gray-500">
                     Mark all currently unresponded messages for this campaign as resolved. 
-                    {settings.contactStats?.unresponded > 0 && 
+                    {typeof settings.contactStats?.unresponded === 'number' && settings.contactStats.unresponded > 0 && 
                       `There are currently ${settings.contactStats.unresponded} unresponded messages.`}
                   </p>
                   <Button
@@ -367,7 +399,7 @@ function SettingsPageContent({ campaignId }: SettingsPageProps) {
                   </Button>
                   <Button
                     type="submit"
-                    variant="primary"
+                    variant="brand"
                     isLoading={isSaving}
                   >
                     <Save className="w-4 h-4 mr-2" />
@@ -384,7 +416,6 @@ function SettingsPageContent({ campaignId }: SettingsPageProps) {
 }
 
 // Server Component
-export default function CampaignSettingsPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = React.use(params);
-  return <SettingsPageContent campaignId={resolvedParams.id} />;
+export default function CampaignSettingsPage({ params }: { params: { id: string } }) {
+  return <SettingsPageContent campaignId={params.id} />;
 } 
