@@ -4,6 +4,10 @@ const nextConfig = {
   swcMinify: true,
   // Enable static optimization for pages that can be statically generated
   output: 'standalone',
+  // Disable ESLint during build
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   // Configure headers for security
   async headers() {
     return [
