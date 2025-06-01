@@ -1,0 +1,1 @@
+self.__REACT_LOADABLE_MANIFEST='{"app/(app)/templates/new/page.tsx -> react-email-editor":{"id":54360,"files":["static/chunks/4360.b2b1c5c14f7b8c1f.js"]}}';

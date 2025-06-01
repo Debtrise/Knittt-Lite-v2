@@ -1,0 +1,330 @@
+{
+  "version": 3,
+  "pages404": true,
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "dynamicRoutes": [
+    {
+      "page": "/dialplan/[id]",
+      "regex": "^/dialplan/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/dialplan/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/dids/[id]",
+      "regex": "^/dids/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/dids/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/journeys/[id]",
+      "regex": "^/journeys/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/journeys/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/journeys/[id]/leads",
+      "regex": "^/journeys/([^/]+?)/leads(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/journeys/(?<nxtPid>[^/]+?)/leads(?:/)?$"
+    },
+    {
+      "page": "/leads/[id]",
+      "regex": "^/leads/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/leads/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/settings/users/[id]",
+      "regex": "^/settings/users/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/settings/users/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/sms/contact/[id]",
+      "regex": "^/sms/contact/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/sms/contact/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/sms/conversation/[id]",
+      "regex": "^/sms/conversation/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/sms/conversation/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/sms/templates/[id]",
+      "regex": "^/sms/templates/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/sms/templates/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/sms/[id]",
+      "regex": "^/sms/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/sms/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/sms/[id]/conversations",
+      "regex": "^/sms/([^/]+?)/conversations(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/sms/(?<nxtPid>[^/]+?)/conversations(?:/)?$"
+    },
+    {
+      "page": "/sms/[id]/settings",
+      "regex": "^/sms/([^/]+?)/settings(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/sms/(?<nxtPid>[^/]+?)/settings(?:/)?$"
+    },
+    {
+      "page": "/webhooks/edit/[id]",
+      "regex": "^/webhooks/edit/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/webhooks/edit/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/webhooks/[id]",
+      "regex": "^/webhooks/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/webhooks/(?<nxtPid>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/admin",
+      "regex": "^/admin(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin(?:/)?$"
+    },
+    {
+      "page": "/api-test",
+      "regex": "^/api\\-test(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api\\-test(?:/)?$"
+    },
+    {
+      "page": "/calls",
+      "regex": "^/calls(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/calls(?:/)?$"
+    },
+    {
+      "page": "/dashboard",
+      "regex": "^/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard(?:/)?$"
+    },
+    {
+      "page": "/dialplan",
+      "regex": "^/dialplan(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dialplan(?:/)?$"
+    },
+    {
+      "page": "/dids",
+      "regex": "^/dids(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dids(?:/)?$"
+    },
+    {
+      "page": "/favicon.ico",
+      "regex": "^/favicon\\.ico(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/favicon\\.ico(?:/)?$"
+    },
+    {
+      "page": "/journeys",
+      "regex": "^/journeys(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/journeys(?:/)?$"
+    },
+    {
+      "page": "/leads",
+      "regex": "^/leads(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/leads(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/recordings",
+      "regex": "^/recordings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/recordings(?:/)?$"
+    },
+    {
+      "page": "/register",
+      "regex": "^/register(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/register(?:/)?$"
+    },
+    {
+      "page": "/reports",
+      "regex": "^/reports(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/reports(?:/)?$"
+    },
+    {
+      "page": "/settings",
+      "regex": "^/settings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings(?:/)?$"
+    },
+    {
+      "page": "/settings/profile",
+      "regex": "^/settings/profile(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings/profile(?:/)?$"
+    },
+    {
+      "page": "/settings/transfer-groups",
+      "regex": "^/settings/transfer\\-groups(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings/transfer\\-groups(?:/)?$"
+    },
+    {
+      "page": "/settings/users",
+      "regex": "^/settings/users(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings/users(?:/)?$"
+    },
+    {
+      "page": "/sms",
+      "regex": "^/sms(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/sms(?:/)?$"
+    },
+    {
+      "page": "/sms/numbers",
+      "regex": "^/sms/numbers(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/sms/numbers(?:/)?$"
+    },
+    {
+      "page": "/sms/templates",
+      "regex": "^/sms/templates(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/sms/templates(?:/)?$"
+    },
+    {
+      "page": "/sms/templates/categories",
+      "regex": "^/sms/templates/categories(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/sms/templates/categories(?:/)?$"
+    },
+    {
+      "page": "/sms/templates/new",
+      "regex": "^/sms/templates/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/sms/templates/new(?:/)?$"
+    },
+    {
+      "page": "/sms/upload",
+      "regex": "^/sms/upload(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/sms/upload(?:/)?$"
+    },
+    {
+      "page": "/system",
+      "regex": "^/system(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/system(?:/)?$"
+    },
+    {
+      "page": "/templates",
+      "regex": "^/templates(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/templates(?:/)?$"
+    },
+    {
+      "page": "/templates/new",
+      "regex": "^/templates/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/templates/new(?:/)?$"
+    },
+    {
+      "page": "/webhooks",
+      "regex": "^/webhooks(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/webhooks(?:/)?$"
+    },
+    {
+      "page": "/webhooks/create",
+      "regex": "^/webhooks/create(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/webhooks/create(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "RSC",
+    "varyHeader": "RSC, Next-Router-State-Tree, Next-Router-Prefetch, Next-Router-Segment-Prefetch",
+    "prefetchHeader": "Next-Router-Prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSuffix": ".prefetch.rsc",
+    "prefetchSegmentHeader": "Next-Router-Segment-Prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments"
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  },
+  "rewrites": []
+}
