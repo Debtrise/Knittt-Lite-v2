@@ -66,12 +66,6 @@ The Journey Builder now supports comprehensive IVR (Interactive Voice Response) 
 }
 ```
 
-### Dialplan Management
-- **Call Templates**: Create and manage script and voicemail templates
-- **Dialplan Projects**: Build complex call flows with visual editor
-- **System Integration**: Generate Asterisk-compatible dialplan files
-- **Capabilities Dashboard**: Monitor system status and available features
-
 ### Lead Management
 - **Contact Import**: Bulk import with intelligent field mapping
 - **Journey Enrollment**: Automatic and manual lead assignment

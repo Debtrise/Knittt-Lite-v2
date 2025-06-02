@@ -1,16 +1,21 @@
-export type SmsCampaign = {
+export interface SmsCampaign {
   id: number;
   name: string;
+  description?: string;
   messageTemplate: string;
   rateLimit: number;
-  status: 'draft' | 'active' | 'paused' | 'completed';
+  status: 'draft' | 'active' | 'paused' | 'completed' | 'scheduled';
   totalContacts: number;
   sentCount: number;
   failedCount: number;
+  deliveredCount?: number;
   autoReplyEnabled: boolean;
+  scheduledAt?: string;
+  startedAt?: string;
+  completedAt?: string;
   createdAt: string;
   updatedAt: string;
-};
+}
 
 export type SmsCampaignDetails = SmsCampaign & {
   contactStats: {
@@ -27,17 +32,29 @@ export type CreateSmsCampaignData = {
   rateLimit: number;
 };
 
-export type SmsContact = {
+export interface SmsContact {
   id: number;
-  campaignId: number;
   phone: string;
   name?: string;
   email?: string;
-  customFields?: Record<string, string>;
-  status: 'pending' | 'sent' | 'failed' | 'replied';
-  sentAt?: string;
+  status: 'active' | 'inactive' | 'blocked';
+  lastMessageAt?: string;
   createdAt: string;
-};
+  updatedAt: string;
+  tags?: string[];
+  metadata?: Record<string, any>;
+}
+
+export interface SmsMessage {
+  id: number;
+  contactId: number;
+  direction: 'inbound' | 'outbound';
+  content: string;
+  status: 'sent' | 'delivered' | 'failed' | 'pending';
+  sentAt: string;
+  deliveredAt?: string;
+  error?: string;
+}
 
 export type TwilioNumber = {
   id: number;
@@ -89,4 +106,14 @@ export type PaginatedResponse<T> = {
   page: number;
   totalPages: number;
   data: T[];
-}; 
+};
+
+export interface SmsTemplate {
+  id: number;
+  name: string;
+  content: string;
+  category?: string;
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+} 

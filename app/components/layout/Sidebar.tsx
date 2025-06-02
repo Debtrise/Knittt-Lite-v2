@@ -98,7 +98,12 @@ const navigation = [
   },
 ];
 
-const Sidebar = ({ pathname, handleLogout }) => {
+interface SidebarProps {
+  pathname: string;
+  handleLogout: () => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ pathname, handleLogout }) => {
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
       <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">

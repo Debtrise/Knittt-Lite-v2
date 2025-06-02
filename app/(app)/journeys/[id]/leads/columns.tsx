@@ -5,7 +5,16 @@ import { Badge } from '@/app/components/ui/badge';
 import { Button } from '@/app/components/ui/button';
 import { ArrowUpDown, ExternalLink } from 'lucide-react';
 
-export const columns: ColumnDef<any>[] = [
+interface Lead {
+  id: number;
+  name: string;
+  phone: string;
+  email: string;
+  status: 'active' | 'inactive';
+  enrolledAt: string;
+}
+
+export const columns: ColumnDef<Lead>[] = [
   {
     accessorKey: 'id',
     header: 'ID',
@@ -26,7 +35,7 @@ export const columns: ColumnDef<any>[] = [
     accessorKey: 'status',
     header: 'Status',
     cell: ({ row }) => {
-      const status = row.getValue('status');
+      const status = row.getValue('status') as Lead['status'];
       return (
         <Badge variant={status === 'active' ? 'default' : 'secondary'}>
           {status}

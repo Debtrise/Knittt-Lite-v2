@@ -66,8 +66,8 @@ export default function TemplatesPage() {
               Manage all your templates (SMS, Email, Script) here.
             </p>
           </div>
-          <Link href="/templates/new" passHref legacyBehavior>
-            <Button as="a" variant="brand" className="flex items-center">
+          <Link href="/templates/new">
+            <Button variant="brand" className="flex items-center">
               <Plus className="w-4 h-4 mr-2" />
               New Template
             </Button>

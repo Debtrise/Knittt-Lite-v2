@@ -79,7 +79,7 @@ interface FormData {
   };
   autoTagRules: AutoTagRule[];
   requiredHeaders: Record<string, string>;
-  autoEnrollJourneyId: string | null;
+  autoEnrollJourneyId: number | null;
   conditionalRules: ConditionalRule | null;
 }
 
@@ -112,11 +112,7 @@ interface WebhookResponse {
     requireEmail: boolean;
     allowDuplicatePhone: boolean;
   };
-  autoTagRules: Array<{
-    field: string;
-    value: string;
-    tag: string;
-  }>;
+  autoTagRules: AutoTagRule[];
   requiredHeaders: Record<string, string>;
   autoEnrollJourneyId: string | null;
   conditionalRules: ConditionalRule | null;
@@ -313,7 +309,7 @@ function WebhookForm({ webhookId, isEdit = false, onSuccess }: WebhookFormProps)
         },
         autoTagRules: data.autoTagRules || [],
         requiredHeaders: data.requiredHeaders || {},
-        autoEnrollJourneyId: data.autoEnrollJourneyId || null,
+        autoEnrollJourneyId: data.autoEnrollJourneyId ? Number(data.autoEnrollJourneyId) : null,
         conditionalRules: data.conditionalRules || null,
       });
 
@@ -422,7 +418,7 @@ function WebhookForm({ webhookId, isEdit = false, onSuccess }: WebhookFormProps)
   };
 
   const handleAddAutoTagRule = () => {
-    setAutoTagRules(prev => [...prev, { field: '', value: '', tag: '' }]);
+    setAutoTagRules(prev => [...prev, { field: '', operator: 'equals', value: '', tag: '' }]);
   };
 
   const handleRemoveAutoTagRule = (index: number) => {
@@ -479,7 +475,7 @@ function WebhookForm({ webhookId, isEdit = false, onSuccess }: WebhookFormProps)
           tag: rule.tag
         })),
         requiredHeaders: formData.requiredHeaders,
-        autoEnrollJourneyId: formData.autoEnrollJourneyId,
+        autoEnrollJourneyId: formData.autoEnrollJourneyId ? Number(formData.autoEnrollJourneyId) : null,
         conditionalRules: formData.conditionalRules
       };
 

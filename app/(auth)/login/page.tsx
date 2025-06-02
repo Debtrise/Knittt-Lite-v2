@@ -17,7 +17,7 @@ type LoginFormData = {
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setAuth } = useAuthStore();
+  const { setTokens, setUser } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   
   const {
@@ -31,13 +31,17 @@ export default function LoginPage() {
     
     try {
       const response = await api.auth.login(data.username, data.password);
-      const { token, userId, username, tenantId, role } = response.data;
+      const { token, refreshToken, userId, username, tenantId, role } = response.data;
       
-      setAuth(token, {
+      // Set both tokens in the auth store
+      setTokens(token, refreshToken);
+      
+      // Set user data in the auth store
+      setUser({
         userId,
         username,
         tenantId,
-        role,
+        role
       });
       
       toast.success('Login successful');

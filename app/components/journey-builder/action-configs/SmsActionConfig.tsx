@@ -39,7 +39,7 @@ const SmsActionConfig: React.FC<SmsActionConfigProps> = ({ config, onChange }) =
           rows={4}
         />
         <p className="text-xs text-gray-500 mt-1">
-          Available variables: {{firstName}}, {{lastName}}, {{phone}}, {{email}}
+          Available variables: {'{{firstName}}'}, {'{{lastName}}'}, {'{{phone}}'}, {'{{email}}'}
         </p>
       </div>
       

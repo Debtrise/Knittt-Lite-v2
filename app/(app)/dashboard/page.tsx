@@ -200,21 +200,32 @@ export default function DashboardPage() {
 
     fetchData();
     
-    // Refresh agent status every 5 seconds, but only if we have a group
-    const interval = setInterval(() => {
-      if (currentGroup) {
+    // Refresh agent status every 5 seconds, but only if we have a group and the page is visible
+    let interval: NodeJS.Timeout;
+    if (currentGroup) {
+      interval = setInterval(() => {
+        // Only fetch if the page is visible
+        if (document.visibilityState === 'visible') {
+          fetchAgentStatus();
+        }
+      }, 5000);
+    }
+
+    // Add visibility change listener
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && currentGroup) {
         fetchAgentStatus();
       }
-    }, 5000);
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    return () => clearInterval(interval);
-  }, [isAuthenticated, router, user]);
-
-  useEffect(() => {
-    if (currentGroup) {
-      fetchAgentStatus();
-    }
-  }, [currentGroup, fetchAgentStatus]);
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isAuthenticated, router, user, currentGroup]);
 
   // Add a refresh button handler
   const handleRefresh = () => {

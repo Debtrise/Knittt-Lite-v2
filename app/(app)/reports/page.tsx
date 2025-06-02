@@ -129,7 +129,6 @@ export default function ReportsPage() {
     endDate: new Date().toISOString().split('T')[0]
   });
   const [filters, setFilters] = useState<Record<string, any>>({});
-  const [groupBy, setGroupBy] = useState<'hour' | 'day' | 'week' | 'month'>('day');
   
   // UI states
   const [showFilters, setShowFilters] = useState(false);
@@ -142,7 +141,7 @@ export default function ReportsPage() {
       return;
     }
     fetchInitialData();
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, reportType]);
 
   useEffect(() => {
     if (reportType === 'dashboard') {
@@ -156,7 +155,13 @@ export default function ReportsPage() {
   const fetchInitialData = async () => {
     setIsLoading(true);
     try {
+      // Fetch dashboard data first
       await fetchDashboardData();
+      
+      // If we're on a specific report type, generate that report
+      if (reportType !== 'dashboard' && reportType !== 'templates') {
+        await generateReport();
+      }
     } catch (error) {
       console.error('Error fetching initial data:', error);
       toast.error('Failed to load initial data');
@@ -208,7 +213,7 @@ export default function ReportsPage() {
           data = await generateCallSummaryReport({
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
-            groupBy,
+            groupBy: 'day',
             filters
           });
           break;
@@ -216,7 +221,7 @@ export default function ReportsPage() {
           data = await generateSmsSummaryReport({
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
-            groupBy: groupBy as 'hour' | 'day' | 'month',
+            groupBy: 'day',
             filters
           });
           break;
@@ -266,7 +271,7 @@ export default function ReportsPage() {
     }
   };
 
-  const handleExportReport = async (format: 'csv' | 'excel' | 'pdf') => {
+  const handleExportReport = async (format: 'csv' | 'excel') => {
     if (!reportData) {
       toast.error('No report data to export');
       return;
@@ -294,6 +299,30 @@ export default function ReportsPage() {
     } catch (error) {
       console.error('Error exporting report:', error);
       toast.error('Failed to export report');
+    }
+  };
+
+  const handleCopyToClipboard = async (text: string) => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        toast.success('Copied to clipboard');
+      } else {
+        // Fallback for browsers that don't support clipboard API
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          toast.success('Copied to clipboard');
+        } catch (err) {
+          toast.error('Failed to copy to clipboard');
+        }
+        document.body.removeChild(textArea);
+      }
+    } catch (err) {
+      toast.error('Failed to copy to clipboard');
     }
   };
 
@@ -335,19 +364,6 @@ export default function ReportsPage() {
           value={dateRange.endDate}
           onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
         />
-      </div>
-      <div className="flex items-center gap-2">
-        <label className="text-sm font-medium text-gray-700">Group by:</label>
-        <select
-          className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          value={groupBy}
-          onChange={(e) => setGroupBy(e.target.value as any)}
-        >
-          <option value="hour">Hour</option>
-          <option value="day">Day</option>
-          <option value="week">Week</option>
-          <option value="month">Month</option>
-        </select>
       </div>
     </div>
   );
@@ -554,14 +570,6 @@ export default function ReportsPage() {
                 <Download className="w-4 h-4" />
                 Excel
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleExportReport('pdf')}
-                className="flex items-center gap-2"
-              >
-                <Download className="w-4 h-4" />
-                PDF
-              </Button>
             </div>
           </div>
         </div>
@@ -587,27 +595,11 @@ export default function ReportsPage() {
               <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  onClick={() => handleExportReport('csv')}
-                  className="flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  CSV
-                </Button>
-                <Button
-                  variant="outline"
                   onClick={() => handleExportReport('excel')}
                   className="flex items-center gap-2"
                 >
                   <Download className="w-4 h-4" />
                   Excel
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => handleExportReport('pdf')}
-                  className="flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  PDF
                 </Button>
               </div>
             </div>
@@ -834,12 +826,12 @@ export default function ReportsPage() {
                         <td className="py-3 px-4 font-medium text-gray-900">
                           {new Date(day.date).toLocaleDateString()}
                         </td>
-                        <td className="py-3 px-4 text-gray-900">{day.totalCalls.toLocaleString()}</td>
-                        <td className="py-3 px-4 text-gray-900">{day.answeredCalls.toLocaleString()}</td>
-                        <td className="py-3 px-4 text-gray-900">{day.transferredCalls.toLocaleString()}</td>
-                        <td className="py-3 px-4 text-gray-900">{day.avgDuration.toFixed(1)}s</td>
+                        <td className="py-3 px-4 text-gray-900">{day.totalCalls?.toLocaleString() || '0'}</td>
+                        <td className="py-3 px-4 text-gray-900">{day.answeredCalls?.toLocaleString() || '0'}</td>
+                        <td className="py-3 px-4 text-gray-900">{day.transferredCalls?.toLocaleString() || '0'}</td>
+                        <td className="py-3 px-4 text-gray-900">{(day.avgDuration || 0).toFixed(1)}s</td>
                         <td className="py-3 px-4 text-gray-900">
-                          {Math.floor(parseInt(day.totalDuration) / 60)}m {parseInt(day.totalDuration) % 60}s
+                          {Math.floor(parseInt(day.totalDuration || '0') / 60)}m {parseInt(day.totalDuration || '0') % 60}s
                         </td>
                       </tr>
                     ))}
@@ -854,7 +846,7 @@ export default function ReportsPage() {
   };
 
   const renderJourneyAnalyticsVisualization = () => {
-    const journeys = reportData.journeys || [];
+    const journeys = reportData?.journeys || [];
     
     return (
       <div className="space-y-6">
@@ -866,27 +858,11 @@ export default function ReportsPage() {
               <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  onClick={() => handleExportReport('csv')}
-                  className="flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  CSV
-                </Button>
-                <Button
-                  variant="outline"
                   onClick={() => handleExportReport('excel')}
                   className="flex items-center gap-2"
                 >
                   <Download className="w-4 h-4" />
                   Excel
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => handleExportReport('pdf')}
-                  className="flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  PDF
                 </Button>
               </div>
             </div>
@@ -915,7 +891,7 @@ export default function ReportsPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Enrollments</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {journeys.reduce((sum: number, j: Journey) => sum + j.enrollments.totalEnrollments, 0)}
+                  {journeys.reduce((sum: number, j: Journey) => sum + (j.enrollments?.totalEnrollments || 0), 0)}
                 </p>
               </div>
             </div>
@@ -929,7 +905,7 @@ export default function ReportsPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Completed</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {journeys.reduce((sum: number, j: Journey) => sum + j.enrollments.completedEnrollments, 0)}
+                  {journeys.reduce((sum: number, j: Journey) => sum + (j.enrollments?.completedEnrollments || 0), 0)}
                 </p>
               </div>
             </div>
@@ -974,19 +950,19 @@ export default function ReportsPage() {
                 </thead>
                 <tbody>
                   {journeys.map((journey: Journey, index: number) => (
-                    <tr key={journey.journey.id} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                    <tr key={journey.journey?.id || index} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
                       <td className="py-3 px-4">
                         <div>
-                          <div className="font-medium text-gray-900">{journey.journey.name}</div>
-                          {journey.journey.description && (
+                          <div className="font-medium text-gray-900">{journey.journey?.name || 'Unnamed Journey'}</div>
+                          {journey.journey?.description && (
                             <div className="text-sm text-gray-500">{journey.journey.description}</div>
                           )}
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-gray-900">{journey.journey.stepCount}</td>
-                      <td className="py-3 px-4 text-gray-900">{journey.enrollments.totalEnrollments}</td>
-                      <td className="py-3 px-4 text-gray-900">{journey.enrollments.activeEnrollments}</td>
-                      <td className="py-3 px-4 text-gray-900">{journey.enrollments.completedEnrollments}</td>
+                      <td className="py-3 px-4 text-gray-900">{journey.journey?.stepCount || 0}</td>
+                      <td className="py-3 px-4 text-gray-900">{journey.enrollments?.totalEnrollments || 0}</td>
+                      <td className="py-3 px-4 text-gray-900">{journey.enrollments?.activeEnrollments || 0}</td>
+                      <td className="py-3 px-4 text-gray-900">{journey.enrollments?.completedEnrollments || 0}</td>
                       <td className="py-3 px-4">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                           parseFloat(journey.conversionRate || '0') >= 80 ? 'bg-green-100 text-green-800' :
@@ -1013,14 +989,14 @@ export default function ReportsPage() {
         </div>
 
         {/* Individual Journey Details */}
-        {journeys.map((journey: Journey) => (
-          <div key={journey.journey.id} className="bg-white rounded-lg shadow">
+        {journeys.map((journey: Journey, index: number) => (
+          <div key={journey.journey?.id || index} className="bg-white rounded-lg shadow">
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-medium text-gray-900">{journey.journey.name}</h3>
-                <span className="text-sm text-gray-500">ID: {journey.journey.id}</span>
+                <h3 className="text-lg font-medium text-gray-900">{journey.journey?.name || 'Unnamed Journey'}</h3>
+                <span className="text-sm text-gray-500">ID: {journey.journey?.id || 'N/A'}</span>
               </div>
-              {journey.journey.description && (
+              {journey.journey?.description && (
                 <p className="text-sm text-gray-600 mt-1">{journey.journey.description}</p>
               )}
             </div>
@@ -1029,19 +1005,19 @@ export default function ReportsPage() {
               {/* Enrollment Status */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <div className="text-center p-4 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">{journey.enrollments.totalEnrollments}</div>
+                  <div className="text-2xl font-bold text-blue-600">{journey.enrollments?.totalEnrollments || 0}</div>
                   <div className="text-sm text-blue-600">Total Enrollments</div>
                 </div>
                 <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">{journey.enrollments.activeEnrollments}</div>
+                  <div className="text-2xl font-bold text-green-600">{journey.enrollments?.activeEnrollments || 0}</div>
                   <div className="text-sm text-green-600">Active</div>
                 </div>
                 <div className="text-center p-4 bg-purple-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600">{journey.enrollments.completedEnrollments}</div>
+                  <div className="text-2xl font-bold text-purple-600">{journey.enrollments?.completedEnrollments || 0}</div>
                   <div className="text-sm text-purple-600">Completed</div>
                 </div>
                 <div className="text-center p-4 bg-orange-50 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-600">{journey.enrollments.exitedEnrollments}</div>
+                  <div className="text-2xl font-bold text-orange-600">{journey.enrollments?.exitedEnrollments || 0}</div>
                   <div className="text-sm text-orange-600">Exited</div>
                 </div>
               </div>
@@ -1051,7 +1027,7 @@ export default function ReportsPage() {
                 <h4 className="text-md font-medium text-gray-900 mb-3">Conversion Funnel</h4>
                 <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
                   <div className="text-center">
-                    <div className="text-lg font-semibold text-gray-900">{journey.conversionFunnel.uniqueLeads}</div>
+                    <div className="text-lg font-semibold text-gray-900">{journey.conversionFunnel?.uniqueLeads || '0'}</div>
                     <div className="text-sm text-gray-600">Unique Leads</div>
                   </div>
                   <div className="flex-1 mx-4">
@@ -1060,7 +1036,7 @@ export default function ReportsPage() {
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-semibold text-gray-900">{journey.conversionFunnel.reachedFirstStep}</div>
+                    <div className="text-lg font-semibold text-gray-900">{journey.conversionFunnel?.reachedFirstStep || '0'}</div>
                     <div className="text-sm text-gray-600">First Step</div>
                   </div>
                   <div className="flex-1 mx-4">
@@ -1068,15 +1044,15 @@ export default function ReportsPage() {
                       <div 
                         className="bg-green-600 h-2 rounded-full" 
                         style={{ 
-                          width: `${parseInt(journey.conversionFunnel.uniqueLeads) > 0 
-                            ? (parseInt(journey.conversionFunnel.reachedFirstStep) / parseInt(journey.conversionFunnel.uniqueLeads)) * 100 
+                          width: `${parseInt(journey.conversionFunnel?.uniqueLeads || '0') > 0 
+                            ? (parseInt(journey.conversionFunnel?.reachedFirstStep || '0') / parseInt(journey.conversionFunnel?.uniqueLeads || '1')) * 100 
                             : 0}%` 
                         }}
                       ></div>
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-semibold text-gray-900">{journey.conversionFunnel.reachedLastStep}</div>
+                    <div className="text-lg font-semibold text-gray-900">{journey.conversionFunnel?.reachedLastStep || '0'}</div>
                     <div className="text-sm text-gray-600">Last Step</div>
                   </div>
                   <div className="flex-1 mx-4">
@@ -1084,15 +1060,15 @@ export default function ReportsPage() {
                       <div 
                         className="bg-purple-600 h-2 rounded-full" 
                         style={{ 
-                          width: `${parseInt(journey.conversionFunnel.uniqueLeads) > 0 
-                            ? (parseInt(journey.conversionFunnel.reachedLastStep) / parseInt(journey.conversionFunnel.uniqueLeads)) * 100 
+                          width: `${parseInt(journey.conversionFunnel?.uniqueLeads || '0') > 0 
+                            ? (parseInt(journey.conversionFunnel?.reachedLastStep || '0') / parseInt(journey.conversionFunnel?.uniqueLeads || '1')) * 100 
                             : 0}%` 
                         }}
                       ></div>
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-semibold text-gray-900">{journey.conversionFunnel.completed}</div>
+                    <div className="text-lg font-semibold text-gray-900">{journey.conversionFunnel?.completed || '0'}</div>
                     <div className="text-sm text-gray-600">Completed</div>
                   </div>
                 </div>
@@ -1102,14 +1078,15 @@ export default function ReportsPage() {
               <div>
                 <h4 className="text-md font-medium text-gray-900 mb-3">Step Performance</h4>
                 <div className="space-y-3">
-                  {Object.entries(journey.stepPerformance).map(([stepId, step]: [string, JourneyStep]) => {
-                    const successRate = step.successRate || 0;
+                  {Object.entries(journey.stepPerformance || {}).map(([stepId, step]: [string, JourneyStep]) => {
+                    const successRate = typeof step.successRate === 'number' ? step.successRate : 
+                                     typeof step.successRate === 'string' ? parseFloat(step.successRate) : 0;
                     return (
                       <div key={stepId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div className="flex-1">
-                          <div className="font-medium text-gray-900">{step.stepName}</div>
+                          <div className="font-medium text-gray-900">{step.stepName || 'Unnamed Step'}</div>
                           <div className="text-sm text-gray-600">
-                            {step.completedExecutions} / {step.totalExecutions} executions
+                            {step.completedExecutions || 0} / {step.totalExecutions || 0} executions
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
@@ -1128,7 +1105,7 @@ export default function ReportsPage() {
                             successRate >= 70 ? 'text-yellow-600' :
                             'text-red-600'
                           }`}>
-                            {successRate.toFixed(1)}%
+                            {Number(successRate).toFixed(1)}%
                           </span>
                         </div>
                       </div>
@@ -1259,24 +1236,14 @@ export default function ReportsPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Reports & Analytics</h1>
           <div className="flex items-center gap-2">
             {reportType !== 'dashboard' && reportType !== 'templates' && (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="flex items-center gap-2"
-                >
-                  <Filter className="w-4 h-4" />
-                  Filters
-                </Button>
-                <Button
-                  onClick={generateReport}
-                  isLoading={isLoading}
-                  className="flex items-center gap-2"
-                >
-                  <BarChart className="w-4 h-4" />
-                  Generate Report
-                </Button>
-              </>
+              <Button
+                onClick={generateReport}
+                isLoading={isLoading}
+                className="flex items-center gap-2"
+              >
+                <BarChart className="w-4 h-4" />
+                Generate Report
+              </Button>
             )}
             <Button
               variant="outline"
@@ -1294,7 +1261,6 @@ export default function ReportsPage() {
         {reportType !== 'dashboard' && reportType !== 'templates' && (
           <>
             {renderDateRangeSelector()}
-            {renderFilters()}
           </>
         )}
 

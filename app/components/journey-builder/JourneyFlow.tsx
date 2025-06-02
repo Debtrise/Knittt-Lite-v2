@@ -4,10 +4,10 @@ import React, { useState, useCallback } from 'react';
 import { Plus, Trash2, ArrowRight } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
-import { Journey, JourneyStep } from '@/app/types/journey';
+import { JourneyWithSteps, JourneyStep } from '@/app/types/journey';
 
 interface JourneyFlowProps {
-  journey: Journey;
+  journey: JourneyWithSteps;
   onJourneyUpdated: () => void;
   onSelectStep: (step: JourneyStep) => void;
   selectedStep: JourneyStep | null;
@@ -52,14 +52,14 @@ export default function JourneyFlow({
   }, [dragStartStep, isDragging, handleDragEnd]);
   
   const getStepStatusColor = (step: JourneyStep) => {
-    switch (step.type) {
+    switch (step.actionType) {
       case 'sms':
         return 'bg-blue-100 text-blue-800';
       case 'call':
         return 'bg-green-100 text-green-800';
       case 'delay':
         return 'bg-yellow-100 text-yellow-800';
-      case 'condition':
+      case 'conditional_branch':
         return 'bg-purple-100 text-purple-800';
       default:
         return 'bg-gray-100 text-gray-800';
@@ -102,7 +102,7 @@ export default function JourneyFlow({
               <div className="flex items-center space-x-4">
                 <div className="flex-shrink-0">
                   <Badge variant="outline" className={getStepStatusColor(step)}>
-                    {step.type.toUpperCase()}
+                    {step.actionType.toUpperCase()}
                   </Badge>
                 </div>
                 <div>

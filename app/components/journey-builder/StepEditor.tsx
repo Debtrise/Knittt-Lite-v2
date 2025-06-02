@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { JourneyStep } from '@/app/types/journey';
-import { JourneyActionType, DelayType } from '@/app/types/dialplan';
+import { JourneyActionType, DelayType } from '@/app/types/journey-actions';
 import { updateJourneyStep, deleteJourneyStep } from '@/app/utils/api';
 import { getActionTypeParams, getDelayTypeParams, getDefaultActionConfigValues, getDefaultDelayConfigValues } from '@/app/utils/nodeConfigHelpers';
 import api from '@/app/lib/api';
@@ -43,7 +43,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
   const [formData, setFormData] = useState({
     name: step.name,
     description: step.description || '',
-    type: step.type,
+    actionType: step.actionType,
     actionConfig: step.actionConfig || {},
     delayType: step.delayType || 'immediate',
     delayConfig: step.delayConfig || {},
@@ -73,7 +73,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
   const displayNumber = stepIndex !== undefined ? stepIndex + 1 : Math.ceil(step.stepOrder / 10);
   
   // Get the parameter definitions for the current action type
-  const actionParams = getActionTypeParams(formData.type as JourneyActionType);
+  const actionParams = getActionTypeParams(formData.actionType as JourneyActionType);
   const delayParams = getDelayTypeParams(formData.delayType as DelayType);
   
   // Define callback functions first, before useEffect hooks that depend on them
@@ -167,7 +167,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
       const recordingsList = response.data?.data || response.data || [];
       setRecordings(Array.isArray(recordingsList) ? recordingsList : []);
       console.log(`Loaded ${recordingsList.length} recordings`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading recordings:', error);
       if (error.response?.status === 401) {
         toast.error('Authentication required to load recordings');
@@ -188,7 +188,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
       setFormData({
         name: step.name,
         description: step.description || '',
-        type: step.type,
+        actionType: step.actionType,
         actionConfig: step.actionConfig || {},
         delayType: step.delayType || 'immediate',
         delayConfig: step.delayConfig || {},
@@ -203,30 +203,30 @@ const StepEditor: React.FC<StepEditorProps> = ({
     if (!isAuthenticated) return;
     
     // Simple: load templates based on action type
-    if (formData.type === 'sms') {
+    if (formData.actionType === 'sms') {
       loadTemplates(['sms']);
-    } else if (formData.type === 'email') {
+    } else if (formData.actionType === 'email') {
       loadTemplates(['email']);
-    } else if (formData.type === 'call') {
+    } else if (formData.actionType === 'call') {
       loadTemplates(['script', 'voicemail']);
     }
-  }, [formData.type, isAuthenticated, loadTemplates]);
+  }, [formData.actionType, isAuthenticated, loadTemplates]);
 
   // Load transfer groups when needed
   useEffect(() => {
     // Simple: if action type is 'call', load transfer groups immediately
-    if (formData.type === 'call' && isAuthenticated) {
+    if (formData.actionType === 'call' && isAuthenticated) {
       loadTransferGroups();
     }
-  }, [formData.type, isAuthenticated, loadTransferGroups]);
+  }, [formData.actionType, isAuthenticated, loadTransferGroups]);
 
   // Load recordings when IVR is enabled
   useEffect(() => {
     // Load recordings when IVR is enabled for call actions
-    if (formData.type === 'call' && formData.actionConfig?.ivrEnabled && isAuthenticated) {
+    if (formData.actionType === 'call' && formData.actionConfig?.ivrEnabled && isAuthenticated) {
       loadRecordings();
     }
-  }, [formData.type, formData.actionConfig?.ivrEnabled, isAuthenticated, loadRecordings]);
+  }, [formData.actionType, formData.actionConfig?.ivrEnabled, isAuthenticated, loadRecordings]);
   
   // Show authentication warning if not authenticated
   if (!isAuthenticated) {
@@ -326,7 +326,9 @@ const StepEditor: React.FC<StepEditorProps> = ({
   const handleUpdateStep = async () => {
     try {
       setIsSubmitting(true);
-      await updateJourneyStep(journeyId, step.id, formData);
+      await updateJourneyStep(journeyId, step.id, {
+        ...formData
+      });
       toast.success('Step updated successfully');
       onStepUpdated();
     } catch (error) {
@@ -354,7 +356,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
   };
   
   const renderActionConfig = () => {
-    switch (formData.type) {
+    switch (formData.actionType) {
       case 'sms':
         return (
           <div className="space-y-4">
@@ -430,7 +432,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
                 value={formData.delayType}
                 onValueChange={(value) => setFormData({
                   ...formData,
-                  delayType: value
+                  delayType: value as 'immediate' | 'fixed_time' | 'delay_after_previous' | 'delay_after_enrollment' | 'specific_days'
                 })}
               >
                 <SelectTrigger>
@@ -438,48 +440,109 @@ const StepEditor: React.FC<StepEditorProps> = ({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="immediate">Immediate</SelectItem>
-                  <SelectItem value="fixed">Fixed Duration</SelectItem>
-                  <SelectItem value="scheduled">Scheduled Time</SelectItem>
-                  <SelectItem value="business_hours">Business Hours</SelectItem>
+                  <SelectItem value="fixed_time">Fixed Time</SelectItem>
+                  <SelectItem value="delay_after_previous">Delay After Previous</SelectItem>
+                  <SelectItem value="delay_after_enrollment">Delay After Enrollment</SelectItem>
+                  <SelectItem value="specific_days">Specific Days</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             
-            {formData.delayType === 'fixed' && (
+            {formData.delayType === 'fixed_time' && (
               <div className="grid gap-2">
-                <Label htmlFor="delay-duration">Duration (minutes)</Label>
-                <Input
-                  id="delay-duration"
-                  type="number"
-                  value={formData.delayConfig.duration || 60}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    delayConfig: { ...formData.delayConfig, duration: parseInt(e.target.value, 10) }
-                  })}
-                  min={1}
-                  max={10080} // 1 week
-                />
-              </div>
-            )}
-            
-            {formData.delayType === 'scheduled' && (
-              <div className="grid gap-2">
-                <Label htmlFor="delay-time">Scheduled Time</Label>
+                <Label htmlFor="delay-time">Time</Label>
                 <Input
                   id="delay-time"
                   type="time"
-                  value={formData.delayConfig.scheduledTime || '09:00'}
+                  value={formData.delayConfig.time || '09:00'}
                   onChange={(e) => setFormData({
                     ...formData,
-                    delayConfig: { ...formData.delayConfig, scheduledTime: e.target.value }
+                    delayConfig: { ...formData.delayConfig, time: e.target.value }
                   })}
+                />
+              </div>
+            )}
+            {formData.delayType === 'delay_after_previous' && (
+              <div className="grid gap-2">
+                <Label htmlFor="delay-minutes">Minutes</Label>
+                <Input
+                  id="delay-minutes"
+                  type="number"
+                  value={formData.delayConfig.minutes || 0}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    delayConfig: { ...formData.delayConfig, minutes: parseInt(e.target.value, 10) }
+                  })}
+                  min={0}
+                />
+                <Label htmlFor="delay-hours">Hours</Label>
+                <Input
+                  id="delay-hours"
+                  type="number"
+                  value={formData.delayConfig.hours || 0}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    delayConfig: { ...formData.delayConfig, hours: parseInt(e.target.value, 10) }
+                  })}
+                  min={0}
+                />
+                <Label htmlFor="delay-days">Days</Label>
+                <Input
+                  id="delay-days"
+                  type="number"
+                  value={formData.delayConfig.days || 0}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    delayConfig: { ...formData.delayConfig, days: parseInt(e.target.value, 10) }
+                  })}
+                  min={0}
+                />
+              </div>
+            )}
+            {formData.delayType === 'delay_after_enrollment' && (
+              <div className="grid gap-2">
+                <Label htmlFor="delay-days-enrollment">Days After Enrollment</Label>
+                <Input
+                  id="delay-days-enrollment"
+                  type="number"
+                  value={formData.delayConfig.days || 0}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    delayConfig: { ...formData.delayConfig, days: parseInt(e.target.value, 10) }
+                  })}
+                  min={0}
+                />
+                <Label htmlFor="delay-hours-enrollment">Hours After Enrollment</Label>
+                <Input
+                  id="delay-hours-enrollment"
+                  type="number"
+                  value={formData.delayConfig.hours || 0}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    delayConfig: { ...formData.delayConfig, hours: parseInt(e.target.value, 10) }
+                  })}
+                  min={0}
+                />
+              </div>
+            )}
+            {formData.delayType === 'specific_days' && (
+              <div className="grid gap-2">
+                <Label htmlFor="delay-days-list">Days (comma separated)</Label>
+                <Input
+                  id="delay-days-list"
+                  value={formData.delayConfig.days || ''}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    delayConfig: { ...formData.delayConfig, days: e.target.value }
+                  })}
+                  placeholder="e.g. Monday,Wednesday,Friday"
                 />
               </div>
             )}
           </div>
         );
         
-      case 'condition':
+      case 'conditional_branch':
         return (
           <div className="space-y-4">
             <div className="grid gap-2">
@@ -604,10 +667,10 @@ const StepEditor: React.FC<StepEditorProps> = ({
           <div className="grid gap-2">
             <Label htmlFor="step-type">Step Type</Label>
             <Select
-              value={formData.type}
+              value={formData.actionType}
               onValueChange={(value) => setFormData({
                 ...formData,
-                type: value,
+                actionType: value as 'sms' | 'email' | 'webhook' | 'call' | 'status_change' | 'tag_update' | 'wait_for_event' | 'conditional_branch' | 'lead_assignment' | 'data_update' | 'journey_transfer' | 'delay',
                 actionConfig: {} // Reset action config when type changes
               })}
             >
@@ -618,7 +681,7 @@ const StepEditor: React.FC<StepEditorProps> = ({
                 <SelectItem value="sms">SMS</SelectItem>
                 <SelectItem value="call">Call</SelectItem>
                 <SelectItem value="delay">Delay</SelectItem>
-                <SelectItem value="condition">Condition</SelectItem>
+                <SelectItem value="conditional_branch">Conditional Branch</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { ColumnDef } from '@tanstack/react-table';
-import { SmsContact } from '@/types/sms';
+import { SmsContact } from '@/app/types/sms';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal, MessageSquare } from 'lucide-react';

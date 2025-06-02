@@ -41,7 +41,10 @@ export default function JourneyLeadsClient({ journeyId }: JourneyLeadsClientProp
         setJourney(journeyResponse.data);
 
         // Fetch leads for this journey
-        const leadsResponse = await api.journeys.getLeads(journeyId.toString());
+        const leadsResponse = await api.journeys.getLeads(journeyId.toString(), {
+          page: 1,
+          limit: 50
+        });
         setLeads(leadsResponse.data.leads || []);
       } catch (error) {
         console.error('Error fetching journey leads:', error);

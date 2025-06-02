@@ -247,7 +247,13 @@ export default function EnhancedPreview({
       // Fix the streamUrls to use absolute API URLs
       const batchData = {
         ...response.data,
-        previews: response.data.previews.map(preview => ({
+        previews: response.data.previews.map((preview: {
+          previewId: string;
+          voiceId: string;
+          voiceName: string;
+          streamUrl: string;
+          characterCount: number;
+        }) => ({
           ...preview,
           streamUrl: preview.streamUrl.startsWith('/api/') 
             ? `http://34.122.156.88:3001${preview.streamUrl}`

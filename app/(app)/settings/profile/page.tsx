@@ -35,7 +35,7 @@ interface PasswordFormData {
 }
 
 export default function ProfilePage() {
-  const { user, isAuthenticated, setAuth } = useAuthStore();
+  const { user, isAuthenticated, setUser } = useAuthStore();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -116,7 +116,7 @@ export default function ProfilePage() {
 
       // Update the auth store with new user data
       if (user) {
-        setAuth(useAuthStore.getState().token!, {
+        setUser({
           ...user,
           username: profileForm.username,
         });

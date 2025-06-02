@@ -26,8 +26,17 @@ export default function ConversationPage() {
 
   useEffect(() => {
     const fetchMessages = async () => {
+      if (!conversationId) {
+        setLoading(false);
+        return;
+      }
+
       try {
-        const response = await api.sms.getConversation(conversationId);
+        const response = await api.sms.getConversation(conversationId, {
+          page: 1,
+          limit: 50,
+          markAsRead: true
+        });
         setMessages(response.data);
       } catch (error) {
         console.error('Error fetching messages:', error);
@@ -56,6 +65,10 @@ export default function ConversationPage() {
 
   if (loading) {
     return <div>Loading...</div>;
+  }
+
+  if (!conversationId) {
+    return <div>Invalid conversation ID</div>;
   }
 
   return (

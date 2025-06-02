@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { DataTable } from '@/components/ui/data-table';
 import { columns } from './columns';
-import { TwilioNumber } from '@/types/sms';
+import { TwilioNumber } from '@/app/types/sms';
 
 export default function SmsNumbersPage() {
   const [numbers, setNumbers] = useState<TwilioNumber[]>([]);

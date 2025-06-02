@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PlusIcon } from '@heroicons/react/24/outline';
-import { SmsCampaign, DashboardStats } from '@/types/sms';
+import { SmsCampaign, DashboardStats } from '@/app/types/sms';
 import { DataTable } from '@/components/ui/data-table';
 import { columns } from './columns';
 

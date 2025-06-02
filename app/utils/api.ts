@@ -35,20 +35,46 @@ const addAuthToken = (config: any) => {
   return config;
 };
 
-api.interceptors.request.use(addAuthToken);
-smsApi.interceptors.request.use(addAuthToken);
-
 // Add response interceptor for error handling
 api.interceptors.response.use(
   response => response,
-  error => {
-    if (error.response?.status === 401) {
-      useAuthStore.getState().logout();
-      window.location.href = '/login';
+  async error => {
+    const originalRequest = error.config;
+    
+    // If the error is 401 and we haven't tried to refresh the token yet
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        // Try to refresh the token
+        const refreshToken = useAuthStore.getState().refreshToken;
+        if (refreshToken) {
+          const response = await api.post('/auth/refresh', { refreshToken });
+          const { token, refreshToken: newRefreshToken } = response.data;
+          
+          // Update the store with new tokens
+          useAuthStore.getState().setTokens(token, newRefreshToken);
+          
+          // Update the authorization header
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          
+          // Retry the original request
+          return api(originalRequest);
+        }
+      } catch (refreshError) {
+        // If refresh fails, log out the user
+        useAuthStore.getState().logout();
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
     }
+    
     return Promise.reject(error);
   }
 );
+
+api.interceptors.request.use(addAuthToken);
+smsApi.interceptors.request.use(addAuthToken);
 
 // Auth APIs
 export const login = async (username: string, password: string) => {
@@ -544,24 +570,8 @@ export const bulkUploadDIDs = async (fileContent: string) => {
 
 // Reports APIs
 export const getDailyReport = async (date: string) => {
-  try {
-    const response = await api.get(`/reports/daily?date=${date}`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching daily report:', error);
-    // Return default data structure when endpoint is not available
-    return {
-      date,
-      totalCalls: 0,
-      answeredCalls: 0,
-      transfers: 0,
-      callsOver1Min: 0,
-      callsOver5Min: 0,
-      callsOver15Min: 0,
-      connectionRate: "0.00",
-      transferRate: "0.00"
-    };
-  }
+  const response = await api.get(`/reports/daily?date=${date}`);
+  return response.data;
 };
 
 // New comprehensive reporting APIs
@@ -661,7 +671,7 @@ export const generateCustomReport = async (data: {
 
 export const exportReport = async (data: {
   reportData: Record<string, any>;
-  format: 'csv' | 'excel' | 'pdf';
+  format: 'csv' | 'excel';
   filename: string;
 }) => {
   try {
@@ -806,8 +816,9 @@ export const getDashboardHistory = async (hours: number = 24) => {
 
 export const getTodaysStats = async () => {
   try {
-    const response = await api.get('/reports/today-stats');
-    return response.data;
+    const today = new Date().toISOString().split('T')[0];
+    const response = await getDailyReport(today);
+    return response;
   } catch (error) {
     console.error('Error fetching today\'s stats:', error);
     // Return default data structure when endpoint is not available
@@ -822,12 +833,17 @@ export const getTodaysStats = async () => {
 
 export const getHourlyBreakdown = async () => {
   try {
-    const response = await api.get('/reports/hourly-breakdown');
+    const response = await api.get('/reports/daily/hourly-breakdown');
     return response.data;
   } catch (error) {
     console.error('Error fetching hourly breakdown:', error);
-    // Return default data structure when endpoint is not available
-    return {};
+    // Return default data structure
+    return {
+      hourlyDistribution: Array.from({ length: 24 }, (_, i) => ({
+        hour: i.toString().padStart(2, '0'),
+        calls: '0'
+      }))
+    };
   }
 };
 
@@ -885,16 +901,6 @@ export const getAgentStatusReport = async (params: {
 };
 
 // System Status APIs
-export const getDialPlanCapabilities = async () => {
-  try {
-    const response = await api.get('/system/dialplan-capabilities');
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching dialplan capabilities:', error);
-    return {};
-  }
-};
-
 export const getModuleStatus = async () => {
   try {
     const response = await api.get('/system/module-status');

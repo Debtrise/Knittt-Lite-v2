@@ -62,22 +62,74 @@ smsApi.interceptors.request.use(addAuthToken);
 // Add response interceptor for error handling
 api.interceptors.response.use(
   response => response,
-  error => {
-    if (error.response?.status === 401) {
-      useAuthStore.getState().logout();
-      window.location.href = '/login';
+  async error => {
+    const originalRequest = error.config;
+    
+    // If the error is 401 and we haven't tried to refresh the token yet
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        // Try to refresh the token
+        const refreshToken = useAuthStore.getState().refreshToken;
+        if (refreshToken) {
+          const response = await api.post('/auth/refresh', { refreshToken });
+          const { token, refreshToken: newRefreshToken } = response.data;
+          
+          // Update the store with new tokens
+          useAuthStore.getState().setTokens(token, newRefreshToken);
+          
+          // Update the authorization header
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          
+          // Retry the original request
+          return api(originalRequest);
+        }
+      } catch (refreshError) {
+        // If refresh fails, log out the user
+        useAuthStore.getState().logout();
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
     }
+    
     return Promise.reject(error);
   }
 );
 
 localApi.interceptors.response.use(
   response => response,
-  error => {
-    if (error.response?.status === 401) {
-      useAuthStore.getState().logout();
-      window.location.href = '/login';
+  async error => {
+    const originalRequest = error.config;
+    
+    // If the error is 401 and we haven't tried to refresh the token yet
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        // Try to refresh the token
+        const refreshToken = useAuthStore.getState().refreshToken;
+        if (refreshToken) {
+          const response = await api.post('/auth/refresh', { refreshToken });
+          const { token, refreshToken: newRefreshToken } = response.data;
+          
+          // Update the store with new tokens
+          useAuthStore.getState().setTokens(token, newRefreshToken);
+          
+          // Update the authorization header
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          
+          // Retry the original request
+          return localApi(originalRequest);
+        }
+      } catch (refreshError) {
+        // If refresh fails, log out the user
+        useAuthStore.getState().logout();
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
     }
+    
     return Promise.reject(error);
   }
 );

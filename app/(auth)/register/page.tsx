@@ -6,7 +6,6 @@ import { useForm } from 'react-hook-form';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import api from '@/app/lib/api';
-import { useAuthStore } from '@/app/store/authStore';
 
 type RegisterFormData = {
   username: string;
@@ -14,12 +13,11 @@ type RegisterFormData = {
   confirmPassword: string;
   email: string;
   tenantId: string;
-  role: string;
+  role: 'admin' | 'agent';
 };
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { setAuth } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   
   const {
