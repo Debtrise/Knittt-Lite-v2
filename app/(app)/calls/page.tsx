@@ -133,33 +133,51 @@ export default function CallsPage() {
     formState: { errors },
   } = useForm<CallFormData>();
 
+  // Move fetchCalls here
+  const fetchCalls = async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.calls.list({ 
+        page: currentPage, 
+        limit: callLimit,
+        ...(statusFilter ? { status: statusFilter } : {})
+      });
+      setCalls(response.data.calls);
+      setTotalPages(response.data.totalPages);
+      // Extract unique statuses from the data for filter options
+      if (!statusFilter) {
+        const statuses = Array.from(new Set(response.data.calls.map((call: Call) => call.status))) as string[];
+        setUniqueStatuses(statuses);
+      }
+    } catch (error) {
+      console.error('Error fetching calls:', error);
+      toast.error('Failed to load calls');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchDIDs = async () => {
+    try {
+      const response = await api.dids.list({ page: 1, limit: 100, isActive: true });
+      setDids(response.data.dids);
+    } catch (error) {
+      console.error('Error fetching DIDs:', error);
+      toast.error('Failed to load DIDs');
+    }
+  };
+
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
 
-    const fetchDIDs = async () => {
-      try {
-        const response = await api.dids.list({ page: 1, limit: 100, isActive: true });
-        setDids(response.data.dids);
-      } catch (error) {
-        console.error('Error fetching DIDs:', error);
-        toast.error('Failed to load DIDs');
-      }
-    };
-
     fetchDIDs();
     fetchCalls();
-  }, [isAuthenticated, router, currentPage, statusFilter]);
+  }, [isAuthenticated, router, currentPage, statusFilter, fetchCalls]);
 
-  // Load dialplan data when dialplan tab is active
-  useEffect(() => {
-    if (activeTab === 'dialplan') {
-      loadDialplanData();
-    }
-  }, [activeTab, dialplanTab]);
-
+  // Move loadDialplanData here
   const loadDialplanData = async () => {
     setLoadingDialplan(true);
     try {
@@ -178,6 +196,13 @@ export default function CallsPage() {
       setLoadingDialplan(false);
     }
   };
+
+  // Load dialplan data when dialplan tab is active
+  useEffect(() => {
+    if (activeTab === 'dialplan') {
+      loadDialplanData();
+    }
+  }, [activeTab, dialplanTab, loadDialplanData]);
 
   const loadCallTemplates = async () => {
     try {
@@ -228,30 +253,6 @@ export default function CallsPage() {
     } catch (error) {
       console.error('Error loading dialplan capabilities:', error);
       throw error;
-    }
-  };
-
-  const fetchCalls = async () => {
-    setIsLoading(true);
-    try {
-      const response = await api.calls.list({ 
-        page: currentPage, 
-        limit: callLimit,
-        ...(statusFilter ? { status: statusFilter } : {})
-      });
-      setCalls(response.data.calls);
-      setTotalPages(response.data.totalPages);
-      
-      // Extract unique statuses from the data for filter options
-      if (!statusFilter) {
-        const statuses = Array.from(new Set(response.data.calls.map((call: Call) => call.status))) as string[];
-        setUniqueStatuses(statuses);
-      }
-    } catch (error) {
-      console.error('Error fetching calls:', error);
-      toast.error('Failed to load calls');
-    } finally {
-      setIsLoading(false);
     }
   };
 

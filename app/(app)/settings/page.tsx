@@ -143,18 +143,18 @@ export default function SettingsPage() {
         sortOrder: 'oldest',
         didDistribution: 'even'
       },
-      schedule: {
-        monday: { enabled: true, startTime: '09:00', endTime: '17:00' },
-        tuesday: { enabled: true, startTime: '09:00', endTime: '17:00' },
-        wednesday: { enabled: true, startTime: '09:00', endTime: '17:00' },
-        thursday: { enabled: true, startTime: '09:00', endTime: '17:00' },
-        friday: { enabled: true, startTime: '09:00', endTime: '17:00' },
-        saturday: { enabled: false, startTime: '09:00', endTime: '17:00' },
-        sunday: { enabled: false, startTime: '09:00', endTime: '17:00' }
-      },
+      schedule: [
+        { enabled: true, startTime: '09:00', endTime: '17:00' }, // Monday
+        { enabled: true, startTime: '09:00', endTime: '17:00' }, // Tuesday
+        { enabled: true, startTime: '09:00', endTime: '17:00' }, // Wednesday
+        { enabled: true, startTime: '09:00', endTime: '17:00' }, // Thursday
+        { enabled: true, startTime: '09:00', endTime: '17:00' }, // Friday
+        { enabled: false, startTime: '09:00', endTime: '17:00' }, // Saturday
+        { enabled: false, startTime: '09:00', endTime: '17:00' }, // Sunday
+      ],
       amiConfig: {
         host: '',
-        port: '',
+        port: 5038,
         trunk: '',
         context: '',
         username: '',
@@ -230,12 +230,14 @@ export default function SettingsPage() {
           // Prefill form with tenant data
           if (data) {
             // Parse ingroup/ingroups into an array for the form
-            const groups = [];
-            if (data.apiConfig?.ingroup) {
-              groups.push(data.apiConfig.ingroup);
-            }
-            if (data.apiConfig?.ingroups && data.apiConfig.ingroups !== data.apiConfig?.ingroup) {
-              groups.push(...data.apiConfig.ingroups.split(',').filter(Boolean));
+            const groupsRaw = (data.apiConfig.groups ?? '') as string | string[];
+            let groups: string[] = [];
+            if (typeof groupsRaw === 'string') {
+              groups = groupsRaw.split(',').map(g => g.trim()).filter(Boolean);
+            } else if (Array.isArray(groupsRaw)) {
+              groups = groupsRaw;
+            } else {
+              groups = [];
             }
 
             setValue('apiConfig.url', data.apiConfig?.url || '');
@@ -251,13 +253,15 @@ export default function SettingsPage() {
             setValue('dialerConfig.didDistribution', data.dialerConfig?.didDistribution || 'even');
             
             if (data.schedule) {
-              Object.entries(data.schedule).forEach(([day, config]) => {
-                if (typeof config === 'object' && config !== null) {
-                  setValue(`schedule.${day}.enabled`, config.enabled || false);
-                  setValue(`schedule.${day}.startTime`, config.startTime || config.start || '09:00');
-                  setValue(`schedule.${day}.endTime`, config.endTime || config.end || '17:00');
-                }
-              });
+              if (Array.isArray(data.schedule)) {
+                data.schedule.forEach((config: { enabled: boolean; startTime: string; endTime: string }, idx: number) => {
+                  if (typeof config === 'object' && config !== null) {
+                    setValue(`schedule.${idx}.enabled`, config.enabled || false);
+                    setValue(`schedule.${idx}.startTime`, config.startTime || '09:00');
+                    setValue(`schedule.${idx}.endTime`, config.endTime || '17:00');
+                  }
+                });
+              }
             }
             
             if (data.amiConfig) {
@@ -314,10 +318,13 @@ export default function SettingsPage() {
       console.log('Submitting form data:', data);
       
       // Make sure the ingroup/ingroups is an array or create from comma-separated string
-      let groups = data.apiConfig.groups;
-      if (!Array.isArray(groups) && typeof groups === 'string') {
-        groups = groups.split(',').map(g => g.trim()).filter(Boolean);
-      } else if (!Array.isArray(groups)) {
+      let groupsRaw = (data.apiConfig.groups ?? '') as string | string[];
+      let groups: string[] = [];
+      if (typeof groupsRaw === 'string') {
+        groups = groupsRaw.split(',').map(g => g.trim()).filter(Boolean);
+      } else if (Array.isArray(groupsRaw)) {
+        groups = groupsRaw;
+      } else {
         groups = [];
       }
 
@@ -382,7 +389,7 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Settings</h1>
           <Button
             onClick={fetchAgentStatus}
-            variant="primary"
+            variant="brand"
             isLoading={isRefreshing}
           >
             Refresh Status
@@ -520,7 +527,15 @@ export default function SettingsPage() {
                 <Input
                   {...register('apiConfig.groups')}
                   onChange={(e) => {
-                    const groups = e.target.value.split(',').map(group => group.trim());
+                    const groupsRaw = e.target.value;
+                    let groups: string[] = [];
+                    if (typeof groupsRaw === 'string') {
+                      groups = groupsRaw.split(',').map(group => group.trim());
+                    } else if (Array.isArray(groupsRaw)) {
+                      groups = groupsRaw;
+                    } else {
+                      groups = [];
+                    }
                     setValue('apiConfig.groups', groups);
                   }}
                   placeholder="TaxSales, TaxSupport"
@@ -530,7 +545,7 @@ export default function SettingsPage() {
               <div className="flex justify-end">
                 <Button
                   type="submit"
-                  variant="primary"
+                  variant="brand"
                   isLoading={isSubmitting}
                 >
                   Save API Settings
@@ -622,7 +637,7 @@ export default function SettingsPage() {
             <div className="flex justify-end">
               <Button
                 type="submit"
-                variant="primary"
+                variant="brand"
                 isLoading={isSubmitting}
               >
                 Save Dialer Settings
@@ -776,7 +791,7 @@ export default function SettingsPage() {
             <div className="flex justify-end">
               <Button
                 type="submit"
-                variant="primary"
+                variant="brand"
                 isLoading={isSubmitting}
               >
                 Save AMI Settings
@@ -816,7 +831,7 @@ export default function SettingsPage() {
             <div className="flex justify-end">
               <Button
                 type="submit"
-                variant="primary"
+                variant="brand"
                 isLoading={isSubmitting}
               >
                 Save Eleven Labs Settings
@@ -942,7 +957,7 @@ export default function SettingsPage() {
               </Button>
               <Button
                 type="submit"
-                variant="primary"
+                variant="brand"
                 isLoading={isSubmitting}
               >
                 Save FreePBX Settings

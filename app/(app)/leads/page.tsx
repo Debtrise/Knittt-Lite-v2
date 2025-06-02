@@ -43,7 +43,7 @@ export default function LeadsPage() {
   const [totalLeads, setTotalLeads] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [uploadIsLoading, setUploadIsLoading] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<string>('');
+  const [filterStatus, setFilterStatus] = useState<'pending' | 'contacted' | 'transferred' | 'completed' | 'failed' | ''>('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMethod, setUploadMethod] = useState<'text' | 'file'>('text');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -130,7 +130,7 @@ export default function LeadsPage() {
         autoDelete: data.autoDelete,
       });
       
-      toast.success(response.message || 'Leads uploaded successfully');
+      toast.success(response.data?.message || 'Leads uploaded successfully');
       setIsUploading(false);
       fetchLeads(1); // Refresh leads
     } catch (error: any) {
@@ -231,12 +231,12 @@ export default function LeadsPage() {
     setIsDeletingAll(true);
     try {
       const response = await api.leads.list({ page: 1, limit: 1000 });
-      const leadIds = response.leads.map(lead => lead.id);
+      const leadIds = response.leads.map((lead: Lead) => lead.id);
       await api.leads.bulkDelete(leadIds);
       toast.success('All leads deleted successfully');
       fetchLeads(1);
     } catch (error: any) {
-      console.error('Error deleting all leads:', error);
+      console.error('Delete all error:', error);
       toast.error(error.response?.data?.error || 'Failed to delete all leads');
     } finally {
       setIsDeletingAll(false);
@@ -276,7 +276,7 @@ export default function LeadsPage() {
           <div className="flex space-x-3">
             <Button 
               onClick={() => setShowDeleteAllConfirm(true)}
-              variant="danger"
+              variant="destructive"
               disabled={leads.length === 0 || isLoading}
             >
               <AlertTriangle className="w-4 h-4 mr-2" />
@@ -284,7 +284,7 @@ export default function LeadsPage() {
             </Button>
             <Button
               onClick={() => setIsUploading(!isUploading)}
-              variant="primary"
+              variant="brand"
             >
               <Upload className="w-4 h-4 mr-2" />
               Upload Leads
@@ -311,7 +311,7 @@ export default function LeadsPage() {
                   Cancel
                 </Button>
                 <Button
-                  variant="danger"
+                  variant="destructive"
                   onClick={handleDeleteAll}
                   isLoading={isDeletingAll}
                 >
@@ -418,7 +418,7 @@ export default function LeadsPage() {
                       </Button>
                       <Button
                         type="submit"
-                        variant="primary"
+                        variant="brand"
                         isLoading={uploadIsLoading}
                       >
                         Upload
@@ -474,7 +474,7 @@ Jane Smith,8007654321,jane@example.com</pre>
                 <div className="flex items-center space-x-4">
                   {selectedLeads.length > 0 && (
                     <Button
-                      variant="danger"
+                      variant="destructive"
                       onClick={handleBulkDelete}
                       isLoading={isDeleting}
                       disabled={isDeleting}
@@ -487,7 +487,7 @@ Jane Smith,8007654321,jane@example.com</pre>
                     <select
                       className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-brand focus:border-brand sm:text-sm"
                       value={filterStatus}
-                      onChange={(e) => setFilterStatus(e.target.value)}
+                      onChange={(e) => setFilterStatus(e.target.value as 'pending' | 'contacted' | 'transferred' | 'completed' | 'failed' | '')}
                     >
                       <option value="">All Status</option>
                       {uniqueStatuses.map(status => (
@@ -597,13 +597,13 @@ Jane Smith,8007654321,jane@example.com</pre>
                             )}
                           </div>
                           <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize 
-                              ${lead.status === 'new' ? 'bg-brand bg-opacity-10 text-brand' : 
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
+                              lead.status === 'new' ? 'bg-brand bg-opacity-10 text-brand' : 
                                 lead.status === 'contacted' ? 'bg-brand bg-opacity-10 text-brand' :
                                 lead.status === 'qualified' ? 'bg-brand bg-opacity-10 text-brand' :
                                 lead.status === 'converted' ? 'bg-brand bg-opacity-10 text-brand' :
                                 'bg-brand bg-opacity-10 text-brand'
-                              }"
+                              }`}
                             >
                               {lead.status === 'converted' ? (
                                 <CheckCircle className="mr-1 h-3 w-3" />

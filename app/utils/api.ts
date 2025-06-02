@@ -421,7 +421,15 @@ export const bulkDeleteDIDs = async (ids: number[]) => {
 
 export const bulkUploadDIDs = async (fileContent: string) => {
   // Parse CSV content
-  const lines = fileContent.trim().split('\n');
+  let lines: string[] = [];
+  if (typeof fileContent === 'string') {
+    lines = fileContent.trim().split('\n');
+  } else if (Array.isArray(fileContent)) {
+    lines = fileContent;
+  } else {
+    lines = [];
+  }
+  
   if (lines.length < 2) {
     throw new Error('CSV file must contain headers and at least one data row');
   }
@@ -430,7 +438,14 @@ export const bulkUploadDIDs = async (fileContent: string) => {
   const dataLines = lines.slice(1);
   
   // Map header columns to standard field names
-  const headerColumns = header.split(',').map(col => col.trim());
+  let headerColumns: string[] = [];
+  if (typeof header === 'string') {
+    headerColumns = header.split(',').map(col => col.trim());
+  } else if (Array.isArray(header)) {
+    headerColumns = header;
+  } else {
+    headerColumns = [];
+  }
   const phoneNumberIndex = headerColumns.findIndex(col => 
     ['phonenumber', 'phone_number', 'phone', 'did'].includes(col)
   );
@@ -454,7 +469,15 @@ export const bulkUploadDIDs = async (fileContent: string) => {
   
   // Process each row
   for (let i = 0; i < dataLines.length; i++) {
-    const row = dataLines[i].split(',').map(cell => cell.trim());
+    let row: string[] = [];
+    const currentLine: unknown = dataLines[i];
+    if (typeof currentLine === 'string') {
+      row = currentLine.split(',').map(cell => cell.trim());
+    } else if (Array.isArray(currentLine) && currentLine.every((el) => typeof el === 'string')) {
+      row = currentLine as string[];
+    } else {
+      row = Array(headerColumns.length).fill('');
+    }
     const phoneNumber = row[phoneNumberIndex];
     
     if (!phoneNumber) {

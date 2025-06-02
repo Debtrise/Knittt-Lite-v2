@@ -210,6 +210,12 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [isAuthenticated, router, user]);
 
+  useEffect(() => {
+    if (currentGroup) {
+      fetchAgentStatus();
+    }
+  }, [currentGroup, fetchAgentStatus]);
+
   // Add a refresh button handler
   const handleRefresh = () => {
     fetchAgentStatus();

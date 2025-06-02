@@ -238,12 +238,8 @@ export default function DIDsPage() {
     try {
       const response = await bulkUploadDIDs(data.fileContent);
       
-      // Handle both regular and chunked upload responses
-      if (response.chunks) {
-        toast.success(`${response.message}. Processed ${response.chunks} chunks.`);
-      } else {
-        toast.success(response.message || 'DIDs uploaded successfully');
-      }
+      // Show success message
+      toast.success(response.message || 'DIDs uploaded successfully');
       
       // Show detailed results if available
       if (response.summary) {
@@ -269,7 +265,7 @@ export default function DIDsPage() {
       // Check file size (warn if over 1MB)
       const maxSize = 1024 * 1024; // 1MB
       if (file.size > maxSize) {
-        toast.warning(`Large file detected (${(file.size / 1024 / 1024).toFixed(1)}MB). This will be processed in chunks.`);
+        toast(`⚠️ Large file detected (${(file.size / 1024 / 1024).toFixed(1)}MB). This will be processed in chunks.`);
       }
       
       const reader = new FileReader();
@@ -299,7 +295,7 @@ export default function DIDsPage() {
                 <Upload className="w-4 h-4 mr-2" />
                 Upload DIDs
               </Button>
-              <Button onClick={() => setIsAdding(!isAdding)} variant="primary">
+              <Button onClick={() => setIsAdding(!isAdding)} variant="default">
                 <Plus className="w-4 h-4 mr-2" />
                 Add DID
               </Button>
@@ -387,7 +383,7 @@ export default function DIDsPage() {
                     </Button>
                     <Button
                       type="submit"
-                      variant="primary"
+                      variant="default"
                       isLoading={addForm.formState.isSubmitting}
                     >
                       Add DID
@@ -455,7 +451,7 @@ export default function DIDsPage() {
                     </Button>
                     <Button
                       type="submit"
-                      variant="primary"
+                      variant="default"
                       isLoading={editForm.formState.isSubmitting}
                     >
                       Save Changes
@@ -540,7 +536,7 @@ export default function DIDsPage() {
                       </Button>
                       <Button
                         type="submit"
-                        variant="primary"
+                        variant="default"
                         isLoading={uploadIsLoading}
                       >
                         Upload DIDs
@@ -586,7 +582,7 @@ export default function DIDsPage() {
                       </Button>
                       <Button
                         type="button"
-                        variant="primary"
+                        variant="default"
                         isLoading={uploadIsLoading}
                         disabled={!uploadForm.watch('fileContent') || uploadIsLoading}
                         onClick={() => {
@@ -614,7 +610,7 @@ export default function DIDsPage() {
                 <div className="flex items-center space-x-4">
                   {selectedDIDs.length > 0 && (
                     <Button
-                      variant="danger"
+                      variant="destructive"
                       onClick={handleBulkDelete}
                       isLoading={isDeleting}
                       disabled={isDeleting}
@@ -826,7 +822,7 @@ export default function DIDsPage() {
                           Previous
                         </button>
                         {[...Array(Math.min(5, totalPages))].map((_, i) => {
-                          let pageNum;
+                          let pageNum: number;
                           if (totalPages <= 5) {
                             pageNum = i + 1;
                           } else if (currentPage <= 3) {

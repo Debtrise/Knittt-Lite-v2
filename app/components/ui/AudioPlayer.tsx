@@ -113,7 +113,7 @@ export default function AudioPlayer({
             toast.error('No audio available for playback');
             return;
           }
-          toast.info('Streaming unavailable, using local file');
+          toast('ℹ️ Streaming unavailable, using local file');
         }
       }
 

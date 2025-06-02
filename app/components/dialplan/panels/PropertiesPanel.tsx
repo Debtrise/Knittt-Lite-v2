@@ -507,7 +507,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         </div>
         
         <Button
-          variant="primary"
+          variant="brand"
           fullWidth={true}
           onClick={handleSave}
         >

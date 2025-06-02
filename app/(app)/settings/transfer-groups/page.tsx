@@ -31,6 +31,8 @@ import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Phone, Settings } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 
+type TransferGroupType = 'roundrobin' | 'simultaneous' | 'priority' | 'percentage';
+
 interface TransferNumber {
   id: string;
   phoneNumber: string;
@@ -56,7 +58,7 @@ interface TransferGroup {
   description: string;
   brand: string | null;
   ingroup: string | null;
-  type: 'roundrobin' | 'simultaneous' | 'priority' | 'percentage';
+  type: TransferGroupType;
   isActive: boolean;
   settings: {
     ringTimeout: number;
@@ -77,7 +79,7 @@ export default function TransferGroupsPage() {
     description: '',
     brand: '',
     ingroup: '',
-    type: 'roundrobin' as const,
+    type: 'roundrobin' as TransferGroupType,
     isActive: true,
     settings: {
       ringTimeout: 30,

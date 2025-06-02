@@ -212,7 +212,7 @@ export default function EnhancedPreview({
         
         setCurrentPreview(mockPreview);
         onPreviewReady?.(mockPreview);
-        toast.info(`Preview interface ready! (${mockPreview.characterCount} characters) - Backend endpoints needed for audio`);
+        toast('ℹ️ Preview interface ready! (' + mockPreview.characterCount + ' characters) - Backend endpoints needed for audio');
       } else if (error.response?.status === 500 && error.response?.data?.error?.includes('API key not configured')) {
         toast.error('ElevenLabs API key not configured. Please configure it in the Settings page.');
       } else {
@@ -296,7 +296,7 @@ export default function EnhancedPreview({
     if (streamUrl === '#') {
       // Simulate playback for demo purposes
       setPlayingPreview(previewId);
-      toast.info('🎵 Demo playback - Audio will work when backend is implemented');
+      toast('🎵 Demo playback - Audio will work when backend is implemented');
       
       // Auto-stop after 3 seconds to simulate playback
       setTimeout(() => {
@@ -350,7 +350,7 @@ export default function EnhancedPreview({
   const downloadPreview = async (previewId: string, voiceName?: string) => {
     // Check if this is a mock preview
     if (previewId.includes('_mock')) {
-      toast.info('Download requires backend implementation');
+      toast('ℹ️ Download requires backend implementation');
       return;
     }
 

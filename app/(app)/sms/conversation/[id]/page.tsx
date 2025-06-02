@@ -1,184 +1,112 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import toast from 'react-hot-toast';
-import { ArrowLeft, Send } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import { Button } from '@/app/components/ui/button';
-import { Input } from '@/app/components/ui/Input';
-import {
-  getContactConversation,
-  sendContactReply
-} from '@/app/utils/api';
-import { useAuthStore } from '@/app/store/authStore';
-import { SmsContact, SmsMessage } from '@/app/types/sms';
+import api from '@/app/lib/api';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { SendIcon } from 'lucide-react';
+
+type Message = {
+  id: number;
+  content: string;
+  direction: 'inbound' | 'outbound';
+  timestamp: string;
+  status: 'sent' | 'delivered' | 'failed';
+};
 
 export default function ConversationPage() {
   const params = useParams();
-  const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
-  const [contact, setContact] = useState<SmsContact | null>(null);
-  const [messages, setMessages] = useState<SmsMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [replyText, setReplyText] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  
-  const contactId = parseInt(params.id as string, 10);
+  const conversationId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login');
-      return;
-    }
+    const fetchMessages = async () => {
+      try {
+        const response = await api.sms.getConversation(conversationId);
+        setMessages(response.data);
+      } catch (error) {
+        console.error('Error fetching messages:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    fetchConversation();
-    
-    // Set up auto-refresh every 10 seconds
-    const refreshInterval = setInterval(() => {
-      fetchConversation(false);
-    }, 10000);
-    
-    return () => clearInterval(refreshInterval);
-  }, [isAuthenticated, router, contactId]);
-  
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    fetchMessages();
+  }, [conversationId]);
 
-  const fetchConversation = async (showLoading = true) => {
-    if (showLoading) setIsLoading(true);
-    try {
-      const data = await getContactConversation(contactId);
-      setContact(data.contact);
-      setMessages(data.messages);
-    } catch (error) {
-      console.error('Error fetching conversation:', error);
-      toast.error('Failed to load conversation');
-    } finally {
-      if (showLoading) setIsLoading(false);
-    }
-  };
-  
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const handleSendMessage = () => {
+    if (!newMessage.trim()) return;
+
+    const message: Message = {
+      id: Date.now(),
+      content: newMessage,
+      direction: 'outbound',
+      timestamp: new Date().toISOString(),
+      status: 'sent'
+    };
+
+    setMessages([...messages, message]);
+    setNewMessage('');
   };
 
-  const handleSendReply = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!replyText.trim()) {
-      toast.error('Please enter a message');
-      return;
-    }
-    
-    setIsSending(true);
-    try {
-      const data = await sendContactReply(contactId, replyText);
-      // Add the new message to the list
-      setMessages([...messages, data.sentMessage]);
-      setReplyText('');
-      toast.success('Reply sent');
-    } catch (error) {
-      console.error('Error sending reply:', error);
-      toast.error('Failed to send reply');
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  const formatMessageDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + 
-      ' ' + date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  };
-
-  if (!isAuthenticated) {
-    return null;
+  if (loading) {
+    return <div>Loading...</div>;
   }
 
   return (
     <DashboardLayout>
-      <div className="py-6 h-full flex flex-col">
-        <div className="flex items-center mb-6">
-          <Button
-            variant="ghost"
-            onClick={() => router.back()}
-            className="mr-4"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">
-              {contact?.name || 'Contact'} 
-            </h1>
-            <p className="text-sm text-gray-500">{contact?.phone}</p>
-          </div>
-        </div>
-
-        {isLoading ? (
-          <div className="flex-grow flex justify-center items-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
-          </div>
-        ) : (
-          <>
-            <div className="flex-grow bg-white shadow overflow-hidden sm:rounded-lg p-4 mb-4 overflow-y-auto">
-              <div className="space-y-4">
-                {messages.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    No messages in this conversation yet
-                  </div>
-                ) : (
-                  messages.map((message) => (
-                    <div 
-                      key={message.id} 
-                      className={`flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div 
-                        className={`max-w-xs sm:max-w-sm md:max-w-md rounded-lg px-4 py-2 
-                          ${message.direction === 'outbound' 
-                            ? 'bg-brand text-white rounded-br-none' 
-                            : 'bg-gray-200 text-gray-900 rounded-bl-none'}`}
-                      >
-                        <div className="text-sm">{message.content}</div>
-                        <div className={`text-xs mt-1 ${message.direction === 'outbound' ? 'text-blue-100' : 'text-gray-500'}`}>
-                          {formatMessageDate(message.sentAt)}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-            </div>
-
-            <div className="bg-white shadow sm:rounded-lg p-4">
-              <form onSubmit={handleSendReply} className="flex space-x-2">
-                <div className="flex-grow">
-                  <Input
-                    type="text"
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Type your reply..."
-                    disabled={isSending}
-                    className="w-full"
-                    autoFocus
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  isLoading={isSending}
-                  disabled={isSending || !replyText.trim()}
+      <div className="container mx-auto py-6">
+        <h1 className="text-2xl font-bold mb-6">Conversation</h1>
+        <Card className="h-[calc(100vh-12rem)]">
+          <CardHeader>
+            <CardTitle>Messages</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto space-y-4 mb-4">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${
+                    message.direction === 'outbound' ? 'justify-end' : 'justify-start'
+                  }`}
                 >
-                  <Send className="h-4 w-4 mr-2" />
-                  Send
-                </Button>
-              </form>
+                  <div
+                    className={`max-w-[70%] rounded-lg p-3 ${
+                      message.direction === 'outbound'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted'
+                    }`}
+                  >
+                    <p>{message.content}</p>
+                    <p className="text-xs mt-1 opacity-70">
+                      {new Date(message.timestamp).toLocaleTimeString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
-          </>
-        )}
+            <div className="flex gap-2">
+              <Input
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Type a message..."
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSendMessage();
+                  }
+                }}
+              />
+              <Button onClick={handleSendMessage}>
+                <SendIcon className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

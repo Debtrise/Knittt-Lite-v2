@@ -12,15 +12,19 @@ import api from '@/app/lib/api';
 
 const EmailEditor = dynamic(() => import('react-email-editor'), { ssr: false });
 
+type TemplateType = 'sms' | 'email' | 'script' | 'voicemail' | 'transfer';
+
 const TEMPLATE_TYPES = [
   { label: 'SMS', value: 'sms' },
   { label: 'Email', value: 'email' },
   { label: 'Script', value: 'script' },
+  { label: 'Voicemail', value: 'voicemail' },
+  { label: 'Transfer', value: 'transfer' },
 ];
 
 export default function NewTemplatePage() {
   const router = useRouter();
-  const [type, setType] = useState('sms');
+  const [type, setType] = useState<TemplateType>('sms');
   const [name, setName] = useState('');
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
@@ -48,8 +52,11 @@ export default function NewTemplatePage() {
   const finishSave = (templateContent: string) => {
     api.templates.create({
       name,
-      content: templateContent,
+      description: '',
       type,
+      categoryId: 1,
+      content: templateContent,
+      isActive: true,
     })
       .then(() => {
         toast.success('Template created successfully');
@@ -76,7 +83,7 @@ export default function NewTemplatePage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
             <select
               value={type}
-              onChange={e => setType(e.target.value)}
+              onChange={e => setType(e.target.value as TemplateType)}
               className="border rounded px-3 py-2 w-full"
               required
             >
@@ -141,7 +148,7 @@ export default function NewTemplatePage() {
           )}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => router.push('/templates')}>Cancel</Button>
-            <Button type="submit" variant="primary" disabled={saving}>
+            <Button type="submit" variant="brand" disabled={saving}>
               {saving ? 'Saving...' : 'Save Template'}
             </Button>
           </div>
