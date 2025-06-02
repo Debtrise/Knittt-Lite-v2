@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Save, Trash2, Eye } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
 import { Label } from '@/app/components/ui/label';
 import { Textarea } from '@/app/components/ui/textarea';

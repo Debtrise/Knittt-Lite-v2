@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
 import { useAuthStore } from '@/app/store/authStore';
 import api from '@/app/lib/api';

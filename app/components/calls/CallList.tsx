@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { List } from 'lucide-react';
 
 type Call = {

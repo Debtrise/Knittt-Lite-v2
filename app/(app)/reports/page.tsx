@@ -9,7 +9,7 @@ import {
   Filter, Search, ChevronDown, ChevronRight, Eye, Mail, Database, PieChart, Activity
 } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { 
   getDailyReport, 
   getJourneyStatistics, 

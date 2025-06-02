@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { MessageSquare, Trash2, Plus, Play, Pause, Upload, Clock, Edit, Phone, Settings, Send, Users, History, MessageCircle } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
 import { Textarea } from '@/app/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';

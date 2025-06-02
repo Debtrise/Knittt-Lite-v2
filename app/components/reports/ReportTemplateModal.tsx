@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Save, Calendar, Clock, Mail, FileText } from 'lucide-react';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { createReportTemplate, updateReportTemplate } from '@/app/utils/api';
 import toast from 'react-hot-toast';
 

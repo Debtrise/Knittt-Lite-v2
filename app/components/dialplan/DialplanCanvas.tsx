@@ -23,7 +23,7 @@ import 'reactflow/dist/style.css';
 import { DialplanNode, DialplanEdge, NodeType, DialplanConnection } from '@/app/types/dialplan';
 import CustomNode from './nodes/CustomNode';
 import CustomEdge from './edges/CustomEdge';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { Plus, Save, AlignJustify, X } from 'lucide-react';
 import NodePalette from './panels/NodePalette';
 import PropertiesPanel from './panels/PropertiesPanel';

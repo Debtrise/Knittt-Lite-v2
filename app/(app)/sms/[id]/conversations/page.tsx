@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { MessageSquare, Send, ArrowLeft, AlertCircle, Smile, CheckCircle, MessageCircle } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import {

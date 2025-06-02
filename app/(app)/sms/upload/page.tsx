@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Check, AlertTriangle, UploadCloud, Table, X } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { useAuthStore } from '@/app/store/authStore';
 import { previewCsv, importContactsSimplified, listSmsCampaigns, getSmsCampaignDetails } from '@/app/utils/api';
 import { CsvPreview, SmsCampaign } from '@/app/types/sms';

@@ -6,7 +6,7 @@ import { Toaster } from "react-hot-toast";
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "Knitt | Dialer & Lead Management Platform",
+  title: "Knittt | Dialer & Lead Management Platform",
   description: "Powerful call center and lead management solution for growing businesses",
   icons: {
     icon: '/favicon.ico',

@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { Upload, User, CheckCircle, XCircle, PhoneOutgoing, Filter, Trash2, Edit, AlertTriangle, Tag } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
 import { Badge } from '@/app/components/ui/badge';
 import api from '@/app/lib/api';

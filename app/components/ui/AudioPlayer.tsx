@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Button } from './button';
+import Button from './button';
 import { Play, Pause, Download, Volume2, VolumeX } from 'lucide-react';
 import { recordings } from '@/app/lib/api';
 import { toast } from 'sonner';

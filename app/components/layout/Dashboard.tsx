@@ -75,11 +75,13 @@ function DashboardLayout({ children }: { children: React.ReactNode }): JSX.Eleme
               <div className="flex-shrink-0 flex items-center justify-center px-4">
                 <div className="h-10 w-auto relative">
                   <Image 
-                    src="/logo.png" 
-                    alt="Knitt Logo" 
+                    src="./logo.png" 
+                    alt="Knittt Logo" 
                     width={120} 
                     height={40} 
                     className="w-auto h-10"
+                    priority
+                    unoptimized
                   />
                 </div>
               </div>
@@ -146,6 +148,8 @@ function DashboardLayout({ children }: { children: React.ReactNode }): JSX.Eleme
                   width={150} 
                   height={50} 
                   className="w-auto h-12"
+                  priority
+                  unoptimized
                 />
               </div>
             </div>

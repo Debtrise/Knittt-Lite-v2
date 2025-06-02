@@ -1,18 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Build configuration - Completely disable linting and type checking
-  eslint: {
-    ignoreDuringBuilds: true,
-    dirs: [], // Disable ESLint for all directories
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-    ignoreBuildWarnings: true,
-  },
-  
-  // Skip type checking entirely during build
-  swcMinify: true,
-
   // Additional security and performance configurations
   async headers() {
     return [
@@ -48,7 +35,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Access-Control-Allow-Origin',
-            value: 'https://app.knittt.com',
+            value: 'https://contact.knittt.com',
           },
           {
             key: 'Access-Control-Allow-Methods',
@@ -80,7 +67,7 @@ const nextConfig = {
             value: 'http',
           },
         ],
-        destination: 'https://app.knittt.com/:path*',
+        destination: 'https://contact.knittt.com/:path*',
         permanent: true,
       },
     ];
@@ -97,13 +84,14 @@ const nextConfig = {
     ];
   },
 
-  // Image optimization settings (fixed deprecation warning)
+  // Image optimization settings
   images: {
+    domains: ['contact.knittt.com', 'api.knittt.com'],
     formats: ['image/webp', 'image/avif'],
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'app.knittt.com',
+        hostname: 'contact.knittt.com',
       },
       {
         protocol: 'https',
@@ -114,10 +102,9 @@ const nextConfig = {
 
   // Experimental features
   experimental: {
-    forceSwcTransforms: true, // Force SWC instead of TypeScript compiler
-    typedRoutes: false, // Skip type checking
+    // Enable if you need server actions (Next.js 14+)
     serverActions: {
-      allowedOrigins: ['app.knittt.com', 'api.knittt.com'],
+      allowedOrigins: ['contact.knittt.com', 'api.knittt.com'],
     },
   },
 
@@ -135,14 +122,6 @@ const nextConfig = {
 
   // Webpack configuration for production optimizations
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
-    // Fix case sensitivity issues
-    config.resolve.alias = {
-      ...config.resolve.alias,
-    };
-    
-    // Ignore case sensitivity in module resolution
-    config.resolve.extensions = ['.tsx', '.ts', '.jsx', '.js', '.json'];
-    
     // Production optimizations
     if (!dev) {
       config.optimization.splitChunks = {

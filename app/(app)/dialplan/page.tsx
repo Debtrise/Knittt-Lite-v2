@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Plus, Edit, Trash2, Copy, Eye, Play } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
 import { getProjects, createProject, deleteProject, cloneProject, checkDialplanCapabilities } from '@/app/utils/dialplanApi';
 import { DialplanProject, DialplanCapabilities } from '@/app/types/dialplan';

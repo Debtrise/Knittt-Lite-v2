@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
-import { Button } from '@/app/components/ui/button';
+import Button from '@/app/components/ui/button';
 import {
   Card,
   CardContent,
