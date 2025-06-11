@@ -24,11 +24,13 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
     { name: 'Leads', href: '/leads', icon: <Users className="w-6 h-6" /> },
     { name: 'Journeys', href: '/journeys', icon: <Route className="w-6 h-6" /> },
     { name: 'Calls', href: '/calls', icon: <Phone className="w-6 h-6" /> },
+    { name: 'SMS Campaigns', href: '/sms/campaigns', icon: <MessageSquare className="w-6 h-6" /> },
     { name: 'DIDs', href: '/dids', icon: <Layers className="w-6 h-6" /> },
     { name: 'Transfer Groups', href: '/settings/transfer-groups', icon: <GitBranch className="w-6 h-6" /> },
     { name: 'Templates', href: '/templates', icon: <FileText className="w-6 h-6" /> },
     { name: 'Webhooks', href: '/webhooks', icon: <Link2 className="w-6 h-6" /> },
     { name: 'Reports', href: '/reports', icon: <FileText className="w-6 h-6" /> },
+    { name: 'Config', href: '/config', icon: <Settings className="w-6 h-6" /> },
     { name: 'Settings', href: '/settings', icon: <Settings className="w-6 h-6" />, adminOnly: true },
     { name: 'Users', href: '/settings/users', icon: <Users className="w-6 h-6" />, adminOnly: true },
   ];
@@ -58,7 +60,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
           />
 
           <div
-            className={`relative flex-1 flex flex-col max-w-xs w-full sidebar-brand ${
+            className={`relative flex-1 flex flex-col max-w-xs w-full bg-[#404040] ${
               sidebarOpen ? 'translate-x-0' : '-translate-x-full'
             }`}
           >
@@ -136,7 +138,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
 
       {/* Static sidebar for desktop */}
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0">
-        <div className="flex-1 flex flex-col min-h-0 sidebar-brand">
+        <div className="flex-1 flex flex-col min-h-0 bg-[#404040]">
           <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
             <div className="flex items-center justify-center flex-shrink-0 px-4">
               <div className="h-12 w-auto relative">

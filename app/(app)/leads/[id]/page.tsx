@@ -21,6 +21,7 @@ type LeadDetail = {
   callDurations?: number[];
   additionalData?: Record<string, any>;
   tags?: string[];
+  activeJourneys?: { journeyName: string }[];
 };
 
 type Call = {
@@ -227,93 +228,75 @@ export default function LeadDetailPage() {
         ) : (
           <div className="space-y-6">
             {/* Lead Information Card */}
-            <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-              <div className="px-4 py-5 sm:px-6 flex justify-between">
+            <div className="bg-white shadow rounded-lg p-6 w-full">
+              <h2 className="text-lg font-semibold mb-4">Lead Overview</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">Lead Information</h3>
-                  <p className="mt-1 max-w-2xl text-sm text-gray-500">Personal details and call statistics.</p>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <User className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm text-gray-500">Name</span>
+                  </div>
+                  <p className="text-base font-medium">{leadDetails.lead.name}</p>
                 </div>
                 <div>
-                  <span 
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(leadDetails.lead.status)}`}
-                  >
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Phone className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm text-gray-500">Phone</span>
+                  </div>
+                  <p className="text-base font-medium">{leadDetails.lead.phone}</p>
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Mail className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm text-gray-500">Email</span>
+                  </div>
+                  <p className="text-base font-medium">{leadDetails.lead.email || 'N/A'}</p>
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <span className="text-sm text-gray-500">Status</span>
+                  </div>
+                  <Badge className={getStatusColor(leadDetails.lead.status)}>
                     {leadDetails.lead.status}
-                  </span>
+                  </Badge>
                 </div>
-              </div>
-              <div className="border-t border-gray-200">
-                <dl>
-                  <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                    <dt className="text-sm font-medium text-gray-500 flex items-center">
-                      <User className="h-5 w-5 mr-2 text-gray-400" />
-                      Full Name
-                    </dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                      {leadDetails.lead.name || 'Not provided'}
-                    </dd>
+                <div>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Clock className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm text-gray-500">Lead Age</span>
                   </div>
-                  <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                    <dt className="text-sm font-medium text-gray-500 flex items-center">
-                      <Phone className="h-5 w-5 mr-2 text-gray-400" />
-                      Phone Number
-                    </dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                      {leadDetails.lead.phone}
-                    </dd>
+                  <p className="text-base font-medium">{formatLeadAge(calculateLeadAge(leadDetails.lead.createdAt))}</p>
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Tag className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm text-gray-500">Tags</span>
                   </div>
-                  <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                    <dt className="text-sm font-medium text-gray-500 flex items-center">
-                      <Mail className="h-5 w-5 mr-2 text-gray-400" />
-                      Email Address
-                    </dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                      {leadDetails.lead.email || 'Not provided'}
-                    </dd>
+                  <div className="flex flex-wrap gap-2">
+                    {formatTags(leadDetails.lead).length > 0 ? (
+                      formatTags(leadDetails.lead).map((tag, index) => (
+                        <Badge key={index} variant="outline">{tag}</Badge>
+                      ))
+                    ) : (
+                      <span className="text-base">None</span>
+                    )}
                   </div>
-                  <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                    <dt className="text-sm font-medium text-gray-500 flex items-center">
-                      <Clock className="h-5 w-5 mr-2 text-gray-400" />
-                      Lead Age
-                    </dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                      {leadDetails.lead.createdAt ? formatLeadAge(calculateLeadAge(leadDetails.lead.createdAt)) : 'Not available'}
-                    </dd>
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <File className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm text-gray-500">Active Journeys</span>
                   </div>
-                  <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                    <dt className="text-sm font-medium text-gray-500 flex items-center">
-                      <Tag className="h-5 w-5 mr-2 text-gray-400" />
-                      Tags
-                    </dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                      {formatTags(leadDetails.lead).length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {formatTags(leadDetails.lead).map((tag, index) => (
-                            <Badge key={index} variant="outline" className="text-xs">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-gray-500">No tags</span>
-                      )}
-                    </dd>
+                  <div className="flex flex-wrap gap-2">
+                    {leadDetails.lead.activeJourneys && leadDetails.lead.activeJourneys.length > 0 ? (
+                      leadDetails.lead.activeJourneys.map((journey, index) => (
+                        <Badge key={index} variant="outline">{journey.journeyName}</Badge>
+                      ))
+                    ) : (
+                      <span className="text-base">None</span>
+                    )}
                   </div>
-                  {leadDetails.lead.additionalData && Object.keys(leadDetails.lead.additionalData).length > 0 && 
-                    Object.entries(leadDetails.lead.additionalData)
-                      .filter(([key]) => key !== 'tags' && key !== 'leadTags') // Filter out tags since we display them separately
-                      .map(([key, value], index) => (
-                      <div key={key} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6`}>
-                        <dt className="text-sm font-medium text-gray-500 flex items-center">
-                          <File className="h-5 w-5 mr-2 text-gray-400" />
-                          {key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}
-                        </dt>
-                        <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                        </dd>
-                      </div>
-                    ))
-                  }
-                </dl>
+                </div>
               </div>
             </div>
 

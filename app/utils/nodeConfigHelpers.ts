@@ -12,11 +12,11 @@ export const getActionTypeParams = (actionType: JourneyActionType): ParamDefinit
     case 'call':
       return [
         {
-          id: 'transferNumber',
-          name: 'Transfer Number',
+          id: 'dialerContext',
+          name: 'Dialer Context',
           type: 'string',
           required: false,
-          description: 'Direct transfer number (leave empty to use transfer group)'
+          description: 'JSON configuration for the dialer (if provided, other fields will be disabled except transfer group)'
         },
         {
           id: 'transferGroupId',
@@ -24,6 +24,13 @@ export const getActionTypeParams = (actionType: JourneyActionType): ParamDefinit
           type: 'transfer_group_select',
           required: false,
           description: 'Select a transfer group for routing'
+        },
+        {
+          id: 'transferNumber',
+          name: 'Transfer Number',
+          type: 'string',
+          required: false,
+          description: 'Direct transfer number (leave empty to use transfer group)'
         },
         {
           id: 'scriptId',
@@ -179,6 +186,113 @@ export const getActionTypeParams = (actionType: JourneyActionType): ParamDefinit
           type: 'string',
           required: false,
           description: 'Sender phone number (leave empty for default)'
+        },
+        {
+          id: 'trackClicks',
+          name: 'Track Clicks',
+          type: 'boolean',
+          required: false,
+          default: true,
+          description: 'Whether to track link clicks'
+        },
+        {
+          id: 'optOutMessage',
+          name: 'Include Opt-Out',
+          type: 'boolean',
+          required: false,
+          default: true,
+          description: 'Include opt-out instructions'
+        }
+      ];
+      
+    case 'sms_twilio':
+      return [
+        {
+          id: 'message',
+          name: 'Message',
+          type: 'string',
+          required: false,
+          description: 'SMS text (supports variables) - leave empty to use template'
+        },
+        {
+          id: 'templateId',
+          name: 'SMS Template',
+          type: 'template_select',
+          templateType: 'sms',
+          required: false,
+          description: 'Select an SMS template (alternative to message)'
+        },
+        {
+          id: 'from',
+          name: 'From Number',
+          type: 'string',
+          required: false,
+          description: 'Sender phone number (leave empty for Twilio default)'
+        },
+        {
+          id: 'statusCallback',
+          name: 'Status Callback URL',
+          type: 'string',
+          required: false,
+          description: 'Custom status callback URL for this message'
+        },
+        {
+          id: 'trackClicks',
+          name: 'Track Clicks',
+          type: 'boolean',
+          required: false,
+          default: true,
+          description: 'Whether to track link clicks'
+        },
+        {
+          id: 'optOutMessage',
+          name: 'Include Opt-Out',
+          type: 'boolean',
+          required: false,
+          default: true,
+          description: 'Include opt-out instructions'
+        }
+      ];
+      
+    case 'sms_meera':
+      return [
+        {
+          id: 'message',
+          name: 'Message',
+          type: 'string',
+          required: false,
+          description: 'SMS text (supports variables) - leave empty to use template'
+        },
+        {
+          id: 'templateId',
+          name: 'SMS Template',
+          type: 'template_select',
+          templateType: 'sms',
+          required: false,
+          description: 'Select an SMS template (alternative to message)'
+        },
+        {
+          id: 'from',
+          name: 'From Number',
+          type: 'string',
+          required: false,
+          description: 'Sender phone number (leave empty for Meera default)'
+        },
+        {
+          id: 'enableUnicode',
+          name: 'Enable Unicode',
+          type: 'boolean',
+          required: false,
+          default: true,
+          description: 'Enable Unicode characters for this message'
+        },
+        {
+          id: 'maxSegments',
+          name: 'Max Segments',
+          type: 'number',
+          required: false,
+          default: 4,
+          description: 'Maximum number of SMS segments'
         },
         {
           id: 'trackClicks',

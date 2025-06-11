@@ -72,6 +72,8 @@ export interface ParamDefinition {
 export type JourneyActionType = 
   'call' | 
   'sms' | 
+  'sms_twilio' |
+  'sms_meera' |
   'email' | 
   'status_change' | 
   'tag_update' | 

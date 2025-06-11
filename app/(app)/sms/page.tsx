@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { MessageSquare, Trash2, Plus, Play, Pause, Upload, Clock, Edit, Phone, Settings, Send, Users, History, MessageCircle } from 'lucide-react';
+import { MessageSquare, Phone, Settings, Send, Users, History, MessageCircle, Zap } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
@@ -12,73 +12,43 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { Badge } from '@/app/components/ui/badge';
-import {
-  listSmsCampaigns,
-  createSmsCampaign,
-  pauseSmsCampaign,
-  startSmsCampaign,
-  updateSmsCampaignRateLimit,
-  configureAutoReply,
-  listTwilioNumbers,
-  addTwilioNumber,
-  uploadTwilioNumbers,
-  deleteTwilioNumber,
-  bulkDeleteTwilioNumbers
-} from '@/app/utils/api';
+import { Alert, AlertDescription } from '@/app/components/ui/alert';
+import { Separator } from '@/app/components/ui/separator';
 import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
-import { SmsCampaign, CreateSmsCampaignData, TwilioNumber } from '@/app/types/sms';
+import { SmsMessagingService, SmsProviderService } from '@/app/lib/sms-campaigns';
+import { 
+  SmsProvidersResponse, 
+  SendSmsRequest, 
+  TwilioNumber 
+} from '@/app/types/sms';
 
 export default function SmsPage() {
   const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState('campaigns');
+  const [activeTab, setActiveTab] = useState('messaging');
   
-  // Campaign state
-  const [campaigns, setCampaigns] = useState<SmsCampaign[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [newCampaign, setNewCampaign] = useState<CreateSmsCampaignData>({
-    name: '',
-    messageTemplate: '',
-    rateLimit: 60,
-  });
+  // Provider state
+  const [providers, setProviders] = useState<SmsProvidersResponse | null>(null);
+  const [loadingProviders, setLoadingProviders] = useState(true);
 
   // Twilio numbers state
-  const [showTwilioForm, setShowTwilioForm] = useState(false);
-  const [isAddingTwilio, setIsAddingTwilio] = useState(false);
   const [twilioNumbers, setTwilioNumbers] = useState<TwilioNumber[]>([]);
-  const [selectedTwilioNumbers, setSelectedTwilioNumbers] = useState<number[]>([]);
-  const [newTwilioNumber, setNewTwilioNumber] = useState({
-    phoneNumber: '',
-    accountSid: '',
-    authToken: '',
-  });
 
   // SMS messaging state
   const [conversations, setConversations] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<any>(null);
-  const [newMessage, setNewMessage] = useState({
+  const [newMessage, setNewMessage] = useState<SendSmsRequest>({
     to: '',
     body: '',
-    templateId: '',
     from: '',
+    provider: undefined,
+    metadata: undefined,
   });
   const [isSending, setIsSending] = useState(false);
-
-  // Configuration state
-  const [twilioConfig, setTwilioConfig] = useState({
-    accountSid: '',
-    authToken: '',
-    defaultFromNumber: '',
-    settings: {},
-    rateLimits: {},
-  });
-  const [isTestingConnection, setIsTestingConnection] = useState(false);
-  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [isTestingProvider, setIsTestingProvider] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -86,31 +56,29 @@ export default function SmsPage() {
       return;
     }
 
-    fetchCampaigns();
+    loadProviders();
     fetchTwilioNumbers();
     fetchConversations();
     fetchTemplates();
-    fetchTwilioConfig();
   }, [isAuthenticated, router]);
 
-  const fetchCampaigns = async () => {
-    setIsLoading(true);
+  const loadProviders = async () => {
     try {
-      const data = await listSmsCampaigns();
-      setCampaigns(data.campaigns || []);
+      setLoadingProviders(true);
+      const providerData = await SmsProviderService.getProviders();
+      setProviders(providerData);
     } catch (error) {
-      console.error('Error fetching SMS campaigns:', error);
-      toast.error('Failed to load SMS campaigns');
-      setCampaigns([]);
+      console.error('Error loading providers:', error);
+      toast.error('Failed to load SMS providers');
     } finally {
-      setIsLoading(false);
+      setLoadingProviders(false);
     }
   };
 
   const fetchTwilioNumbers = async () => {
     try {
-      const data = await listTwilioNumbers();
-      setTwilioNumbers(data || []);
+      const response = await api.sms.listNumbers();
+      setTwilioNumbers(response.data?.numbers || []);
     } catch (error) {
       console.error('Error fetching Twilio numbers:', error);
       toast.error('Failed to load Twilio numbers');
@@ -137,48 +105,25 @@ export default function SmsPage() {
     }
   };
 
-  const fetchTwilioConfig = async () => {
-    try {
-      const response = await api.sms.getConfig();
-      setTwilioConfig(response.data || {
-        accountSid: '',
-        authToken: '',
-        defaultFromNumber: '',
-        settings: {},
-        rateLimits: {},
-      });
-    } catch (error) {
-      console.error('Error fetching Twilio config:', error);
-    }
-  };
-
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!newMessage.to || (!newMessage.body && !newMessage.templateId)) {
-      toast.error('Please fill in recipient and message or select a template');
+    if (!newMessage.to || !newMessage.body) {
+      toast.error('Please fill in recipient and message');
       return;
     }
     
     setIsSending(true);
     try {
-      if (newMessage.templateId) {
-        await api.sms.sendTemplate({
-          to: newMessage.to,
-          templateId: parseInt(newMessage.templateId),
-          variables: {},
-          from: newMessage.from || undefined,
-        });
-      } else {
-        await api.sms.send({
-          to: newMessage.to,
-          body: newMessage.body,
-          from: newMessage.from || undefined,
-        });
-      }
-      
+      await SmsMessagingService.sendSms(newMessage);
       toast.success('Message sent successfully');
-      setNewMessage({ to: '', body: '', templateId: '', from: '' });
+      setNewMessage({ 
+        to: '', 
+        body: '', 
+        from: '', 
+        provider: undefined,
+        metadata: undefined 
+      });
       fetchConversations();
     } catch (error) {
       console.error('Error sending message:', error);
@@ -188,217 +133,37 @@ export default function SmsPage() {
     }
   };
 
-  const handleTestTwilioConnection = async () => {
-    setIsTestingConnection(true);
+  const handleTestProvider = async (provider: 'twilio' | 'meera') => {
     try {
-      await api.sms.testConnection();
-      toast.success('Twilio connection test successful');
-    } catch (error) {
-      console.error('Error testing Twilio connection:', error);
-      toast.error('Twilio connection test failed');
-    } finally {
-      setIsTestingConnection(false);
-    }
-  };
-
-  const handleSaveTwilioConfig = async () => {
-    setIsSavingConfig(true);
-    try {
-      await api.sms.saveConfig(twilioConfig);
-      toast.success('Twilio configuration saved successfully');
-    } catch (error) {
-      console.error('Error saving Twilio config:', error);
-      toast.error('Failed to save Twilio configuration');
-    } finally {
-      setIsSavingConfig(false);
-    }
-  };
-
-  const handleSyncTwilioNumbers = async () => {
-    try {
-      await api.sms.syncNumbers();
-      toast.success('Twilio numbers synced successfully');
-      fetchTwilioNumbers();
-    } catch (error) {
-      console.error('Error syncing Twilio numbers:', error);
-      toast.error('Failed to sync Twilio numbers');
-    }
-  };
-
-  const handleCreateCampaign = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!newCampaign.name || !newCampaign.messageTemplate) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-    
-    setIsCreating(true);
-    try {
-      const campaign = await createSmsCampaign(newCampaign);
-      setCampaigns([...campaigns, campaign]);
-      toast.success('Campaign created successfully');
-      setShowCreateForm(false);
-      setNewCampaign({
-        name: '',
-        messageTemplate: '',
-        rateLimit: 60,
-      });
-    } catch (error) {
-      console.error('Error creating campaign:', error);
-      toast.error('Failed to create campaign');
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const handleAddTwilioNumber = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!newTwilioNumber.phoneNumber || !newTwilioNumber.accountSid || !newTwilioNumber.authToken) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-    
-    setIsAddingTwilio(true);
-    try {
-      const number = await addTwilioNumber(newTwilioNumber);
-      setTwilioNumbers([...twilioNumbers, number]);
-      toast.success('Twilio number added successfully');
-      setShowTwilioForm(false);
-      setNewTwilioNumber({
-        phoneNumber: '',
-        accountSid: '',
-        authToken: '',
-      });
-    } catch (error) {
-      console.error('Error adding Twilio number:', error);
-      toast.error('Failed to add Twilio number');
-    } finally {
-      setIsAddingTwilio(false);
-    }
-  };
-
-  const handleUploadTwilioNumbers = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('numbers', file);
-
-    try {
-      const result = await uploadTwilioNumbers(formData);
-      toast.success(`Uploaded ${result.message}`);
-      fetchTwilioNumbers();
-    } catch (error) {
-      console.error('Error uploading Twilio numbers:', error);
-      toast.error('Failed to upload Twilio numbers');
-    }
-  };
-
-  const handleDeleteSingleTwilioNumber = async (numberId: number) => {
-    if (window.confirm('Are you sure you want to delete this Twilio number? This might affect active campaigns. Reassign contacts?')) {
-      const reassign = window.confirm('Reassign contacts to another number?');
-      try {
-        const result = await deleteTwilioNumber(numberId, { reassign });
-        toast.success(result.message || 'Twilio number deleted');
-        fetchTwilioNumbers();
-      } catch (error) {
-        console.error('Error deleting Twilio number:', error);
-        toast.error('Failed to delete Twilio number');
+      setIsTestingProvider(provider);
+      
+      if (provider === 'twilio') {
+        const result = await SmsProviderService.testTwilioConnection();
+        if (result.success) {
+          toast.success(`Twilio connection successful! Found ${result.numberCount} phone numbers.`);
+        } else {
+          toast.error(`Twilio test failed: ${result.message}`);
+        }
+      } else if (provider === 'meera') {
+        const result = await SmsProviderService.testMeeraConnection();
+        if (result.success) {
+          toast.success(`Meera connection successful! Balance: ${result.balance} ${result.currency}`);
+        } else {
+          toast.error(`Meera test failed: ${result.message}`);
+        }
       }
-    }
-  };
-
-  const handleToggleTwilioSelection = (numberId: number) => {
-    setSelectedTwilioNumbers(prev => 
-      prev.includes(numberId) 
-        ? prev.filter(id => id !== numberId) 
-        : [...prev, numberId]
-    );
-  };
-
-  const handleBulkDeleteSelectedTwilioNumbers = async () => {
-    if (selectedTwilioNumbers.length === 0) {
-      toast.error('No numbers selected for deletion.');
-      return;
-    }
-    if (window.confirm(`Are you sure you want to delete ${selectedTwilioNumbers.length} Twilio number(s)? This might affect active campaigns.`)) {
-      try {
-        const result = await bulkDeleteTwilioNumbers(selectedTwilioNumbers);
-        toast.success(result.message || 'Selected Twilio numbers deleted');
-        setSelectedTwilioNumbers([]);
-        fetchTwilioNumbers();
-      } catch (error) {
-        console.error('Error bulk deleting Twilio numbers:', error);
-        toast.error('Failed to bulk delete Twilio numbers');
-      }
-    }
-  };
-
-  const handleStartCampaign = async (id: number) => {
-    try {
-      await startSmsCampaign(id);
-      fetchCampaigns();
-      toast.success('Campaign started');
     } catch (error) {
-      console.error('Error starting campaign:', error);
-      toast.error('Failed to start campaign');
+      console.error(`Error testing ${provider}:`, error);
+      toast.error(`Failed to test ${provider} connection`);
+    } finally {
+      setIsTestingProvider(null);
     }
-  };
-
-  const handlePauseCampaign = async (id: number) => {
-    try {
-      await pauseSmsCampaign(id);
-      fetchCampaigns();
-      toast.success('Campaign paused');
-    } catch (error) {
-      console.error('Error pausing campaign:', error);
-      toast.error('Failed to pause campaign');
-    }
-  };
-
-  const handleRateLimitChange = async (id: number, rateLimit: number) => {
-    try {
-      await updateSmsCampaignRateLimit(id, rateLimit);
-      fetchCampaigns();
-      toast.success('Rate limit updated');
-    } catch (error) {
-      console.error('Error updating rate limit:', error);
-      toast.error('Failed to update rate limit');
-    }
-  };
-
-  const handleAutoReplyChange = async (id: number, settings: { autoReplyEnabled: boolean; replyTemplate: string }) => {
-    try {
-      await configureAutoReply(id, settings);
-      fetchCampaigns();
-      toast.success('Auto-reply settings updated');
-    } catch (error) {
-      console.error('Error updating auto-reply settings:', error);
-      toast.error('Failed to update auto-reply settings');
-    }
-  };
-
-  const handleViewCampaign = (id: number) => {
-    router.push(`/sms/${id}/settings`);
   };
 
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/A';
-    const options: Intl.DateTimeFormatOptions = {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    };
-    return new Date(dateString).toLocaleDateString(undefined, options);
+    if (!dateString) return 'Never';
+    return new Date(dateString).toLocaleString();
   };
-
-  if (!isAuthenticated) {
-    return null;
-  }
 
   return (
     <DashboardLayout>
@@ -407,16 +172,16 @@ export default function SmsPage() {
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 flex items-center">
               <MessageSquare className="w-7 h-7 mr-2 text-blue-600" />
-              SMS Management
+              SMS Messaging
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Send messages, manage campaigns, and configure SMS settings
+              Send messages, manage conversations, and configure SMS providers
             </p>
           </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="messaging" className="flex items-center gap-2">
               <Send className="w-4 h-4" />
               Send Message
@@ -425,17 +190,13 @@ export default function SmsPage() {
               <MessageCircle className="w-4 h-4" />
               Conversations
             </TabsTrigger>
-            <TabsTrigger value="campaigns" className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              Campaigns
-            </TabsTrigger>
             <TabsTrigger value="numbers" className="flex items-center gap-2">
               <Phone className="w-4 h-4" />
               Phone Numbers
             </TabsTrigger>
-            <TabsTrigger value="config" className="flex items-center gap-2">
+            <TabsTrigger value="providers" className="flex items-center gap-2">
               <Settings className="w-4 h-4" />
-              Configuration
+              Provider Status
             </TabsTrigger>
           </TabsList>
 
@@ -445,36 +206,65 @@ export default function SmsPage() {
               <CardHeader>
                 <CardTitle>Send SMS Message</CardTitle>
                 <CardDescription>
-                  Send individual SMS messages or use templates
+                  Send a single SMS message using your configured providers
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                {/* Provider Status Alert */}
+                {providers && (
+                  <Alert className="mb-4">
+                    <Settings className="h-4 w-4" />
+                    <AlertDescription>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-medium">Default Provider:</span>
+                        <Badge variant="outline">{providers.defaultProvider}</Badge>
+                      </div>
+                      <div className="flex gap-2">
+                        <Badge 
+                          variant={providers.providers.twilio.configured ? "default" : "secondary"}
+                          className={providers.providers.twilio.configured ? "bg-green-100 text-green-700" : ""}
+                        >
+                          Twilio: {providers.providers.twilio.configured ? 'Ready' : 'Not configured'}
+                        </Badge>
+                        <Badge 
+                          variant={providers.providers.meera.configured ? "default" : "secondary"}
+                          className={providers.providers.meera.configured ? "bg-green-100 text-green-700" : ""}
+                        >
+                          Meera: {providers.providers.meera.configured ? 'Ready' : 'Not configured'}
+                        </Badge>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <form onSubmit={handleSendMessage} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        To (Phone Number)
+                        Recipient Phone Number
                       </label>
                       <Input
+                        type="tel"
                         value={newMessage.to}
-                        onChange={(e) => setNewMessage(prev => ({ ...prev, to: e.target.value }))}
+                        onChange={(e) => setNewMessage({ ...newMessage, to: e.target.value })}
                         placeholder="+1234567890"
                         required
                       />
                     </div>
+                    
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         From Number (Optional)
                       </label>
                       <Select
                         value={newMessage.from || 'default'}
-                        onValueChange={(value) => setNewMessage(prev => ({ ...prev, from: value === 'default' ? '' : value }))}
+                        onValueChange={(value) => setNewMessage({ ...newMessage, from: value === 'default' ? undefined : value })}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Use default number" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="default">Use default number</SelectItem>
+                          <SelectItem value="default">Use Default</SelectItem>
                           {twilioNumbers.map((number) => (
                             <SelectItem key={number.id} value={number.phoneNumber}>
                               {number.phoneNumber}
@@ -487,22 +277,26 @@ export default function SmsPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Template (Optional)
+                      Provider (Optional)
                     </label>
                     <Select
-                      value={newMessage.templateId || 'none'}
-                      onValueChange={(value) => setNewMessage(prev => ({ ...prev, templateId: value === 'none' ? '' : value }))}
+                      value={newMessage.provider || 'default'}
+                      onValueChange={(value) => setNewMessage({ 
+                        ...newMessage, 
+                        provider: value === 'default' ? undefined : value as 'twilio' | 'meera'
+                      })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a template or write custom message" />
+                        <SelectValue placeholder="Use default provider" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">No template</SelectItem>
-                        {templates.map((template) => (
-                          <SelectItem key={template.id} value={template.id.toString()}>
-                            {template.name}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="default">Use Default</SelectItem>
+                        {providers?.providers.twilio.configured && (
+                          <SelectItem value="twilio">Twilio</SelectItem>
+                        )}
+                        {providers?.providers.meera.configured && (
+                          <SelectItem value="meera">Meera</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -513,21 +307,31 @@ export default function SmsPage() {
                     </label>
                     <Textarea
                       value={newMessage.body}
-                      onChange={(e) => setNewMessage(prev => ({ ...prev, body: e.target.value }))}
-                      placeholder="Type your message here..."
+                      onChange={(e) => setNewMessage({ ...newMessage, body: e.target.value })}
+                      placeholder="Enter your SMS message..."
                       rows={4}
-                      disabled={!!newMessage.templateId}
+                      required
                     />
-                    {newMessage.templateId && (
-                      <p className="text-sm text-gray-500 mt-1">
-                        Template selected. Message will be generated from template.
-                      </p>
-                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Character count: {newMessage.body.length} | SMS segments: {Math.ceil(newMessage.body.length / 160)}
+                    </p>
                   </div>
 
-                  <Button type="submit" disabled={isSending} className="w-full">
-                    {isSending ? 'Sending...' : 'Send Message'}
-                  </Button>
+                  <div className="flex justify-between">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => router.push('/sms/templates')}
+                    >
+                      Use Template
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={isSending || !newMessage.to || !newMessage.body}
+                    >
+                      {isSending ? 'Sending...' : 'Send Message'}
+                    </Button>
+                  </div>
                 </form>
               </CardContent>
             </Card>
@@ -586,360 +390,155 @@ export default function SmsPage() {
             </Card>
           </TabsContent>
 
-          {/* Campaigns Tab */}
-          <TabsContent value="campaigns">
+          {/* Phone Numbers Tab */}
+          <TabsContent value="numbers">
+            <Card>
+              <CardHeader>
+                <CardTitle>Phone Numbers</CardTitle>
+                <CardDescription>
+                  Manage your SMS-enabled phone numbers
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {twilioNumbers.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Phone className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No phone numbers</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Configure your SMS providers to see available numbers.
+                    </p>
+                    <Button 
+                      onClick={() => router.push('/settings/sms-providers')} 
+                      className="mt-4"
+                    >
+                      Configure Providers
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {twilioNumbers.map((number) => (
+                      <div key={number.id} className="border rounded-lg p-4">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <h4 className="font-medium text-gray-900">{number.phoneNumber}</h4>
+                            <p className="text-sm text-gray-500">
+                              {number.capabilities?.join(', ') || 'SMS enabled'}
+                            </p>
+                          </div>
+                          <Badge variant={number.isActive ? 'default' : 'secondary'}>
+                            {number.isActive ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Provider Status Tab */}
+          <TabsContent value="providers">
             <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="text-lg font-medium text-gray-900">SMS Campaigns</h2>
-                <Button onClick={() => setShowCreateForm(!showCreateForm)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  New Campaign
-                </Button>
-              </div>
-
-              {showCreateForm && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Create New Campaign</CardTitle>
-                    <CardDescription>
-                      Set up a new SMS campaign with custom messaging
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <form onSubmit={handleCreateCampaign} className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Campaign Name
-                        </label>
-                        <Input
-                          value={newCampaign.name}
-                          onChange={(e) => setNewCampaign(prev => ({ ...prev, name: e.target.value }))}
-                          placeholder="Enter campaign name"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Message Template
-                        </label>
-                        <Textarea
-                          value={newCampaign.messageTemplate}
-                          onChange={(e) => setNewCampaign(prev => ({ ...prev, messageTemplate: e.target.value }))}
-                          placeholder="Enter your message template..."
-                          rows={4}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Rate Limit (messages per minute)
-                        </label>
-                        <Input
-                          type="number"
-                          value={newCampaign.rateLimit}
-                          onChange={(e) => setNewCampaign(prev => ({ ...prev, rateLimit: parseInt(e.target.value) }))}
-                          min="1"
-                          max="1000"
-                        />
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button type="submit" disabled={isCreating}>
-                          {isCreating ? 'Creating...' : 'Create Campaign'}
-                        </Button>
-                        <Button type="button" variant="outline" onClick={() => setShowCreateForm(false)}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </form>
-                  </CardContent>
-                </Card>
-              )}
-
               <Card>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Campaign
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Progress
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Rate Limit
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {campaigns.map((campaign) => (
-                          <tr key={campaign.id}>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">{campaign.name}</div>
-                                <div className="text-sm text-gray-500">
-                                  Created {formatDate(campaign.createdAt)}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <Badge variant={
-                                campaign.status === 'active' ? 'default' :
-                                campaign.status === 'completed' ? 'secondary' :
-                                campaign.status === 'paused' ? 'outline' : 'destructive'
-                              }>
-                                {campaign.status}
-                              </Badge>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {campaign.sentCount} / {campaign.totalContacts}
-                              {campaign.failedCount > 0 && (
-                                <span className="text-red-600 ml-2">
-                                  ({campaign.failedCount} failed)
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {campaign.rateLimit}/min
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                              {campaign.status === 'draft' || campaign.status === 'paused' ? (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleStartCampaign(campaign.id)}
-                                >
-                                  <Play className="w-4 h-4 mr-1" />
-                                  Start
-                                </Button>
-                              ) : campaign.status === 'active' ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handlePauseCampaign(campaign.id)}
-                                >
-                                  <Pause className="w-4 h-4 mr-1" />
-                                  Pause
-                                </Button>
-                              ) : null}
+                <CardHeader>
+                  <CardTitle>SMS Provider Status</CardTitle>
+                  <CardDescription>
+                    Monitor your SMS provider configurations and test connections
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loadingProviders ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                      <p className="mt-2 text-sm text-gray-500">Loading provider status...</p>
+                    </div>
+                  ) : providers ? (
+                    <div className="space-y-4">
+                      {/* Twilio Status */}
+                      <div className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-3 h-3 rounded-full ${providers.providers.twilio.configured ? 'bg-green-500' : 'bg-gray-300'}`} />
+                            <div>
+                              <h3 className="font-medium">Twilio</h3>
+                              <p className="text-sm text-gray-500">
+                                {providers.providers.twilio.configured ? 'Configured and ready' : 'Not configured'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {providers.defaultProvider === 'twilio' && (
+                              <Badge variant="default">Default</Badge>
+                            )}
+                            {providers.providers.twilio.configured && (
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleViewCampaign(campaign.id)}
+                                onClick={() => handleTestProvider('twilio')}
+                                disabled={isTestingProvider === 'twilio'}
                               >
-                                <Edit className="w-4 h-4 mr-1" />
-                                Edit
+                                {isTestingProvider === 'twilio' ? 'Testing...' : 'Test'}
                               </Button>
-                            </td>
-                          </tr>
-                        ))}
-                        {campaigns.length === 0 && (
-                          <tr>
-                            <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                              No campaigns found. Create your first campaign to get started.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
+                            )}
+                          </div>
+                        </div>
+                      </div>
 
-          {/* Phone Numbers Tab */}
-          <TabsContent value="numbers">
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="text-lg font-medium text-gray-900">Twilio Phone Numbers</h2>
-                <div className="space-x-2">
-                  <Button variant="outline" onClick={handleSyncTwilioNumbers}>
-                    Sync Numbers
-                  </Button>
-                  <Button onClick={() => setShowTwilioForm(!showTwilioForm)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Number
-                  </Button>
-                </div>
-              </div>
-
-              {showTwilioForm && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Add Twilio Number</CardTitle>
-                    <CardDescription>
-                      Add a new Twilio phone number for SMS campaigns
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <form onSubmit={handleAddTwilioNumber} className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Phone Number
-                        </label>
-                        <Input
-                          value={newTwilioNumber.phoneNumber}
-                          onChange={(e) => setNewTwilioNumber(prev => ({ ...prev, phoneNumber: e.target.value }))}
-                          placeholder="+1234567890"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Account SID
-                        </label>
-                        <Input
-                          value={newTwilioNumber.accountSid}
-                          onChange={(e) => setNewTwilioNumber(prev => ({ ...prev, accountSid: e.target.value }))}
-                          placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Auth Token
-                        </label>
-                        <Input
-                          type="password"
-                          value={newTwilioNumber.authToken}
-                          onChange={(e) => setNewTwilioNumber(prev => ({ ...prev, authToken: e.target.value }))}
-                          placeholder="Your Twilio Auth Token"
-                          required
-                        />
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button type="submit" disabled={isAddingTwilio}>
-                          {isAddingTwilio ? 'Adding...' : 'Add Number'}
-                        </Button>
-                        <Button type="button" variant="outline" onClick={() => setShowTwilioForm(false)}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </form>
-                  </CardContent>
-                </Card>
-              )}
-
-              <Card>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Phone Number
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Usage
-                          </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {twilioNumbers.map((number) => (
-                          <tr key={number.id}>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">{number.phoneNumber}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <Badge variant={number.status === 'available' ? 'default' : 'secondary'}>
-                                {number.status === 'available' ? 'Available' : 
-                                 number.status === 'in_use' ? 'In Use' : 'Unavailable'}
-                              </Badge>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {number.messagesCount || 0} messages sent
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      {/* Meera Status */}
+                      <div className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-3 h-3 rounded-full ${providers.providers.meera.configured ? 'bg-green-500' : 'bg-gray-300'}`} />
+                            <div>
+                              <h3 className="font-medium">Meera</h3>
+                              <p className="text-sm text-gray-500">
+                                {providers.providers.meera.configured ? 'Configured and ready' : 'Not configured'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {providers.defaultProvider === 'meera' && (
+                              <Badge variant="default">Default</Badge>
+                            )}
+                            {providers.providers.meera.configured && (
                               <Button
                                 size="sm"
-                                variant="destructive"
-                                onClick={() => handleDeleteSingleTwilioNumber(number.id)}
+                                variant="outline"
+                                onClick={() => handleTestProvider('meera')}
+                                disabled={isTestingProvider === 'meera'}
                               >
-                                <Trash2 className="w-4 h-4 mr-1" />
-                                Delete
+                                {isTestingProvider === 'meera' ? 'Testing...' : 'Test'}
                               </Button>
-                            </td>
-                          </tr>
-                        ))}
-                        {twilioNumbers.length === 0 && (
-                          <tr>
-                            <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
-                              No phone numbers found. Add your first Twilio number to get started.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div className="flex justify-center">
+                        <Button onClick={() => router.push('/settings/sms-providers')}>
+                          <Settings className="w-4 h-4 mr-2" />
+                          Configure Providers
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Settings className="mx-auto h-12 w-12 text-gray-400" />
+                      <h3 className="mt-2 text-sm font-medium text-gray-900">Unable to load providers</h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Please check your SMS provider configuration.
+                      </p>
+                      <Button onClick={loadProviders} className="mt-4">
+                        Retry
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
-          </TabsContent>
-
-          {/* Configuration Tab */}
-          <TabsContent value="config">
-            <Card>
-              <CardHeader>
-                <CardTitle>Twilio Configuration</CardTitle>
-                <CardDescription>
-                  Configure your Twilio account settings for SMS functionality
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Account SID
-                  </label>
-                  <Input
-                    value={twilioConfig.accountSid}
-                    onChange={(e) => setTwilioConfig(prev => ({ ...prev, accountSid: e.target.value }))}
-                    placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Auth Token
-                  </label>
-                  <Input
-                    type="password"
-                    value={twilioConfig.authToken}
-                    onChange={(e) => setTwilioConfig(prev => ({ ...prev, authToken: e.target.value }))}
-                    placeholder="Your Twilio Auth Token"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Default From Number
-                  </label>
-                  <Input
-                    value={twilioConfig.defaultFromNumber}
-                    onChange={(e) => setTwilioConfig(prev => ({ ...prev, defaultFromNumber: e.target.value }))}
-                    placeholder="+1234567890"
-                  />
-                </div>
-                <div className="flex space-x-2">
-                  <Button onClick={handleSaveTwilioConfig} disabled={isSavingConfig}>
-                    {isSavingConfig ? 'Saving...' : 'Save Configuration'}
-                  </Button>
-                  <Button variant="outline" onClick={handleTestTwilioConnection} disabled={isTestingConnection}>
-                    {isTestingConnection ? 'Testing...' : 'Test Connection'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
         </Tabs>
       </div>

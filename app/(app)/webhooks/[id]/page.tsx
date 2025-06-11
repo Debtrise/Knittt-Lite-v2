@@ -46,6 +46,8 @@ interface WebhookData {
 
 export default function WebhookDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
+  // Note: params.id is accessed directly for simplicity, but in future Next.js versions, it might need to be awaited.
+  // See: https://nextjs.org/docs/messages/sync-dynamic-apis
   const webhookId = parseInt(params.id);
   
   const [loading, setLoading] = useState(true);
@@ -69,7 +71,7 @@ export default function WebhookDetailPage({ params }: { params: { id: string } }
     }
   };
 
-  const fetchWebhookData = async () => {
+  const fetchWebhookData = useCallback(async () => {
     setLoading(true);
     try {
       const response = await api.webhooks.get(webhookId.toString());
@@ -103,9 +105,9 @@ export default function WebhookDetailPage({ params }: { params: { id: string } }
       console.error('Error fetching webhook details:', error);
       toast.error('Failed to load webhook details');
     }
-  };
+  }, [webhookId]);
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     setLoading(true);
     try {
       const response = await api.webhooks.getEvents(webhookId.toString(), {
@@ -121,14 +123,15 @@ export default function WebhookDetailPage({ params }: { params: { id: string } }
     } finally {
       setLoading(false);
     }
-  };
+  }, [webhookId]);
 
   useEffect(() => {
-    if (params.id) {
+    if (webhookId) {
       fetchWebhookData();
       fetchEvents();
     }
-  }, [params.id, fetchWebhookData, fetchEvents]);
+    // Note: params.id is included for dependency tracking, but might need to be handled differently in future updates.
+  }, [webhookId, fetchWebhookData, fetchEvents]);
 
   const handleEdit = () => {
     router.push(`/webhooks/edit/${webhookId}`);

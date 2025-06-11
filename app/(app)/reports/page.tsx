@@ -6,13 +6,10 @@ import toast from 'react-hot-toast';
 import { 
   BarChart, Calendar, PhoneCall, Phone, PhoneForwarded, Clock, Route, Users, CheckCircle, RefreshCw,
   MessageSquare, TrendingUp, FileText, Settings, Download, Play, Pause, Trash2, Edit, Plus,
-  Filter, Search, ChevronDown, ChevronRight, Eye, Mail, Database, PieChart, Activity
+  Filter, Search, ChevronDown, ChevronRight, Eye, Mail, Database, PieChart, Activity, BarChart3
 } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
-import getJourneyStatistics from "@/app/utils/api";
-import getJourneyStatsByBrand from "@/app/utils/api";
-import getJourneyStatsBySource from "@/app/utils/api";
 import { 
   getDailyReport, 
   generateCallSummaryReport,
@@ -29,8 +26,41 @@ import {
   listReportExecutions
 } from "@/app/utils/api";
 import { useAuthStore } from '@/app/store/authStore';
+import {
+  getLiveDashboardStats,
+  getHistoricalDashboardData,
+  saveDashboardConfig,
+  getJourneyOverview,
+  getJourneyFunnel,
+  compareJourneys,
+  getLeadSourcePerformance,
+  getLeadQualityReport,
+  getLeadFunnelAnalysis,
+  listCustomReports,
+  getCustomReport,
+  createCustomReport,
+  updateCustomReport,
+  deleteCustomReport,
+  addWidgetToReport,
+  updateWidget,
+  deleteWidget,
+  reorderWidgets,
+  executeWidgetQuery,
+  cloneReport,
+  getAvailableDataSources,
+  createCustomDataSource,
+  getPublicReport,
+  executePublicWidget,
+  getAvailableLeadSources,
+  getAvailableLeadTags,
+  generateLeadSourcePerformanceReport,
+  generateLeadSourceComparisonReport,
+  getLeadSummaryMetrics,
+  exportLeadSourceReport,
+  getRealTimeLeadMetrics
+} from "@/app/utils/api";
 
-type ReportType = 'dashboard' | 'call-summary' | 'sms-summary' | 'agent-performance' | 'lead-conversion' | 'journey-analytics' | 'custom' | 'templates';
+type ReportType = 'call-summary' | 'agent-performance' | 'journey-analytics' | 'lead-source-performance' | 'lead-source-comparison' | 'lead-source-realtime' | 'templates';
 
 interface ReportTemplate {
   id: string;
@@ -59,11 +89,30 @@ interface ReportExecution {
   error?: string;
 }
 
+type DashboardWidget = {
+  i: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  widget: string;
+  config: Record<string, any>;
+};
+
+type DashboardConfig = {
+  layout: DashboardWidget[];
+  theme: {
+    mode: 'light' | 'dark';
+    primaryColor: string;
+  };
+  refreshInterval: number;
+};
+
 export default function ReportsPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
-  const [reportType, setReportType] = useState<ReportType>('call-summary');
+  const [reportType, setReportType] = useState<ReportType>('lead-source-realtime');
   
   // Dashboard data
   const [dashboardStats, setDashboardStats] = useState<any>(null);
@@ -87,19 +136,62 @@ export default function ReportsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate | null>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  
+  // Add new state for dashboard
+  const [dashboardConfig, setDashboardConfig] = useState<DashboardConfig>({
+    layout: [],
+    theme: {
+      mode: 'light',
+      primaryColor: '#3B82F6'
+    },
+    refreshInterval: 30
+  });
+  
+  // Add new state for custom reports
+  const [customReports, setCustomReports] = useState<any[]>([]);
+  const [availableDataSources, setAvailableDataSources] = useState<any[]>([]);
+  const [selectedReport, setSelectedReport] = useState<any>(null);
+  const [showReportBuilder, setShowReportBuilder] = useState(false);
+  
+  // Lead source reporting state
+  const [leadSources, setLeadSources] = useState<any[]>([]);
+  const [leadTags, setLeadTags] = useState<any[]>([]);
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [closedTag, setClosedTag] = useState<string>('closed');
+  const [contactedStatuses, setContactedStatuses] = useState<string[]>(['contacted', 'transferred']);
+  const [compareDateRange, setCompareDateRange] = useState({
+    startDate: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    endDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  });
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !user?.tenantId) {
       router.push('/login');
       return;
     }
     fetchInitialData();
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, user?.tenantId, router]);
 
   useEffect(() => {
-    if (reportType === 'dashboard') {
-      fetchDashboardData();
-    } else if (reportType === 'templates') {
+    if (reportType === 'dashboard' && user?.tenantId) {
+      const ws = new WebSocket(`wss://api.knittt.com/ws/dashboard?tenantId=${user.tenantId}`);
+      
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'dashboard_update') {
+          setDashboardStats(data.data);
+        }
+      };
+      
+      return () => {
+        ws.close();
+      };
+    }
+  }, [reportType, user?.tenantId]);
+
+  useEffect(() => {
+    if (reportType === 'templates') {
       fetchReportTemplates();
       fetchReportExecutions();
     }
@@ -108,7 +200,10 @@ export default function ReportsPage() {
   const fetchInitialData = async () => {
     setIsLoading(true);
     try {
-      await fetchDashboardData();
+      await Promise.all([
+        fetchDashboardData(),
+        fetchLeadSourceData()
+      ]);
     } catch (error) {
       console.error('Error fetching initial data:', error);
       toast.error('Failed to load initial data');
@@ -117,18 +212,39 @@ export default function ReportsPage() {
     }
   };
 
+  const fetchLeadSourceData = async () => {
+    try {
+      const [sources, tags] = await Promise.all([
+        getAvailableLeadSources(),
+        getAvailableLeadTags()
+      ]);
+      setLeadSources(sources);
+      setLeadTags(tags);
+    } catch (error) {
+      console.error('Error fetching lead source data:', error);
+    }
+  };
+
   const fetchDashboardData = async () => {
     try {
+      // Use working endpoints only: /stats/today and /stats/hourly
       const [todayStats, hourlyStats] = await Promise.all([
         getTodaysStats(),
         getHourlyBreakdown()
       ]);
       
-      setDashboardStats(todayStats); // Use today's stats as dashboard stats
       setTodaysStats(todayStats);
       setHourlyBreakdown(hourlyStats);
+      
+      // Mock dashboard structure with working data
+      setDashboardStats({
+        today: todayStats,
+        hourly: hourlyStats,
+        // Remove broken historical data call
+      });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      toast.error('Failed to load dashboard data');
     }
   };
 
@@ -143,10 +259,12 @@ export default function ReportsPage() {
 
   const fetchReportExecutions = async () => {
     try {
-      const executions = await listReportExecutions({ limit: 20 });
-      setReportExecutions(executions.data || []);
+      // Note: /report-executions endpoint is not working (404)
+      // Using empty array for now until backend is fixed
+      setReportExecutions([]);
     } catch (error) {
       console.error('Error fetching report executions:', error);
+      setReportExecutions([]);
     }
   };
 
@@ -157,6 +275,7 @@ export default function ReportsPage() {
       
       switch (reportType) {
         case 'call-summary':
+          // ✅ Working endpoint
           data = await generateCallSummaryReport({
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
@@ -164,47 +283,104 @@ export default function ReportsPage() {
             filters
           });
           break;
-        case 'sms-summary':
-          data = await generateSmsSummaryReport({
-            startDate: dateRange.startDate,
-            endDate: dateRange.endDate,
-            groupBy: groupBy as 'hour' | 'day' | 'month',
-            filters
-          });
-          break;
         case 'agent-performance':
+          // ✅ Working endpoint
           data = await generateAgentPerformanceReport({
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
             agentIds: filters.agentIds
           });
           break;
-        case 'lead-conversion':
-          data = await generateLeadConversionReport({
-            startDate: dateRange.startDate,
-            endDate: dateRange.endDate,
-            sources: filters.sources,
-            brands: filters.brands
-          });
-          break;
         case 'journey-analytics':
+          // ✅ Working endpoint
           data = await generateJourneyAnalyticsReport({
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
             journeyIds: filters.journeyIds
           });
           break;
-        case 'custom':
-          if (!filters.query) {
-            toast.error('Please enter a SQL query');
-            return;
+        case 'lead-source-performance':
+          // ⚠️ Known Issue: PostgreSQL date_format compatibility problem
+          try {
+            data = await generateLeadSourcePerformanceReport({
+              startDate: dateRange.startDate,
+              endDate: dateRange.endDate,
+              sources: selectedSources.length > 0 ? selectedSources : undefined,
+              groupBy,
+              closedTag,
+              contactedStatuses
+            });
+          } catch (error: any) {
+            console.warn('Lead source performance report failed (expected - backend fixing PostgreSQL compatibility):', error);
+            // Use fallback data structure that matches the API response format
+            data = {
+              summary: {
+                totalNewLeads: 0,
+                totalContactedLeads: 0,
+                totalClosedLeads: 0,
+                overallContactRate: 0,
+                overallCloseRate: 0
+              },
+              sourcePerformance: leadSources.map(source => ({
+                source: source.source,
+                newLeads: source.leadCount || 0,
+                contactedLeads: 0,
+                closedLeads: 0,
+                contactRate: 0,
+                closeRate: 0,
+                contactToCloseRate: 0,
+                avgDaysToClose: "0"
+              })),
+              conversionFunnel: {
+                stages: [
+                  { name: "New Leads", count: 0, percentage: 100, dropoffFromPrevious: 0 },
+                  { name: "Contacted", count: 0, percentage: 0, dropoffFromPrevious: 0 },
+                  { name: "Closed", count: 0, percentage: 0, dropoffFromPrevious: 0 }
+                ],
+                conversionRates: { leadToContact: 0, leadToClose: 0, contactToClose: 0 }
+              },
+              parameters: {
+                startDate: dateRange.startDate,
+                endDate: dateRange.endDate,
+                sources: selectedSources,
+                groupBy,
+                closedTag,
+                contactedStatuses
+              },
+              _fallbackData: true,
+              _note: "Backend team is fixing PostgreSQL date_format compatibility issue"
+            };
+            toast.warn('Using fallback data - Backend team is fixing database compatibility issues');
           }
-          data = await generateCustomReport({
-            query: filters.query,
-            parameters: filters.parameters || {}
+          break;
+        case 'lead-source-comparison':
+          // ✅ Working endpoint - Lead source comparison report
+          data = await generateLeadSourceComparisonReport({
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate,
+            compareStartDate: compareDateRange.startDate,
+            compareEndDate: compareDateRange.endDate,
+            sources: selectedSources.length > 0 ? selectedSources : undefined,
+            closedTag,
+            contactedStatuses
           });
           break;
+        case 'lead-source-realtime':
+          // ✅ Working endpoint - Real-time lead metrics
+          try {
+            data = await getRealTimeLeadMetrics();
+          } catch (error: any) {
+            console.error('Real-time metrics failed:', error);
+            toast.error('Failed to fetch real-time metrics');
+            return;
+          }
+          break;
+
+        case 'templates':
+          // Templates are handled separately
+          return;
         default:
+          toast.error('Report type not supported yet');
           return;
       }
       
@@ -224,13 +400,11 @@ export default function ReportsPage() {
       return;
     }
 
+    // Note: Export endpoint is not working yet, using JSON download as fallback
     try {
-      const filename = `${reportType}-report-${new Date().toISOString().split('T')[0]}.${format}`;
-      const blob = await exportReport({
-        reportData,
-        format,
-        filename
-      });
+      const filename = `${reportType}-report-${new Date().toISOString().split('T')[0]}.json`;
+      const jsonData = JSON.stringify(reportData, null, 2);
+      const blob = new Blob([jsonData], { type: 'application/json' });
       
       // Create download link
       const url = window.URL.createObjectURL(blob);
@@ -242,29 +416,81 @@ export default function ReportsPage() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       
-      toast.success('Report exported successfully');
+      toast.success('Report exported as JSON (backend export will be available soon)');
     } catch (error) {
       console.error('Error exporting report:', error);
       toast.error('Failed to export report');
     }
   };
 
+  const handleReportTypeChange = (newType: ReportType) => {
+    setReportType(newType);
+    setReportData(null); // Clear previous report data
+    setFilters({}); // Reset filters
+    
+    // Auto-generate real-time report since it doesn't need configuration
+    if (newType === 'lead-source-realtime') {
+      // Use setTimeout to ensure state update happens first
+      setTimeout(() => generateReport(), 100);
+    }
+  };
+
   const renderReportTypeSelector = () => (
-    <div className="flex flex-wrap gap-2 mb-6">
-      {[
-        { key: 'call-summary', label: 'Call Summary', icon: PhoneCall },
-        { key: 'journey-analytics', label: 'Journey Analytics', icon: Route },
-      ].map(({ key, label, icon: Icon }) => (
+    <div className="space-y-4 mb-6">
+      <div className="flex space-x-4">
+
         <Button
-          key={key}
-          variant={reportType === key ? 'default' : 'outline'}
-          onClick={() => setReportType(key as ReportType)}
-          className="flex items-center gap-2"
+          variant={reportType === 'call-summary' ? 'default' : 'outline'}
+          onClick={() => handleReportTypeChange('call-summary')}
         >
-          <Icon className="w-4 h-4" />
-          {label}
+          <PhoneCall className="w-4 h-4 mr-2" />
+          Call Summary
         </Button>
-      ))}
+        <Button
+          variant={reportType === 'agent-performance' ? 'default' : 'outline'}
+          onClick={() => handleReportTypeChange('agent-performance')}
+        >
+          <Users className="w-4 h-4 mr-2" />
+          Agent Performance
+        </Button>
+        <Button
+          variant={reportType === 'journey-analytics' ? 'default' : 'outline'}
+          onClick={() => handleReportTypeChange('journey-analytics')}
+        >
+          <Route className="w-4 h-4 mr-2" />
+          Journey Analytics
+        </Button>
+        <Button
+          variant={reportType === 'lead-source-performance' ? 'default' : 'outline'}
+          onClick={() => handleReportTypeChange('lead-source-performance')}
+        >
+          <TrendingUp className="w-4 h-4 mr-2" />
+          Lead Source Performance ⚠️
+        </Button>
+        <Button
+          variant={reportType === 'lead-source-comparison' ? 'default' : 'outline'}
+          onClick={() => handleReportTypeChange('lead-source-comparison')}
+        >
+          <BarChart3 className="w-4 h-4 mr-2" />
+          Lead Source Comparison ✅
+        </Button>
+        <Button
+          variant={reportType === 'lead-source-realtime' ? 'default' : 'outline'}
+          onClick={() => handleReportTypeChange('lead-source-realtime')}
+        >
+          <Activity className="w-4 h-4 mr-2" />
+          Lead Real-time ✅
+        </Button>
+        <Button
+          variant={reportType === 'templates' ? 'default' : 'outline'}
+          onClick={() => handleReportTypeChange('templates')}
+        >
+          <FileText className="w-4 h-4 mr-2" />
+          Templates
+        </Button>
+      </div>
+      
+
     </div>
   );
 
@@ -373,6 +599,97 @@ export default function ReportsPage() {
             </>
           )}
 
+          {(reportType === 'lead-source-performance' || reportType === 'lead-source-comparison') && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Lead Sources</label>
+                <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2">
+                  {leadSources.map(source => (
+                    <label key={source.source} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        className="mr-2"
+                        checked={selectedSources.includes(source.source)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSources(prev => [...prev, source.source]);
+                          } else {
+                            setSelectedSources(prev => prev.filter(s => s !== source.source));
+                          }
+                        }}
+                      />
+                      <span className="text-sm">{source.source} ({source.leadCount} leads)</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Closed Tag</label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  value={closedTag}
+                  onChange={(e) => setClosedTag(e.target.value)}
+                >
+                  {leadTags.map(tag => (
+                    <option key={tag.tag} value={tag.tag}>
+                      {tag.tag} ({tag.count})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contacted Statuses</label>
+                <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-300 rounded-md p-2">
+                  {['contacted', 'transferred', 'qualified', 'hot'].map(status => (
+                    <label key={status} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        className="mr-2"
+                        checked={contactedStatuses.includes(status)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setContactedStatuses(prev => [...prev, status]);
+                          } else {
+                            setContactedStatuses(prev => prev.filter(s => s !== status));
+                          }
+                        }}
+                      />
+                      <span className="text-sm capitalize">{status}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {reportType === 'lead-source-comparison' && (
+            <div className="col-span-full">
+              <h4 className="text-md font-medium text-gray-700 mb-3">Comparison Period</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Compare From:</label>
+                  <input
+                    type="date"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    value={compareDateRange.startDate}
+                    onChange={(e) => setCompareDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Compare To:</label>
+                  <input
+                    type="date"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    value={compareDateRange.endDate}
+                    onChange={(e) => setCompareDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {reportType === 'custom' && (
             <div className="col-span-full">
               <label className="block text-sm font-medium text-gray-700 mb-1">SQL Query</label>
@@ -392,84 +709,135 @@ export default function ReportsPage() {
 
   const renderDashboard = () => (
     <div className="space-y-6">
-      {/* Today's Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-blue-100">
-              <PhoneCall className="h-6 w-6 text-blue-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Total Calls</p>
-              <p className="text-2xl font-semibold text-gray-900">{todaysStats?.totalCalls || 0}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-green-100">
-              <MessageSquare className="h-6 w-6 text-green-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">SMS Sent</p>
-              <p className="text-2xl font-semibold text-gray-900">{todaysStats?.smsSent || 0}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-purple-100">
-              <Users className="h-6 w-6 text-purple-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Active Agents</p>
-              <p className="text-2xl font-semibold text-gray-900">{todaysStats?.activeAgents || 0}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center">
-            <div className="p-3 rounded-full bg-orange-100">
-              <TrendingUp className="h-6 w-6 text-orange-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Conversions</p>
-              <p className="text-2xl font-semibold text-gray-900">{todaysStats?.conversions || 0}</p>
-            </div>
-          </div>
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Dashboard</h2>
+        <div className="flex space-x-4">
+          <Button onClick={handleSaveDashboardConfig}>
+            <Settings className="w-4 h-4 mr-2" />
+            Configure
+          </Button>
+          <Button onClick={fetchDashboardData}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
         </div>
       </div>
-
-      {/* Hourly Breakdown Chart */}
-      {hourlyBreakdown && (
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Hourly Activity</h3>
-          <div className="h-64 flex items-end justify-between space-x-2">
-            {Array.from({ length: 24 }, (_, i) => {
-              const hour = i.toString().padStart(2, '0');
-              const value = hourlyBreakdown[hour] || 0;
-              const maxValue = Math.max(...Object.values(hourlyBreakdown || {}).map(Number));
-              const height = maxValue > 0 ? (value / maxValue) * 100 : 0;
-              
-              return (
-                <div key={i} className="flex flex-col items-center">
-                  <div
-                    className="bg-blue-500 rounded-t w-6"
-                    style={{ height: `${height}%` }}
-                    title={`${hour}:00 - ${value} activities`}
-                  />
-                  <span className="text-xs text-gray-500 mt-1">{hour}</span>
-                </div>
-              );
-            })}
+      
+      {/* Today's Stats Section */}
+      {todaysStats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Calls Today</h3>
+            <p className="text-2xl font-bold">{todaysStats.calls?.total || 0}</p>
+            <p className="text-xs text-gray-500 mt-1">Answered: {todaysStats.calls?.answered || 0}</p>
           </div>
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">SMS Messages</h3>
+            <p className="text-2xl font-bold">{todaysStats.sms?.total || 0}</p>
+            <p className="text-xs text-gray-500 mt-1">Sent: {todaysStats.sms?.sent || 0}</p>
+          </div>
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Leads</h3>
+            <p className="text-2xl font-bold">{todaysStats.leads?.total || 0}</p>
+            <p className="text-xs text-gray-500 mt-1">New: {todaysStats.leads?.new || 0}</p>
+          </div>
+        </div>
+      )}
+      
+      {/* Hourly Breakdown Section */}
+      {hourlyBreakdown && (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Hourly Activity</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Calls by Hour</h4>
+              <div className="space-y-2">
+                {hourlyBreakdown.calls && Object.entries(hourlyBreakdown.calls).map(([hour, count]) => (
+                  <div key={hour} className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600 dark:text-gray-300">{hour}:00</span>
+                    <span className="text-sm font-medium">{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">SMS by Hour</h4>
+              <div className="space-y-2">
+                {hourlyBreakdown.sms && Object.entries(hourlyBreakdown.sms).map(([hour, count]) => (
+                  <div key={hour} className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600 dark:text-gray-300">{hour}:00</span>
+                    <span className="text-sm font-medium">{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Loading State */}
+      {!todaysStats && !hourlyBreakdown && (
+        <div className="text-center py-8">
+          <RefreshCw className="w-8 h-8 text-gray-400 mx-auto mb-2 animate-spin" />
+          <p className="text-gray-500">Loading dashboard data...</p>
         </div>
       )}
     </div>
   );
+
+  const renderCustomReports = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Custom Reports</h2>
+        <Button onClick={() => setShowReportBuilder(true)}>
+          <Plus className="w-4 h-4 mr-2" />
+          Create Report
+        </Button>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {customReports.map(report => (
+          <div key={report.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+            <h3 className="text-lg font-medium">{report.name}</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{report.description}</p>
+            <div className="mt-4 flex space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedReport(report);
+                  setShowReportBuilder(true);
+                }}
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                Edit
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDeleteCustomReport(report.id)}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      {/* Add report builder modal here */}
+    </div>
+  );
+
+  const handleSaveDashboardConfig = async () => {
+    try {
+      await saveDashboardConfig(dashboardConfig);
+      toast.success('Dashboard configuration saved');
+    } catch (error) {
+      console.error('Error saving dashboard configuration:', error);
+      toast.error('Failed to save dashboard configuration');
+    }
+  };
 
   const renderReportData = () => {
     if (!reportData) return null;
@@ -482,6 +850,21 @@ export default function ReportsPage() {
     // Special handling for call summary reports
     if (reportType === 'call-summary' && reportData.summary) {
       return renderCallSummaryVisualization();
+    }
+
+    // Special handling for lead source performance reports
+    if (reportType === 'lead-source-performance' && reportData.summary) {
+      return renderLeadSourcePerformanceVisualization();
+    }
+
+    // Special handling for lead source comparison reports
+    if (reportType === 'lead-source-comparison' && reportData.comparison) {
+      return renderLeadSourceComparisonVisualization();
+    }
+
+    // Special handling for real-time lead metrics
+    if (reportType === 'lead-source-realtime' && reportData.today) {
+      return renderLeadSourceRealtimeVisualization();
     }
 
     return (
@@ -527,6 +910,8 @@ export default function ReportsPage() {
   };
 
   const renderCallSummaryVisualization = () => {
+    if (!reportData) return null;
+    
     const { summary, data, topDIDs, hourlyDistribution } = reportData;
     
     return (
@@ -1094,4 +1479,686 @@ export default function ReportsPage() {
       </div>
     );
   };
+
+  const renderLeadSourcePerformanceVisualization = () => {
+    const { summary, sourcePerformance, conversionFunnel, timeSeries, _fallbackData, _note } = reportData;
+    
+    return (
+      <div className="space-y-6">
+        {/* Status Banner for Fallback Data */}
+        {_fallbackData && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <Clock className="w-5 h-5 text-yellow-600 mr-2" />
+              <div>
+                <span className="text-yellow-800 font-medium">
+                  ⚠️ Using Fallback Data - {_note}
+                </span>
+                <p className="text-yellow-700 text-sm mt-1">
+                  The backend team is fixing PostgreSQL compatibility issues. This report shows basic structure with available data.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Export Controls */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">
+                Lead Source Performance Report {_fallbackData ? '⚠️' : ''}
+              </h3>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportReport('csv')}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportReport('excel')}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Excel
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportReport('pdf')}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  PDF
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-blue-100">
+                <Users className="h-6 w-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Total New Leads</p>
+                <p className="text-2xl font-semibold text-gray-900">{summary.totalNewLeads.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-green-100">
+                <PhoneCall className="h-6 w-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Contacted Leads</p>
+                <p className="text-2xl font-semibold text-gray-900">{summary.totalContactedLeads.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-purple-100">
+                <CheckCircle className="h-6 w-6 text-purple-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Closed Leads</p>
+                <p className="text-2xl font-semibold text-gray-900">{summary.totalClosedLeads.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-orange-100">
+                <TrendingUp className="h-6 w-6 text-orange-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Overall Close Rate</p>
+                <p className="text-2xl font-semibold text-gray-900">{summary.overallCloseRate.toFixed(1)}%</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Conversion Funnel */}
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h4 className="text-lg font-medium text-gray-900 mb-4">Conversion Funnel</h4>
+          <div className="space-y-4">
+            {conversionFunnel.stages.map((stage, index) => (
+              <div key={stage.name} className="flex items-center">
+                <div className="w-32 text-sm font-medium text-gray-700">{stage.name}</div>
+                <div className="flex-1 mx-4">
+                  <div className="w-full bg-gray-200 rounded-full h-4">
+                    <div 
+                      className={`h-4 rounded-full ${
+                        index === 0 ? 'bg-blue-500' :
+                        index === 1 ? 'bg-green-500' :
+                        'bg-purple-500'
+                      }`}
+                      style={{ width: `${stage.percentage}%` }}
+                    ></div>
+                  </div>
+                </div>
+                <div className="w-20 text-right">
+                  <div className="text-lg font-semibold text-gray-900">{stage.count.toLocaleString()}</div>
+                  <div className="text-sm text-gray-600">{stage.percentage.toFixed(1)}%</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Source Performance Table */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h4 className="text-lg font-medium text-gray-900">Source Performance</h4>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">New Leads</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contacted</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Closed</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact Rate</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Close Rate</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Days to Close</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {sourcePerformance.map((source) => (
+                  <tr key={source.source}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 capitalize">
+                      {source.source}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {source.newLeads.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {source.contactedLeads.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {source.closedLeads.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div className="flex items-center">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          source.contactRate >= 80 ? 'bg-green-100 text-green-800' :
+                          source.contactRate >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {source.contactRate.toFixed(1)}%
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div className="flex items-center">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          source.closeRate >= 25 ? 'bg-green-100 text-green-800' :
+                          source.closeRate >= 15 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {source.closeRate.toFixed(1)}%
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {source.avgDaysToClose} days
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderLeadSourceComparisonVisualization = () => {
+    const { comparison, summary } = reportData;
+    
+    return (
+      <div className="space-y-6">
+        {/* Export Controls */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">Lead Source Comparison Report</h3>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportReport('csv')}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportReport('excel')}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Excel
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportReport('pdf')}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  PDF
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-blue-600">{summary.totalSources}</div>
+              <div className="text-sm text-gray-600 mt-1">Total Sources Compared</div>
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-green-600">{summary.improvingSources}</div>
+              <div className="text-sm text-gray-600 mt-1">Improving Sources</div>
+            </div>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-red-600">{summary.decliningSourcees}</div>
+              <div className="text-sm text-gray-600 mt-1">Declining Sources</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Comparison Table */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h4 className="text-lg font-medium text-gray-900">Period Comparison</h4>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metric</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Period</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Previous Period</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Change</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">% Change</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {comparison.map((source) => (
+                  <React.Fragment key={source.source}>
+                    <tr className="bg-gray-50">
+                      <td rowSpan={5} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 capitalize border-r">
+                        {source.source}
+                      </td>
+                      <td className="px-6 py-2 whitespace-nowrap text-xs font-medium text-gray-700">New Leads</td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">{source.current.newLeads.toLocaleString()}</td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">{source.previous.newLeads.toLocaleString()}</td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm">
+                        <span className={`${source.changes.newLeads >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {source.changes.newLeads >= 0 ? '+' : ''}{source.changes.newLeads}
+                        </span>
+                      </td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm">
+                        <span className={`${source.percentageChanges.newLeads >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {source.percentageChanges.newLeads >= 0 ? '+' : ''}{source.percentageChanges.newLeads.toFixed(1)}%
+                        </span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-6 py-2 whitespace-nowrap text-xs font-medium text-gray-700">Contacted</td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">{source.current.contactedLeads.toLocaleString()}</td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">{source.previous.contactedLeads.toLocaleString()}</td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm">
+                        <span className={`${source.changes.contactedLeads >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {source.changes.contactedLeads >= 0 ? '+' : ''}{source.changes.contactedLeads}
+                        </span>
+                      </td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm">
+                        <span className={`${source.percentageChanges.contactedLeads >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {source.percentageChanges.contactedLeads >= 0 ? '+' : ''}{source.percentageChanges.contactedLeads.toFixed(1)}%
+                        </span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-6 py-2 whitespace-nowrap text-xs font-medium text-gray-700">Closed</td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">{source.current.closedLeads.toLocaleString()}</td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">{source.previous.closedLeads.toLocaleString()}</td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm">
+                        <span className={`${source.changes.closedLeads >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {source.changes.closedLeads >= 0 ? '+' : ''}{source.changes.closedLeads}
+                        </span>
+                      </td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm">
+                        <span className={`${source.percentageChanges.closedLeads >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {source.percentageChanges.closedLeads >= 0 ? '+' : ''}{source.percentageChanges.closedLeads.toFixed(1)}%
+                        </span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-6 py-2 whitespace-nowrap text-xs font-medium text-gray-700">Contact Rate</td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">{source.current.contactRate.toFixed(1)}%</td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">{source.previous.contactRate.toFixed(1)}%</td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm">
+                        <span className={`${source.changes.contactRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {source.changes.contactRate >= 0 ? '+' : ''}{source.changes.contactRate.toFixed(1)}pp
+                        </span>
+                      </td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm">
+                        <span className={`${source.percentageChanges.contactRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {source.percentageChanges.contactRate >= 0 ? '+' : ''}{source.percentageChanges.contactRate.toFixed(1)}%
+                        </span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-6 py-2 whitespace-nowrap text-xs font-medium text-gray-700 border-b">Close Rate</td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{source.current.closeRate.toFixed(1)}%</td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{source.previous.closeRate.toFixed(1)}%</td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm border-b">
+                        <span className={`${source.changes.closeRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {source.changes.closeRate >= 0 ? '+' : ''}{source.changes.closeRate.toFixed(1)}pp
+                        </span>
+                      </td>
+                      <td className="px-6 py-2 whitespace-nowrap text-sm border-b">
+                        <span className={`${source.percentageChanges.closeRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {source.percentageChanges.closeRate >= 0 ? '+' : ''}{source.percentageChanges.closeRate.toFixed(1)}%
+                        </span>
+                      </td>
+                    </tr>
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderLeadSourceRealtimeVisualization = () => {
+    const { today, trends, lastUpdated } = reportData;
+    
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">
+                Real-time Lead Metrics ✅
+              </h3>
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Clock className="w-4 h-4" />
+                Last updated: {new Date(lastUpdated).toLocaleTimeString()}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Status Banner */}
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+            <span className="text-green-800 font-medium">
+              ✅ This endpoint is working correctly! Real-time data from the API.
+            </span>
+          </div>
+        </div>
+
+        {/* Today's Metrics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-blue-100">
+                <Users className="h-6 w-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">New Leads Today</p>
+                <p className="text-2xl font-semibold text-gray-900">{today.newLeads.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-green-100">
+                <PhoneCall className="h-6 w-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Contacted Leads</p>
+                <p className="text-2xl font-semibold text-gray-900">{today.contactedLeads.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-purple-100">
+                <CheckCircle className="h-6 w-6 text-purple-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Closed Leads</p>
+                <p className="text-2xl font-semibold text-gray-900">{today.closedLeads.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-orange-100">
+                <TrendingUp className="h-6 w-6 text-orange-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Contact Rate</p>
+                <p className="text-2xl font-semibold text-gray-900">{Number(today.contactRate || 0).toFixed(1)}%</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-3 rounded-full bg-red-100">
+                <Activity className="h-6 w-6 text-red-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Close Rate</p>
+                <p className="text-2xl font-semibold text-gray-900">{Number(today.closeRate || 0).toFixed(1)}%</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Trend Indicators */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h4 className="text-lg font-medium text-gray-900">Trend Indicators</h4>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-blue-600">{trends.newLeads}</div>
+                <div className="text-sm text-gray-600 mt-1">New Leads Trend</div>
+                <div className="mt-2">
+                  {trends.newLeads > 0 ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <TrendingUp className="w-3 h-3 mr-1" />
+                      Increasing
+                    </span>
+                  ) : trends.newLeads < 0 ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      <TrendingUp className="w-3 h-3 mr-1 transform rotate-180" />
+                      Decreasing
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      Stable
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              <div className="text-center">
+                <div className="text-3xl font-bold text-green-600">{trends.contactedLeads}</div>
+                <div className="text-sm text-gray-600 mt-1">Contacted Leads Trend</div>
+                <div className="mt-2">
+                  {trends.contactedLeads > 0 ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <TrendingUp className="w-3 h-3 mr-1" />
+                      Increasing
+                    </span>
+                  ) : trends.contactedLeads < 0 ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      <TrendingUp className="w-3 h-3 mr-1 transform rotate-180" />
+                      Decreasing
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      Stable
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              <div className="text-center">
+                <div className="text-3xl font-bold text-purple-600">{trends.closedLeads}</div>
+                <div className="text-sm text-gray-600 mt-1">Closed Leads Trend</div>
+                <div className="mt-2">
+                  {trends.closedLeads > 0 ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <TrendingUp className="w-3 h-3 mr-1" />
+                      Increasing
+                    </span>
+                  ) : trends.closedLeads < 0 ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      <TrendingUp className="w-3 h-3 mr-1 transform rotate-180" />
+                      Decreasing
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      Stable
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+      </div>
+    );
+  };
+
+  return (
+    <DashboardLayout>
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold mb-8">Reports</h1>
+        
+
+        
+        {renderReportTypeSelector()}
+        
+        {renderDateRangeSelector()}
+        
+        {renderFilters()}
+        
+        {/* Generate Report Button and Actions */}
+        {reportType !== 'custom' && reportType !== 'templates' && reportType !== 'lead-source-realtime' && (
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-4">
+              <Button
+                onClick={generateReport}
+                disabled={isLoading}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {isLoading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <BarChart className="w-4 h-4 mr-2" />
+                    Generate Report
+                  </>
+                )}
+              </Button>
+              
+              <Button
+                variant="outline"
+                onClick={() => setShowFilters(!showFilters)}
+              >
+                <Filter className="w-4 h-4 mr-2" />
+                {showFilters ? 'Hide Filters' : 'Show Filters'}
+              </Button>
+            </div>
+            
+            {reportData && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleExportReport('csv')}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleExportReport('excel')}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export Excel
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleExportReport('pdf')}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export PDF
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+        
+
+        {reportType === 'custom' && renderCustomReports()}
+        {reportType === 'templates' && renderReportData()}
+        
+        {/* Real-time Report Controls */}
+        {reportType === 'lead-source-realtime' && (
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-4">
+              <h2 className="text-xl font-semibold text-gray-900">Real-time Lead Metrics</h2>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                ✅ Live Data
+              </span>
+            </div>
+            <Button
+              onClick={generateReport}
+              disabled={isLoading}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Refreshing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Refresh Data
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+        
+        {/* Report Results or Empty State */}
+        {(reportType === 'call-summary' || reportType === 'agent-performance' || reportType === 'journey-analytics' || reportType === 'lead-source-performance' || reportType === 'lead-source-comparison' || reportType === 'lead-source-realtime') && (
+          <>
+            {reportData ? (
+              renderReportData()
+            ) : (
+              <div className="bg-white rounded-lg shadow p-8 text-center">
+                <BarChart className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Report Generated Yet</h3>
+                <p className="text-gray-600 mb-4">
+                  Select your date range, configure any filters you need, and click "Generate Report" to view your data.
+                </p>
+                <Button onClick={() => setShowFilters(true)} variant="outline">
+                  <Filter className="w-4 h-4 mr-2" />
+                  Configure Filters
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </DashboardLayout>
+  );
 }

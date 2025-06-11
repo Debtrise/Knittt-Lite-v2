@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Input } from '@/app/components/ui/Input';
 import { Textarea } from '@/app/components/ui/textarea';
 import { Label } from '@/app/components/ui/label';
@@ -10,7 +10,16 @@ interface CallActionConfigProps {
 }
 
 const CallActionConfig: React.FC<CallActionConfigProps> = ({ config, onChange }) => {
+  const [hasDialerContext, setHasDialerContext] = useState(false);
+
+  useEffect(() => {
+    setHasDialerContext(!!config.dialerContext);
+  }, [config.dialerContext]);
+
   const handleChange = (field: string, value: any) => {
+    if (field === 'dialerContext') {
+      setHasDialerContext(!!value);
+    }
     onChange({
       ...config,
       [field]: value
@@ -20,12 +29,44 @@ const CallActionConfig: React.FC<CallActionConfigProps> = ({ config, onChange })
   return (
     <div className="space-y-4">
       <div>
+        <Label htmlFor="dialerContext">Dialer Context (JSON)</Label>
+        <Textarea
+          id="dialerContext"
+          value={config.dialerContext || ''}
+          onChange={(e) => handleChange('dialerContext', e.target.value)}
+          placeholder="Enter dialer context in JSON format"
+          rows={4}
+          className="font-mono text-sm"
+        />
+        <p className="text-sm text-gray-500 mt-1">
+          If you enter dialer context, other fields will be disabled except transfer group.
+        </p>
+      </div>
+
+      <div>
+        <Label htmlFor="transferGroup">Transfer Group</Label>
+        <Select
+          value={config.transferGroup || ''}
+          onValueChange={(value) => handleChange('transferGroup', value)}
+        >
+          <SelectTrigger id="transferGroup">
+            <SelectValue placeholder="Select transfer group" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">None</SelectItem>
+            {/* Transfer groups will be populated from props */}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
         <Label htmlFor="phoneNumber">Phone Number</Label>
         <Input
           id="phoneNumber"
           value={config.phoneNumber || ''}
           onChange={(e) => handleChange('phoneNumber', e.target.value)}
           placeholder="Enter phone number to call"
+          disabled={hasDialerContext}
         />
       </div>
       
@@ -36,6 +77,7 @@ const CallActionConfig: React.FC<CallActionConfigProps> = ({ config, onChange })
           value={config.callerId || ''}
           onChange={(e) => handleChange('callerId', e.target.value)}
           placeholder="Enter caller ID to use"
+          disabled={hasDialerContext}
         />
       </div>
       
@@ -47,6 +89,7 @@ const CallActionConfig: React.FC<CallActionConfigProps> = ({ config, onChange })
           onChange={(e) => handleChange('script', e.target.value)}
           placeholder="Enter call script or notes"
           rows={4}
+          disabled={hasDialerContext}
         />
       </div>
       
@@ -55,6 +98,7 @@ const CallActionConfig: React.FC<CallActionConfigProps> = ({ config, onChange })
         <Select
           value={config.recordCall ? 'yes' : 'no'}
           onValueChange={(value) => handleChange('recordCall', value === 'yes')}
+          disabled={hasDialerContext}
         >
           <SelectTrigger id="recordCall">
             <SelectValue placeholder="Record call?" />
@@ -75,6 +119,7 @@ const CallActionConfig: React.FC<CallActionConfigProps> = ({ config, onChange })
           onChange={(e) => handleChange('maxAttempts', parseInt(e.target.value, 10))}
           min={1}
           max={10}
+          disabled={hasDialerContext}
         />
       </div>
     </div>

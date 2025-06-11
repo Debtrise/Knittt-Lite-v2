@@ -57,6 +57,17 @@ interface TransferGroup {
   brand: string | null;
   ingroup: string | null;
   type: 'roundrobin' | 'simultaneous' | 'priority' | 'percentage';
+  apiConfig?: {
+    url: string;
+    user: string;
+    password: string;
+    source: string;
+  };
+  context?: {
+    type: 'default' | 'custom';
+    dialerContext?: string;
+    content?: string;
+  };
   isActive: boolean;
   settings: {
     ringTimeout: number;
@@ -78,6 +89,17 @@ export default function TransferGroupsPage() {
     brand: string;
     ingroup: string;
     type: 'roundrobin' | 'simultaneous' | 'priority' | 'percentage';
+    apiConfig: {
+      url: string;
+      user: string;
+      password: string;
+      source: string;
+    };
+    context: {
+      type: 'default' | 'custom';
+      dialerContext: string;
+      content: string;
+    };
     isActive: boolean;
     settings: {
       ringTimeout: number;
@@ -90,6 +112,17 @@ export default function TransferGroupsPage() {
     brand: '',
     ingroup: '',
     type: 'roundrobin',
+    apiConfig: {
+      url: '',
+      user: '',
+      password: '',
+      source: '',
+    },
+    context: {
+      type: 'default',
+      dialerContext: '',
+      content: '',
+    },
     isActive: true,
     settings: {
       ringTimeout: 30,
@@ -129,11 +162,12 @@ export default function TransferGroupsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Ensure brand and ingroup are strings, not null
       const submitData = {
         ...formData,
-        brand: formData.brand || 'default',  // Use 'default' if empty
-        ingroup: formData.ingroup || 'default',  // Use 'default' if empty
+        brand: formData.brand || undefined,
+        ingroup: formData.ingroup || undefined,
+        apiConfig: formData.apiConfig.url ? formData.apiConfig : undefined,
+        context: formData.context.type === 'custom' ? formData.context : undefined,
       };
 
       if (selectedGroup) {
@@ -151,6 +185,17 @@ export default function TransferGroupsPage() {
         brand: '',
         ingroup: '',
         type: 'roundrobin',
+        apiConfig: {
+          url: '',
+          user: '',
+          password: '',
+          source: '',
+        },
+        context: {
+          type: 'default',
+          dialerContext: '',
+          content: '',
+        },
         isActive: true,
         settings: {
           ringTimeout: 30,
@@ -210,6 +255,17 @@ export default function TransferGroupsPage() {
       brand: group.brand || '',
       ingroup: group.ingroup || '',
       type: group.type,
+      apiConfig: group.apiConfig || {
+        url: '',
+        user: '',
+        password: '',
+        source: '',
+      },
+      context: group.context || {
+        type: 'default',
+        dialerContext: '',
+        content: '',
+      },
       isActive: group.isActive,
       settings: group.settings,
     });
@@ -329,6 +385,119 @@ export default function TransferGroupsPage() {
                     value={formData.description}
                     onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
                   />
+                </div>
+
+                {/* API Configuration Section */}
+                <div className="border-t pt-4">
+                  <h3 className="text-lg font-medium mb-4">API Configuration (Optional)</h3>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Override default API settings for agent availability checks
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label>API URL</label>
+                      <Input
+                        value={formData.apiConfig.url}
+                        onChange={e => setFormData(prev => ({ 
+                          ...prev, 
+                          apiConfig: { ...prev.apiConfig, url: e.target.value }
+                        }))}
+                        placeholder="https://custom.ytel.com/api.php"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label>Source</label>
+                      <Input
+                        value={formData.apiConfig.source}
+                        onChange={e => setFormData(prev => ({ 
+                          ...prev, 
+                          apiConfig: { ...prev.apiConfig, source: e.target.value }
+                        }))}
+                        placeholder="CUSTOM"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div className="space-y-2">
+                      <label>API User</label>
+                      <Input
+                        value={formData.apiConfig.user}
+                        onChange={e => setFormData(prev => ({ 
+                          ...prev, 
+                          apiConfig: { ...prev.apiConfig, user: e.target.value }
+                        }))}
+                        placeholder="CustomUser123"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label>API Password</label>
+                      <Input
+                        type="password"
+                        value={formData.apiConfig.password}
+                        onChange={e => setFormData(prev => ({ 
+                          ...prev, 
+                          apiConfig: { ...prev.apiConfig, password: e.target.value }
+                        }))}
+                        placeholder="CustomPass456"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dialer Context Section */}
+                <div className="border-t pt-4">
+                  <h3 className="text-lg font-medium mb-4">Dialer Context</h3>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label>Context Type</label>
+                      <Select
+                        value={formData.context.type}
+                        onValueChange={value => setFormData(prev => ({ 
+                          ...prev, 
+                          context: { ...prev.context, type: value as 'default' | 'custom' }
+                        }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">Use Default Context</SelectItem>
+                          <SelectItem value="custom">Custom Context</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {formData.context.type === 'custom' && (
+                      <>
+                        <div className="space-y-2">
+                          <label>Dialer Context</label>
+                          <Input
+                            value={formData.context.dialerContext}
+                            onChange={e => setFormData(prev => ({ 
+                              ...prev, 
+                              context: { ...prev.context, dialerContext: e.target.value }
+                            }))}
+                            placeholder="Tax_Sales_Context"
+                          />
+                          <p className="text-sm text-gray-500">
+                            Asterisk context name for specialized routing
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <label>Context Description</label>
+                          <Textarea
+                            value={formData.context.content}
+                            onChange={e => setFormData(prev => ({ 
+                              ...prev, 
+                              context: { ...prev.context, content: e.target.value }
+                            }))}
+                            placeholder="Description of what this context handles"
+                            rows={3}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-4">

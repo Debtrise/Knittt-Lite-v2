@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { PhoneOutgoing, Users, Phone, Clock, Sliders, Upload, Route } from 'lucide-react';
+import { PhoneOutgoing, Users, Phone, Clock, Sliders, Upload, Route, MessageSquare, Send } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
@@ -14,8 +14,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/ca
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { PhoneCall, PhoneForwarded, PhoneOff } from 'lucide-react';
 import { useToast } from '@/app/components/ui/use-toast';
-import { getAgentStatus } from '@/app/utils/api';
+import { getAgentStatus, getTodaysStats, generateCallSummaryReport, getDailyReport } from '@/app/utils/api';
 import type { TenantApiConfig } from '@/app/lib/api';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar } from 'recharts';
+import { DateRangePicker } from '../../components/ui/DateRangePicker';
+import SmsCampaignService, { SmsCampaign } from '@/app/lib/sms-campaigns';
 
 type AgentStatus = {
   ingroup: string;
@@ -50,6 +54,51 @@ type TenantConfig = {
   apiConfig: TenantApiConfig;
 };
 
+// Add new types for the API responses
+type DashboardMetrics = {
+  leads: {
+    total: number;
+    new: number;
+    contacted: number;
+    converted: number;
+  };
+  calls: {
+    total: number;
+    today: number;
+    answered: number;
+    averageDuration: number;
+  };
+  performance: {
+    conversionRate: number;
+    contactRate: number;
+    averageCallsPerLead: number;
+  };
+};
+
+type LeadPerformanceMetrics = {
+  summary: {
+    totalLeads: number;
+    averageAttempts: number;
+    conversionRate: number;
+    averageTimeToConversion: number;
+  };
+  byStatus: {
+    pending: number;
+    contacted: number;
+    transferred: number;
+    completed: number;
+    failed: number;
+  };
+  bySource: Record<string, number>;
+  byBrand: Record<string, number>;
+  performanceByDay: Array<{
+    date: string;
+    newLeads: number;
+    contacted: number;
+    converted: number;
+  }>;
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
@@ -76,6 +125,28 @@ export default function DashboardPage() {
     calls: { total: 0, connected: 0, failed: 0 },
     sms: { campaigns: 0, sent: 0, responses: 0 },
     journeys: { active: 0, totalLeads: 0, completed: 0 }
+  });
+
+  // Data for charts (to be populated with real data from API)
+  const [callChartData, setCallChartData] = useState([]);
+  const [leadChartData, setLeadChartData] = useState([]);
+  const [agentChartData, setAgentChartData] = useState([]);
+
+  const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetrics | null>(null);
+  const [leadPerformance, setLeadPerformance] = useState<LeadPerformanceMetrics | null>(null);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0]
+  });
+
+  // SMS campaign state
+  const [smsCampaigns, setSmsCampaigns] = useState<SmsCampaign[]>([]);
+  const [smsMetrics, setSmsMetrics] = useState({
+    totalCampaigns: 0,
+    activeCampaigns: 0,
+    totalMessages: 0,
+    totalContacts: 0
   });
 
   const fetchAgentStatus = async () => {
@@ -105,219 +176,174 @@ export default function DashboardPage() {
     }
   };
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login');
+  const fetchDailyReport = async () => {
+    try {
+      const reportResponse = await Promise.race([
+        api.system.getDailyReport(new Date().toISOString().split('T')[0]),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+      ]);
+      setDailyReport({
+        date: reportResponse.data.date || '',
+        totalCalls: reportResponse.data.totalCalls || 0,
+        answeredCalls: reportResponse.data.answeredCalls || 0,
+        transfers: reportResponse.data.transfers || 0,
+        callsOver1Min: reportResponse.data.callsOver1Min || 0,
+        callsOver5Min: reportResponse.data.callsOver5Min || 0,
+        callsOver15Min: reportResponse.data.callsOver15Min || 0,
+        connectionRate: reportResponse.data.connectionRate || '0',
+        transferRate: reportResponse.data.transferRate || '0'
+      });
+    } catch (reportError) {
+      console.error('Error fetching daily report:', reportError);
+      toast.error('Failed to fetch daily report');
+    }
+  };
+
+  const fetchDashboardMetrics = async () => {
+    try {
+      // Use working endpoint: /reports/daily
+      const response = await getDailyReport(new Date().toISOString().split('T')[0]);
+      
+      setDashboardMetrics({
+        leads: {
+          total: response.totalLeads || 0,
+          new: response.newLeads || 0,
+          contacted: response.contactedLeads || 0,
+          converted: response.convertedLeads || 0
+        },
+        calls: {
+          total: response.totalCalls || 0,
+          today: response.totalCalls || 0,
+          answered: response.answeredCalls || 0,
+          averageDuration: response.averageCallDuration || 0
+        },
+        performance: {
+          conversionRate: parseFloat(response.connectionRate) || 0,
+          contactRate: parseFloat(response.connectionRate) || 0,
+          averageCallsPerLead: response.averageCallsPerLead || 0
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching dashboard metrics:', error);
+      setDashboardMetrics({
+        leads: { total: 0, new: 0, contacted: 0, converted: 0 },
+        calls: { total: 0, today: 0, answered: 0, averageDuration: 0 },
+        performance: { conversionRate: 0, contactRate: 0, averageCallsPerLead: 0 }
+      });
+      toast.error('Failed to fetch dashboard metrics');
+    }
+  };
+
+  const fetchLeadPerformance = async () => {
+    if (!tenantConfig?.id) {
+      console.log('Skipping lead performance fetch - no tenant ID');
       return;
     }
 
+    try {
+      const response = await generateCallSummaryReport({
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        groupBy: 'day',
+        filters: {}
+      });
+
+      const performanceByDay = response.data.map((item: any) => ({
+        date: item.date,
+        newLeads: item.newLeads || 0,
+        contacted: item.contacted || 0,
+        converted: item.converted || 0
+      }));
+
+      setLeadPerformance({
+        summary: {
+          totalLeads: response.totalLeads || 0,
+          averageAttempts: response.averageAttempts || 0,
+          conversionRate: response.conversionRate || 0,
+          averageTimeToConversion: response.averageTimeToConversion || 0
+        },
+        byStatus: {
+          pending: response.byStatus?.pending || 0,
+          contacted: response.byStatus?.contacted || 0,
+          transferred: response.byStatus?.transferred || 0,
+          completed: response.byStatus?.completed || 0,
+          failed: response.byStatus?.failed || 0
+        },
+        bySource: response.bySource || {},
+        byBrand: response.byBrand || {},
+        performanceByDay: performanceByDay
+      });
+    } catch (error) {
+      console.error('Error fetching lead performance:', error);
+      setLeadPerformance({
+        summary: {
+          totalLeads: 0,
+          averageAttempts: 0,
+          conversionRate: 0,
+          averageTimeToConversion: 0
+        },
+        byStatus: {
+          pending: 0,
+          contacted: 0,
+          transferred: 0,
+          completed: 0,
+          failed: 0
+        },
+        bySource: {},
+        byBrand: {},
+        performanceByDay: []
+      });
+      toast.error('Failed to fetch lead performance metrics');
+    }
+  };
+
+  useEffect(() => {
     const fetchData = async () => {
-      setIsLoading(true);
       try {
-        // Fetch tenant config first
-        if (user?.tenantId) {
-          const response = await api.tenants.get(user.tenantId);
-          const tenantData = response.data;
-          console.log('Retrieved tenant data:', tenantData);
-          // Merge tenantData.data with a default dialerConfig to form TenantConfig
-          setTenantConfig({
-            ...tenantData.data,
-            dialerConfig: tenantData.data.dialerConfig || {
-              speed: 1,
-              minAgentsAvailable: 1,
-              autoDelete: false,
-              sortOrder: 'oldest',
-              didDistribution: 'even',
-            },
-            apiConfig: {
-              source: tenantData.data.apiConfig?.source || '',
-              endpoint: tenantData.data.apiConfig?.endpoint || '',
-              user: tenantData.data.apiConfig?.user || '',
-              password: tenantData.data.apiConfig?.password || '',
-              ingroup: tenantData.data.apiConfig?.ingroup || '',
-              ingroups: tenantData.data.apiConfig?.ingroups || '',
-              url: tenantData.data.apiConfig?.url || '',
-            },
-          });
-          setDialerSpeed((tenantData.data.dialerConfig?.speed ?? 1));
-          
-          // Set the current group from tenant config - try ingroup first, then ingroups
-          const group = tenantData.data.apiConfig?.ingroup || tenantData.data.apiConfig?.ingroups || 'TaxSales';
-          if (group) {
-            console.log('Setting current group to:', group);
-            setCurrentGroup(group);
-            localStorage.setItem('currentGroup', group);
-            
-            // Only fetch agent status and daily report after we have the group
-            try {
-              console.log('Fetching agent status for group:', group);
-              const statusResponse = await api.system.getAgentStatus({
-                url: tenantData.data.apiConfig?.url || '',
-                ingroup: group,
-                user: tenantData.data.apiConfig?.user || user?.username || '',
-                pass: tenantData.data.apiConfig?.password || ''
-              });
-              console.log('Agent status response:', statusResponse.data);
-              setAgentStatus(Array.isArray(statusResponse.data) ? statusResponse.data : []);
-            } catch (statusError) {
-              console.error('Error fetching agent status:', statusError);
-              toast.error('Failed to fetch agent status');
-              setAgentStatus([]);
-            }
-            
-            try {
-              const reportResponse = await api.system.getDailyReport(new Date().toISOString().split('T')[0]);
-              setDailyReport(reportResponse.data);
-            } catch (reportError) {
-              console.error('Error fetching daily report:', reportError);
-              toast.error('Failed to fetch daily report');
-            }
-          } else {
-            console.warn('No group found in tenant configuration');
-            toast('⚠️ No agent group configured. Please update in Settings.');
-          }
+        setIsLoading(true);
+        if (!tenantConfig?.id) {
+          console.log('Waiting for tenant configuration...');
+          return;
         }
 
-        // Fetch dashboard stats
-        try {
-          const statsResponse = await api.dashboard.getStats();
-          const dashboardStats = statsResponse.data;
-          setStats({
-            leads: {
-              total: dashboardStats.todaysLeads || 0,
-              new: 0, // These would need to be calculated from other endpoints
-              contacted: 0,
-              converted: 0
-            },
-            calls: {
-              total: dashboardStats.todaysCalls || 0,
-              connected: 0, // These would need to be calculated from other endpoints
-              failed: 0
-            },
-            sms: {
-              campaigns: 0, // These would need to be calculated from other endpoints
-              sent: dashboardStats.todaysSms || 0,
-              responses: 0
-            },
-            journeys: {
-              active: dashboardStats.activeJourneys || 0,
-              totalLeads: 0, // These would need to be calculated from other endpoints
-              completed: 0
-            }
-          });
-        } catch (error) {
-          console.error('Error fetching dashboard stats:', error);
-        }
+        await Promise.all([
+          fetchAgentStatus(),
+          fetchDailyReport(),
+          fetchDashboardMetrics(),
+          fetchLeadPerformance(),
+          fetchSmsCampaigns()
+        ]);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
         toast.error('Failed to load dashboard data');
-        setAgentStatus([]);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchData();
-    
-    // Refresh agent status every 5 seconds, but only if we have a group
-    const interval = setInterval(() => {
-      if (currentGroup) {
-        fetchAgentStatus();
-      }
-    }, 5000);
+  }, [tenantConfig?.id, dateRange]);
 
-    return () => clearInterval(interval);
-  }, [isAuthenticated, router, user, currentGroup, fetchAgentStatus]);
-
-  // Add a refresh button handler
-  const handleRefresh = () => {
-    fetchAgentStatus();
+  const handleDateChange = (newDateRange: { startDate: string; endDate: string }) => {
+    setDateRange(newDateRange);
   };
 
-  const handleSpeedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setDialerSpeed(parseInt(e.target.value, 10));
-  };
-
-  const updateDialerSpeed = async () => {
-    if (!user?.tenantId || dialerSpeed < 1 || !tenantConfig) return;
-    
-    setUpdatingSpeed(true);
+  const fetchSmsCampaigns = async () => {
     try {
-      const updatedConfig = {
-        ...tenantConfig,
-        dialerConfig: {
-          ...tenantConfig.dialerConfig,
-          speed: dialerSpeed
-        },
-        apiConfig: {
-          ...tenantConfig.apiConfig,
-          source: tenantConfig.apiConfig.source || '',
-          endpoint: tenantConfig.apiConfig.endpoint || '',
-          user: tenantConfig.apiConfig.user || '',
-          password: tenantConfig.apiConfig.password || '',
-          ingroup: tenantConfig.apiConfig.ingroup || '',
-          ingroups: tenantConfig.apiConfig.ingroups || '',
-          url: tenantConfig.apiConfig.url || '',
-        }
-      };
+      const campaigns = await SmsCampaignService.getCampaigns();
+      setSmsCampaigns(campaigns);
       
-      await api.tenants.update(user.tenantId, updatedConfig);
-      toast.success('Dialer speed updated successfully');
-      setTenantConfig(updatedConfig);
+      // Calculate metrics
+      const metrics = {
+        totalCampaigns: campaigns.length,
+        activeCampaigns: campaigns.filter(c => c.status === 'active').length,
+        totalMessages: campaigns.reduce((sum, c) => sum + (c.sentCount || 0), 0),
+        totalContacts: campaigns.reduce((sum, c) => sum + (c.totalContacts || 0), 0)
+      };
+      setSmsMetrics(metrics);
     } catch (error) {
-      console.error('Error updating dialer speed:', error);
-      toast.error('Failed to update dialer speed');
-    } finally {
-      setUpdatingSpeed(false);
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setCsvFile(e.target.files[0]);
-    }
-  };
-
-  const handleUploadLeads = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!csvFile) {
-      toast.error('Please select a CSV file');
-      return;
-    }
-
-    if (!leadSource) {
-      toast.error('Please enter a lead source');
-      return;
-    }
-    
-    setIsUploading(true);
-    
-    try {
-      // Read file content as text
-      const fileContent = await csvFile.text();
-      
-      // Prepare upload options
-      const options = {
-        hasHeaders,
-        source: leadSource,
-        // Format expected: phone,first_name,last_name,address,city,state,zip
-        format: 'phone,first_name,last_name,address,city,state,zip',
-      };
-      
-      const response = await api.leads.upload(fileContent, options);
-      toast.success(response.data.message || 'Leads uploaded successfully');
-      setShowUploadForm(false);
-      setCsvFile(null);
-      setLeadSource('');
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    } catch (error: any) {
-      console.error('Error uploading leads:', error);
-      toast.error(error.response?.data?.error || 'Failed to upload leads');
-    } finally {
-      setIsUploading(false);
+      console.error('Error fetching SMS campaigns for dashboard:', error);
+      // Don't show toast error for dashboard as it's not critical
     }
   };
 
@@ -327,395 +353,290 @@ export default function DashboardPage() {
   
   return (
     <DashboardLayout>
-      <div className="py-6">
-        <div className="flex justify-between items-center mb-6">
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
           <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
-          <Button
-            onClick={handleRefresh}
-            variant="default"
-            isLoading={isRefreshing}
-          >
-            Refresh Status
-          </Button>
+          <div className="flex items-center space-x-4">
+            <DateRangePicker
+              startDate={dateRange.startDate}
+              endDate={dateRange.endDate}
+              onDateChange={handleDateChange}
+            />
+          </div>
         </div>
-        
+
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
           </div>
         ) : (
-          <div className="mt-6">
-            {/* Admin controls section */}
-            {user?.role === 'admin' && (
-              <div className="mb-6 grid grid-cols-1 gap-5 md:grid-cols-2">
-                {/* Dialer Speed Control Card */}
-                {tenantConfig && (
-                  <div className="bg-white overflow-hidden shadow rounded-lg">
-                    <div className="px-4 py-5 sm:p-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 bg-brand rounded-md p-3">
-                            <Sliders className="h-6 w-6 text-white" />
-                          </div>
-                          <div className="ml-5">
-                            <h3 className="text-lg font-medium text-gray-900">Dialer Speed Control</h3>
-                            <p className="text-sm text-gray-500">Adjust the number of calls per minute</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-4 w-64">
-                          <Input
-                            id="dialerSpeed"
-                            type="number"
-                            value={dialerSpeed}
-                            onChange={handleSpeedChange}
-                            min={1}
-                            className="text-center"
-                          />
-                          <button
-                            onClick={updateDialerSpeed}
-                            disabled={updatingSpeed || dialerSpeed === tenantConfig.dialerConfig.speed}
-                            className={`px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white 
-                              ${updatingSpeed ? 'bg-gray-400' : 'bg-brand hover:bg-brand'} 
-                              focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand`}
-                          >
-                            {updatingSpeed ? 'Updating...' : 'Update'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+          <>
+            {/* Overview Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Leads</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{dashboardMetrics?.leads.total || 0}</div>
+                  <p className="text-xs text-muted-foreground">
+                    +{dashboardMetrics?.leads.new || 0} new today
+                  </p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Calls</CardTitle>
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{dashboardMetrics?.calls.total || 0}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {dashboardMetrics?.calls.today || 0} calls today
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Conversion Rate</CardTitle>
+                  <Sliders className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{dashboardMetrics?.performance.conversionRate || 0}%</div>
+                  <p className="text-xs text-muted-foreground">
+                    {dashboardMetrics?.performance.contactRate || 0}% contact rate
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Avg. Call Duration</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {Math.floor((dashboardMetrics?.calls.averageDuration || 0) / 60)}m {Math.floor((dashboardMetrics?.calls.averageDuration || 0) % 60)}s
                   </div>
-                )}
-                
-                {/* CSV Upload Card */}
-                <div className="bg-white overflow-hidden shadow rounded-lg">
-                  <div className="px-4 py-5 sm:p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 bg-brand rounded-md p-3">
-                          <Upload className="h-6 w-6 text-white" />
+                  <p className="text-xs text-muted-foreground">
+                    {dashboardMetrics?.performance.averageCallsPerLead || 0} calls per lead
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">SMS Campaigns</CardTitle>
+                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{smsMetrics.totalCampaigns}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {smsMetrics.activeCampaigns} active campaigns
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* SMS Campaign Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Messages Sent</CardTitle>
+                  <Send className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{smsMetrics.totalMessages}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Total SMS messages sent
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Contacts</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{smsMetrics.totalContacts}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Contacts in all campaigns
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Recent Campaigns</CardTitle>
+                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {smsCampaigns.slice(0, 3).map((campaign) => (
+                      <div key={campaign.id} className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {campaign.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {campaign.status} • {campaign.sentCount || 0}/{campaign.totalContacts || 0} sent
+                          </p>
                         </div>
-                        <div className="ml-5">
-                          <h3 className="text-lg font-medium text-gray-900">Upload Leads</h3>
-                          <p className="text-sm text-gray-500">Import leads from CSV file</p>
-                        </div>
+                        <Link 
+                          href="/sms/campaigns" 
+                          className="text-xs text-blue-600 hover:text-blue-800"
+                        >
+                          View
+                        </Link>
                       </div>
-                      <button
-                        onClick={() => setShowUploadForm(!showUploadForm)}
-                        className="px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-brand hover:bg-brand focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand"
-                      >
-                        {showUploadForm ? 'Cancel' : 'Upload CSV'}
-                      </button>
-                    </div>
-                    
-                    {showUploadForm && (
-                      <div className="mt-5">
-                        <form onSubmit={handleUploadLeads} className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">CSV File</label>
-                            <input
-                              ref={fileInputRef}
-                              type="file"
-                              accept=".csv"
-                              onChange={handleFileChange}
-                              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-brand file:bg-opacity-10 file:text-brand hover:file:bg-brand hover:file:bg-opacity-20"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">
-                              File must be CSV format with the following columns:
-                            </p>
-                            <pre className="text-xs bg-gray-50 p-2 mt-1 rounded">phone,first_name,last_name,address,city,state,zip</pre>
-                          </div>
-                          
-                          <div>
-                            <Input
-                              id="leadSource"
-                              type="text"
-                              label="Lead Source"
-                              placeholder="e.g., Website, Campaign Name"
-                              value={leadSource}
-                              onChange={(e) => setLeadSource(e.target.value)}
-                              required
-                            />
-                          </div>
-                          
-                          <div className="flex items-center">
-                            <input
-                              id="hasHeaders"
-                              type="checkbox"
-                              checked={hasHeaders}
-                              onChange={(e) => setHasHeaders(e.target.checked)}
-                              className="h-4 w-4 text-brand focus:ring-brand border-gray-300 rounded"
-                            />
-                            <label htmlFor="hasHeaders" className="ml-2 block text-sm text-gray-700">
-                              CSV has header row
-                            </label>
-                          </div>
-                          
-                          <div className="flex justify-end space-x-3">
-                            <button
-                              type="button"
-                              onClick={() => setShowUploadForm(false)}
-                              className="px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="submit"
-                              disabled={isUploading || !csvFile || !leadSource}
-                              className={`px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white 
-                                ${isUploading || !csvFile || !leadSource ? 'bg-gray-400' : 'bg-brand hover:bg-brand'} 
-                                focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand`}
-                            >
-                              {isUploading ? 'Uploading...' : 'Upload'}
-                            </button>
-                          </div>
-                        </form>
+                    ))}
+                    {smsCampaigns.length === 0 && (
+                      <div className="text-sm text-gray-500">
+                        No campaigns yet
                       </div>
                     )}
+                    {smsCampaigns.length > 0 && (
+                      <Link 
+                        href="/sms/campaigns" 
+                        className="text-sm text-blue-600 hover:text-blue-800 block mt-2"
+                      >
+                        View all campaigns →
+                      </Link>
+                    )}
                   </div>
-                </div>
-              </div>
-            )}
-            
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Real-time Agent Status</h2>
-            
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0 bg-brand rounded-md p-3">
-                      <Users className="h-6 w-6 text-white" />
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">Agents Logged In</dt>
-                        <dd>
-                          <div className="text-lg font-medium text-gray-900">
-                            {Array.isArray(agentStatus) ? agentStatus.reduce((sum, status) => sum + status.agents_logged_in, 0) : 0}
-                          </div>
-                        </dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0 bg-brand rounded-md p-3">
-                      <Clock className="h-6 w-6 text-white" />
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">Agents Waiting</dt>
-                        <dd>
-                          <div className="text-lg font-medium text-gray-900">
-                            {Array.isArray(agentStatus) ? agentStatus.reduce((sum, status) => sum + status.agents_waiting, 0) : 0}
-                          </div>
-                        </dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0 bg-brand rounded-md p-3">
-                      <Phone className="h-6 w-6 text-white" />
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">Total Calls</dt>
-                        <dd>
-                          <div className="text-lg font-medium text-gray-900">
-                            {Array.isArray(agentStatus) ? agentStatus.reduce((sum, status) => sum + status.total_calls, 0) : 0}
-                          </div>
-                        </dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0 bg-brand rounded-md p-3">
-                      <PhoneOutgoing className="h-6 w-6 text-white" />
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">Calls Waiting</dt>
-                        <dd>
-                          <div className="text-lg font-medium text-gray-900">
-                            {Array.isArray(agentStatus) ? agentStatus.reduce((sum, status) => sum + status.calls_waiting, 0) : 0}
-                          </div>
-                        </dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             </div>
-            
-            {dailyReport && (
-              <>
-                <h2 className="text-lg font-medium text-gray-900 mt-8 mb-4">Today&apos;s Call Report</h2>
-                <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-                  <div className="px-4 py-5 sm:p-6">
-                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                      <div>
-                        <h3 className="text-lg leading-6 font-medium text-gray-900">Call Statistics</h3>
-                        <dl className="mt-5 grid grid-cols-1 gap-5">
-                          <div>
-                            <dt className="text-sm font-medium text-gray-500">Total Calls</dt>
-                            <dd className="mt-1 text-3xl font-semibold text-gray-900">{dailyReport.totalCalls}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-sm font-medium text-gray-500">Answered Calls</dt>
-                            <dd className="mt-1 text-3xl font-semibold text-gray-900">{dailyReport.answeredCalls}</dd>
-                          </div>
-                        </dl>
-                      </div>
-                      
-                      <div>
-                        <h3 className="text-lg leading-6 font-medium text-gray-900">Call Duration</h3>
-                        <dl className="mt-5 grid grid-cols-1 gap-5">
-                          <div>
-                            <dt className="text-sm font-medium text-gray-500">Calls Over 1 Min</dt>
-                            <dd className="mt-1 text-3xl font-semibold text-gray-900">{dailyReport.callsOver1Min}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-sm font-medium text-gray-500">Calls Over 5 Min</dt>
-                            <dd className="mt-1 text-3xl font-semibold text-gray-900">{dailyReport.callsOver5Min}</dd>
-                          </div>
-                        </dl>
-                      </div>
-                      
-                      <div>
-                        <h3 className="text-lg leading-6 font-medium text-gray-900">Transfer Data</h3>
-                        <dl className="mt-5 grid grid-cols-1 gap-5">
-                          <div>
-                            <dt className="text-sm font-medium text-gray-500">Transfers</dt>
-                            <dd className="mt-1 text-3xl font-semibold text-gray-900">{dailyReport.transfers}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-sm font-medium text-gray-500">Transfer Rate</dt>
-                            <dd className="mt-1 text-3xl font-semibold text-gray-900">{dailyReport.transferRate}</dd>
-                          </div>
-                        </dl>
-                      </div>
-                      
-                      <div>
-                        <h3 className="text-lg leading-6 font-medium text-gray-900">Performance</h3>
-                        <dl className="mt-5 grid grid-cols-1 gap-5">
-                          <div>
-                            <dt className="text-sm font-medium text-gray-500">Connection Rate</dt>
-                            <dd className="mt-1 text-3xl font-semibold text-gray-900">{dailyReport.connectionRate}</dd>
-                          </div>
-                          <div>
-                            <dt className="text-sm font-medium text-gray-500">Calls Over 15 Min</dt>
-                            <dd className="mt-1 text-3xl font-semibold text-gray-900">{dailyReport.callsOver15Min}</dd>
-                          </div>
-                        </dl>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-            
-            {agentStatus.length > 0 && (
-              <>
-                <h2 className="text-lg font-medium text-gray-900 mt-8 mb-4">Agent Status By Group</h2>
-                <div className="flex flex-col">
-                  <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-                    <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
-                      <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Ingroup
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Agents Logged In
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Agents Waiting
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Total Calls
-                              </th>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Calls Waiting
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {agentStatus.map((status, index) => (
-                              <tr key={index}>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                  {status.ingroup}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                  {status.agents_logged_in}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                  {status.agents_waiting}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                  {status.total_calls}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                  {status.calls_waiting}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
 
-            {/* Journey Stats Card */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium text-gray-900">Journeys</h3>
-                <Link href="/journeys">
-                  <Button variant="ghost" size="icon">
-                    <Route className="h-5 w-5" />
-                  </Button>
-                </Link>
-              </div>
-              <div className="mt-2 grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-2xl font-bold">{stats.journeys.active}</p>
-                  <p className="text-sm text-gray-500">Active Journeys</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.journeys.totalLeads}</p>
-                  <p className="text-sm text-gray-500">Active Leads</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.journeys.completed}</p>
-                  <p className="text-sm text-gray-500">Completed</p>
-                </div>
-              </div>
-              <div className="mt-4">
-                <Link href="/journeys">
-                  <Button variant="outline" className="w-full">
-                    View Journeys
-                  </Button>
-                </Link>
-              </div>
+            {/* Charts Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Lead Performance Chart */}
+              <Card className="col-span-1">
+                <CardHeader>
+                  <CardTitle>Lead Performance</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={leadPerformance?.performanceByDay || []}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Line type="monotone" dataKey="newLeads" stroke="#8884d8" name="New Leads" />
+                        <Line type="monotone" dataKey="contacted" stroke="#82ca9d" name="Contacted" />
+                        <Line type="monotone" dataKey="converted" stroke="#ffc658" name="Converted" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Lead Status Distribution */}
+              <Card className="col-span-1">
+                <CardHeader>
+                  <CardTitle>Lead Status Distribution</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={[
+                        { name: 'Pending', value: leadPerformance?.byStatus.pending || 0 },
+                        { name: 'Contacted', value: leadPerformance?.byStatus.contacted || 0 },
+                        { name: 'Transferred', value: leadPerformance?.byStatus.transferred || 0 },
+                        { name: 'Completed', value: leadPerformance?.byStatus.completed || 0 },
+                        { name: 'Failed', value: leadPerformance?.byStatus.failed || 0 }
+                      ]}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="value" fill="#8884d8" name="Leads" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Source Distribution */}
+              <Card className="col-span-1">
+                <CardHeader>
+                  <CardTitle>Lead Sources</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={Object.entries(leadPerformance?.bySource || {}).map(([name, value]) => ({
+                        name,
+                        value
+                      }))}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="value" fill="#82ca9d" name="Leads" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Brand Distribution */}
+              <Card className="col-span-1">
+                <CardHeader>
+                  <CardTitle>Brand Distribution</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={Object.entries(leadPerformance?.byBrand || {}).map(([name, value]) => ({
+                        name,
+                        value
+                      }))}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="value" fill="#ffc658" name="Leads" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          </div>
+
+            {/* Performance Summary */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Performance Summary</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium">Lead Metrics</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="text-sm">Total Leads:</div>
+                      <div className="text-sm font-medium">{leadPerformance?.summary.totalLeads || 0}</div>
+                      <div className="text-sm">Avg. Attempts:</div>
+                      <div className="text-sm font-medium">{leadPerformance?.summary.averageAttempts || 0}</div>
+                      <div className="text-sm">Conversion Rate:</div>
+                      <div className="text-sm font-medium">{leadPerformance?.summary.conversionRate || 0}%</div>
+                      <div className="text-sm">Avg. Time to Convert:</div>
+                      <div className="text-sm font-medium">{leadPerformance?.summary.averageTimeToConversion || 0} days</div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </>
         )}
       </div>
     </DashboardLayout>

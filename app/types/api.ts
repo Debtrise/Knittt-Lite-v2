@@ -121,4 +121,26 @@ export interface ValidationError {
 export interface ValidationResponse {
   isValid: boolean;
   errors: ValidationError[];
+}
+
+// Webhook Event Types
+export interface WebhookEvent {
+  id: string;
+  webhookId: number;
+  status: 'success' | 'partial_success' | 'failed';
+  receivedAt: string;
+  processedAt?: string;
+  payload: Record<string, unknown>;
+  leadId?: number;
+  errors?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface WebhookTestResponse {
+  success: boolean;
+  message: string;
+  leadCreated?: boolean;
+  leadId?: number;
+  validationErrors?: string[];
+  processingTime: number;
 } 

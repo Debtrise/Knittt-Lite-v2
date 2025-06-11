@@ -91,15 +91,6 @@ export default function LeadsPage() {
     },
   });
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login');
-      return;
-    }
-
-    fetchLeads();
-  }, [isAuthenticated, router, currentPage, filterStatus, fetchLeads]);
-
   const fetchLeads = async (page: number = 1) => {
     setIsLoading(true);
     try {
@@ -127,6 +118,15 @@ export default function LeadsPage() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/login');
+      return;
+    }
+
+    fetchLeads();
+  }, [isAuthenticated, router, currentPage, filterStatus]);
 
   const onUploadSubmit = async (data: UploadFormData) => {
     setUploadIsLoading(true);

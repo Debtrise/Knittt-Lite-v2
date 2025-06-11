@@ -1,4 +1,4 @@
-// File: /Applications/Knittt-Lite-v2/app/(app)/templates/page.tsx
+// File: /Applications/Knittt-Lite-v2-1/app/(app)/templates/page.tsx
 import * as entry from '../../../../../app/(app)/templates/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

@@ -36,11 +36,14 @@ import { BulkEnrollCriteria, JourneyMatchingStats } from '@/app/types/lead';
 // Import our new components
 import JourneyFlow from '@/app/components/journey-builder/JourneyFlow';
 import StepEditor from '@/app/components/journey-builder/StepEditor';
+import { ReactFlowProvider } from 'reactflow';
 
 export default function JourneyDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
-  const journeyId = parseInt(params.id, 10);
+  // Handle params as a Promise for future Next.js compatibility
+  const resolvedParams = React.use ? React.use(params) : params;
+  const journeyId = parseInt(resolvedParams.id, 10);
   
   const [journey, setJourney] = useState<JourneyWithSteps | null>(null);
   const [steps, setSteps] = useState<JourneyStep[]>([]);
@@ -406,12 +409,14 @@ export default function JourneyDetailPage({ params }: { params: { id: string } }
               <div className="lg:col-span-2">
                 <div className="bg-white shadow rounded-lg p-6">
                   <h2 className="text-lg font-medium text-gray-900 mb-4">Journey Flow</h2>
+                  <ReactFlowProvider>
                   <JourneyFlow 
                     journey={journey}
                     onJourneyUpdated={fetchJourneyDetails}
                     onSelectStep={setSelectedStep}
                     selectedStep={selectedStep}
                   />
+                  </ReactFlowProvider>
                 </div>
               </div>
               

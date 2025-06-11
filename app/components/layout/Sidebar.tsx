@@ -12,7 +12,8 @@ import {
   BarChart,
   Layers,
   Route,
-  Link2
+  Link2,
+  Mail
 } from 'lucide-react';
 
 const navigation = [
@@ -50,7 +51,7 @@ const navigation = [
     name: 'SMS',
     items: [
       {
-        name: 'Campaigns',
+        name: 'Messages',
         href: '/sms',
         icon: MessageSquare,
       },
@@ -69,12 +70,32 @@ const navigation = [
         href: '/sms/numbers',
         icon: Phone,
       },
+      {
+        name: 'Providers',
+        href: '/settings/sms-providers',
+        icon: Settings,
+      },
     ],
   },
   {
-    name: 'Templates',
-    href: '/templates',
-    icon: FileText,
+    name: 'Email',
+    items: [
+      {
+        name: 'Dashboard',
+        href: '/email/dashboard',
+        icon: Mail,
+      },
+      {
+        name: 'Templates',
+        href: '/email/templates',
+        icon: FileText,
+      },
+      {
+        name: 'Configuration',
+        href: '/email/config',
+        icon: Settings,
+      },
+    ],
   },
   {
     name: 'Webhooks',
@@ -98,7 +119,12 @@ const navigation = [
   },
 ];
 
-const Sidebar = ({ pathname, handleLogout }) => {
+interface SidebarProps {
+  pathname: string;
+  handleLogout: () => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ pathname, handleLogout }) => {
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
       <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">

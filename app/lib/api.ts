@@ -1,4 +1,4 @@
-import axios, { AxiosRequestConfig } from 'axios';
+import axios, { AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/app/store/authStore';
 import {
   ApiError,
@@ -8,9 +8,31 @@ import {
   RegisterRequest,
   PaginatedResponse,
   RequestConfig,
-  Metadata
+  Metadata,
+  WebhookEvent,
+  WebhookTestResponse
 } from '@/app/types/api';
-import { Template, TemplateCategory, CreateTemplateData, TemplateListResponse, TemplateCategoryListResponse } from '@/app/types/templates';
+import { Template, TemplateCategory, CreateTemplateData, TemplateListResponse, TemplateCategoryListResponse, TemplateType } from '@/app/types/templates';
+import {
+  EmailProvider,
+  EmailConfig,
+  EmailMessage,
+  EmailTestRequest,
+  EmailTestResponse,
+  EmailStats,
+  EmailSendRequest,
+  EmailSendResponse,
+  EmailTemplate,
+  EmailTemplateCategory,
+  EmailTemplateUsage,
+  EmailTemplateRenderRequest,
+  EmailTemplateRenderResponse,
+  EmailTemplateListResponse,
+  EmailCategoryListResponse,
+  CreateEmailTemplateRequest,
+  UpdateEmailTemplateRequest,
+  CreateEmailCategoryRequest
+} from '@/app/types/email';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://34.122.156.88:3001/api';
 const SMS_API_URL = process.env.NEXT_PUBLIC_SMS_API_URL || 'http://34.122.156.88:3100';
@@ -44,7 +66,7 @@ const smsApi = axios.create({
 });
 
 // Add request interceptor to add auth token and tenant ID
-const addAuthToken = (config: AxiosRequestConfig): AxiosRequestConfig => {
+const addAuthToken = (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
   const token = useAuthStore.getState().token;
   const user = useAuthStore.getState().user;
   
@@ -540,18 +562,30 @@ export const transferGroups = {
   create: (data: {
     name: string;
     description: string;
+    brand?: string;
+    ingroup?: string;
     type: 'roundrobin' | 'simultaneous' | 'priority' | 'percentage';
-    brand: string;
-    ingroup: string;
-    isActive: boolean;
-    settings: {
+    apiConfig?: {
+      url: string;
+      user: string;
+      password: string;
+      source: string;
+    };
+    context?: {
+      type: 'default' | 'custom';
+      dialerContext?: string;
+      content?: string;
+    };
+    settings?: {
       ringTimeout: number;
       voicemailEnabled: boolean;
       callRecording: boolean;
     };
+    isActive: boolean;
   }) => api.post('/transfer-groups', data),
   update: (id: string, data: any) => api.put(`/transfer-groups/${id}`, data),
   delete: (id: string) => api.delete(`/transfer-groups/${id}`),
+  
   // Transfer numbers
   addNumber: (groupId: string, data: {
     phoneNumber: string;
@@ -568,44 +602,65 @@ export const transferGroups = {
     api.delete(`/transfer-groups/${groupId}/numbers/${numberId}`),
   getNextNumber: (groupId: string) =>
     api.get(`/transfer-groups/${groupId}/next-number`),
+    
+  // Get transfer group configuration for journey steps
+  getConfig: (groupId: string) =>
+    api.get(`/transfer-groups/${groupId}/config`),
 };
 
-// Email endpoints
-export interface EmailConfig {
-  provider: 'smtp' | 'sendgrid' | 'mailgun' | 'ses';
-  settings: Record<string, unknown>;
-  fromEmail: string;
-  fromName: string;
-  replyToEmail: string;
-  dailyLimit: number;
-}
-
-export interface EmailMessage {
-  id: string;
-  to: string;
-  from: string;
-  subject: string;
-  body: string;
-  status: 'queued' | 'sent' | 'delivered' | 'failed';
-  metadata?: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-}
+// Email endpoints - Comprehensive Mailgun Integration
 
 export const email = {
+  // Email Configuration Endpoints
+  getProviders: () => api.get<ApiResponse<EmailProvider[]>>('/email/providers'),
   getConfig: () => api.get<ApiResponse<EmailConfig>>('/email/config'),
-  saveConfig: (data: EmailConfig) => api.post<ApiResponse<EmailConfig>>('/email/config', data),
-  test: (to: string) => api.post<ApiResponse<{ success: boolean }>>('/email/test', { to }),
-  send: (data: {
-    to: string;
-    templateId: number;
-    variables: Record<string, unknown>;
-    attachments?: Array<{
-      filename: string;
-      content: string;
-      contentType: string;
-    }>;
-  }) => api.post<ApiResponse<EmailMessage>>('/email/send', data),
+  saveConfig: (data: Omit<EmailConfig, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>) => 
+    api.post<ApiResponse<EmailConfig>>('/email/config', data),
+  test: (data: EmailTestRequest) => api.post<ApiResponse<EmailTestResponse>>('/email/test', data),
+  getStats: (params?: { startDate?: string; endDate?: string }) => 
+    api.get<ApiResponse<EmailStats>>('/email/stats', { params }),
+  resetDailyLimit: () => api.post<ApiResponse<{ message: string }>>('/email/reset-daily-limit'),
+
+  // Email Sending
+  send: (data: EmailSendRequest) => api.post<ApiResponse<EmailSendResponse>>('/email/send', data),
+};
+
+// Email Template Management
+export const emailTemplates = {
+  // Template CRUD
+  list: (params?: {
+    type?: string;
+    categoryId?: number;
+    isActive?: boolean;
+    page?: number;
+    limit?: number;
+  }) => api.get<ApiResponse<EmailTemplateListResponse>>('/templates', { params }),
+  
+  get: (id: number) => api.get<ApiResponse<EmailTemplate>>(`/templates/${id}`),
+  
+  create: (data: CreateEmailTemplateRequest) => 
+    api.post<ApiResponse<EmailTemplate>>('/templates', data),
+  
+  update: (id: number, data: Partial<UpdateEmailTemplateRequest>) => 
+    api.put<ApiResponse<EmailTemplate>>(`/templates/${id}`, data),
+  
+  delete: (id: number) => api.delete<ApiResponse<{ message: string }>>(`/templates/${id}`),
+  
+  // Template Operations
+  render: (id: number, data: EmailTemplateRenderRequest) => 
+    api.post<ApiResponse<EmailTemplateRenderResponse>>(`/templates/${id}/render`, data),
+  
+  clone: (id: number) => api.post<ApiResponse<EmailTemplate>>(`/templates/${id}/clone`),
+  
+  getUsage: (id: number, params?: { page?: number; limit?: number }) => 
+    api.get<ApiResponse<{ usage: EmailTemplateUsage[]; totalCount: number; currentPage: number; totalPages: number }>>(`/templates/${id}/usage`, { params }),
+
+  // Template Categories
+  getCategories: (params?: { type?: string }) => 
+    api.get<ApiResponse<EmailCategoryListResponse>>('/templates/categories', { params }),
+  
+  createCategory: (data: CreateEmailCategoryRequest) => 
+    api.post<ApiResponse<EmailTemplateCategory>>('/templates/categories', data),
 };
 
 // Report endpoints
@@ -980,7 +1035,7 @@ export const freepbx = {
         `/recordings/${recordingId}/sync-freepbx?tenantId=${tenantId}`,
         { tenantId }
       );
-    } catch (error: ApiError) {
+    } catch (error: any) {
       console.error('FreePBX sync error:', error);
       throw error;
     }
@@ -995,7 +1050,7 @@ export const freepbx = {
         `/recordings/${recordingId}/upload-to-freepbx?tenantId=${tenantId}`,
         { tenantId }
       );
-    } catch (error: ApiError) {
+    } catch (error: any) {
       if (error.response?.status === 404) {
         throw new Error('FreePBX upload functionality is not yet implemented on the backend. Please contact your system administrator.');
       }
@@ -1073,6 +1128,77 @@ export const webhooks = {
     api.get<ApiResponse<{ fields: string[]; operators: string[]; tags: string[] }>>('/system/webhook-capabilities'),
 };
 
+// SMS Provider and Messaging endpoints
+export const smsProviders = {
+  // Provider Management
+  getProviders: () => api.get('/sms/providers'),
+  setDefaultProvider: (provider: 'twilio' | 'meera') => 
+    api.put('/sms/providers/default', { provider }),
+  
+  // Twilio Configuration
+  getTwilioConfig: () => api.get('/sms/twilio/config'),
+  saveTwilioConfig: (config: {
+    accountSid: string;
+    authToken: string;
+    defaultFromNumber: string;
+    settings?: {
+      statusCallbackUrl?: string;
+      enableDeliveryReports?: boolean;
+    };
+    rateLimits?: {
+      messagesPerMinute?: number;
+      messagesPerHour?: number;
+      messagesPerDay?: number;
+    };
+  }) => api.post('/sms/twilio/config', config),
+  testTwilioConnection: () => api.post('/sms/twilio/test'),
+  
+  // Meera Configuration
+  getMeeraConfig: () => api.get('/sms/meera/config'),
+  saveMeeraConfig: (config: {
+    apiKey: string;
+    apiSecret: string;
+    baseUrl: string;
+    defaultFromNumber: string;
+    settings?: {
+      messageType?: string;
+      enableUnicode?: boolean;
+      maxSegments?: number;
+    };
+    rateLimits?: {
+      messagesPerSecond?: number;
+      messagesPerMinute?: number;
+      messagesPerHour?: number;
+      messagesPerDay?: number;
+    };
+  }) => api.post('/sms/meera/config', config),
+  testMeeraConnection: () => api.post('/sms/meera/test'),
+  checkMeeraBalance: () => api.get('/sms/meera/balance'),
+};
+
+// SMS Messaging endpoints
+export const smsMessaging = {
+  // Send SMS (auto-detect provider)
+  sendSms: (data: {
+    to: string;
+    body: string;
+    from?: string;
+    leadId?: number;
+    provider?: 'twilio' | 'meera';
+    metadata?: Record<string, any>;
+  }) => api.post('/sms/send', data),
+  
+  // Send templated SMS
+  sendTemplate: (data: {
+    to: string;
+    templateId: number;
+    variables: Record<string, any>;
+    leadId?: number;
+    provider?: 'twilio' | 'meera';
+    from?: string;
+  }) => api.post('/sms/send-template', data),
+};
+
 export default {
   auth,
   users,
@@ -1083,6 +1209,8 @@ export default {
   journeys,
   webhooks,
   sms,
+  smsProviders,
+  smsMessaging,
   templates,
   transferGroups,
   email,

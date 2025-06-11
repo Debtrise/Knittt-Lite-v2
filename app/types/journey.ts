@@ -28,7 +28,7 @@ export interface JourneyStep {
   description: string;
   journeyId: number;
   stepOrder: number;
-  actionType: 'call' | 'sms' | 'email' | 'status_change' | 'tag_update' | 'webhook' | 'wait_for_event' | 'conditional_branch' | 'lead_assignment' | 'data_update' | 'journey_transfer' | 'delay';
+  actionType: 'call' | 'sms' | 'sms_twilio' | 'sms_meera' | 'email' | 'status_change' | 'tag_update' | 'webhook' | 'wait_for_event' | 'conditional_branch' | 'lead_assignment' | 'data_update' | 'journey_transfer' | 'delay';
   actionConfig: Record<string, any>;
   delayType: 'immediate' | 'fixed_time' | 'delay_after_previous' | 'delay_after_enrollment' | 'specific_days';
   delayConfig: Record<string, any>;
@@ -45,6 +45,7 @@ export interface JourneyStep {
   };
   isActive: boolean;
   isExitPoint: boolean;
+  position?: { x: number; y: number };
   createdAt?: string;
   updatedAt?: string;
 }

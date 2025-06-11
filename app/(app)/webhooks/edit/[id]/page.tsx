@@ -6,6 +6,16 @@ import WebhookForm from '../../components/WebhookForm';
 
 export default function EditWebhookPage({ params }: { params: { id: string } }) {
   const webhookId = parseInt(params.id);
+  if (isNaN(webhookId)) {
+    return (
+      <DashboardLayout>
+        <div className="container mx-auto py-6">
+          <h1 className="text-2xl font-bold mb-6">Error</h1>
+          <p className="text-red-500">Invalid webhook ID provided.</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
   
   return (
     <DashboardLayout>

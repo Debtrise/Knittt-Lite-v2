@@ -51,7 +51,9 @@ interface JourneyLead {
 
 export default function JourneyLeadsPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const journeyId = parseInt(params.id, 10);
+  // Handle params as a Promise for future Next.js compatibility
+  const resolvedParams = React.use ? React.use(params) : params;
+  const journeyId = parseInt(resolvedParams.id, 10);
   const { isAuthenticated } = useAuthStore();
   
   const [journey, setJourney] = useState<Journey | null>(null);

@@ -13,7 +13,7 @@ const promptCredentials = () => {
   return new Promise((resolve) => {
     rl.question('Enter username: ', (username) => {
       rl.question('Enter password: ', (password) => {
-        rl.question('Enter tenant ID: ', (tenantId) => {
+        rl.qwuestion('Enter tenant ID: ', (tenantId) => {
           resolve({ username, password, tenantId: parseInt(tenantId, 10) });
         });
       });

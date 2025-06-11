@@ -105,7 +105,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
         dataType: 'string' | 'number' | 'boolean' | 'date' | 'array';
       }>;
       actions: Array<{
-        type: 'create_lead' | 'update_lead' | 'send_notification' | 'enroll_journey' | 'call_webhook' | 'set_tags' | 'create_task';
+        type: 'create_lead' | 'update_lead' | 'send_notification' | 'enroll_journey' | 'call_webhook' | 'set_tags' | 'create_task' | 'set_dialer_assignment';
         config: Record<string, any>;
       }>;
     }>
@@ -140,6 +140,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
     { value: 'call_webhook', label: 'Call Webhook', description: 'Call external webhooks' },
     { value: 'set_tags', label: 'Set Tags', description: 'Add/remove tags from leads' },
     { value: 'create_task', label: 'Create Task', description: 'Create tasks and reminders' },
+    { value: 'set_dialer_assignment', label: 'Set Dialer Assignment', description: 'Set dialer assignment for leads' },
   ];
 
   // Fetch available journeys
@@ -149,7 +150,11 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
       console.log('Journeys API response:', response);
       
       const data = response.data || response;
-      const journeysList = data.journeys || data || [];
+      let journeysList = data.journeys || data || [];
+      // Ensure journeysList is an array
+      if (!Array.isArray(journeysList)) {
+        journeysList = [];
+      }
       setAvailableJourneys(journeysList);
     } catch (error) {
       console.error('Error fetching journeys:', error);
@@ -202,79 +207,94 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
     });
   };
 
+  // Fetch webhook details for edit mode
   const fetchWebhook = async () => {
     if (!webhookId) return;
-    
     try {
-      const response = await api.webhooks.get(webhookId.toString());
-      const data = response.data || response;
+      setLoading(true);
+      const response = await getWebhookDetails(webhookId);
+      const webhook = response.data || response;
+      console.log('Webhook details:', webhook);
       
-      console.log('Fetched webhook data:', data); // Debug log
-      
-      // Map API response to form data
+      // Update form data with webhook details
       setFormData({
-        name: data.name || '',
-        description: data.description || '',
-        brand: data.brand || '',
-        source: data.source || '',
-        fieldMapping: {
-          phone: data.fieldMapping?.phone || '',
-          name: data.fieldMapping?.name || '',
-          email: data.fieldMapping?.email || '',
-          address: data.fieldMapping?.address || '',
-          city: data.fieldMapping?.city || '',
-          state: data.fieldMapping?.state || '',
-          zip: data.fieldMapping?.zip || '',
-          leadValue: data.fieldMapping?.leadValue || '',
-          notes: data.fieldMapping?.notes || '',
+        name: webhook.name || '',
+        description: webhook.description || '',
+        brand: webhook.brand || '',
+        source: webhook.source || '',
+        fieldMapping: webhook.fieldMapping || {
+          phone: 'phone',
+          name: 'full_name',
+          email: 'email_address',
         },
-        validationRules: {
-          requirePhone: data.validationRules?.requirePhone ?? true,
-          requireName: data.validationRules?.requireName ?? false,
-          requireEmail: data.validationRules?.requireEmail ?? false,
-          allowDuplicatePhone: data.validationRules?.allowDuplicatePhone ?? false,
+        validationRules: webhook.validationRules || {
+          requirePhone: true,
+          requireName: false,
+          requireEmail: false,
+          allowDuplicatePhone: false,
         },
-        autoTagRules: data.autoTagRules || [],
-        requiredHeaders: data.requiredHeaders || {},
-        autoEnrollJourneyId: data.autoEnrollJourneyId || null,
-        conditionalRules: data.conditionalRules || null,
+        autoTagRules: webhook.autoTagRules || [
+          {
+            field: 'source',
+            operator: 'equals',
+            value: 'website',
+            tag: 'web-lead',
+          },
+        ],
+        requiredHeaders: webhook.requiredHeaders || {},
+        autoEnrollJourneyId: webhook.autoEnrollJourneyId || undefined,
       });
-
-      // Populate fieldMappings state from the fetched data
-      if (data.fieldMapping) {
-        const baseMappings = [
-          { key: 'phone', value: data.fieldMapping.phone || 'phone' },
-          { key: 'name', value: data.fieldMapping.name || 'full_name' },
-          { key: 'email', value: data.fieldMapping.email || 'email_address' },
-        ];
-        setFieldMappings(baseMappings);
-        
-        // Set custom field mappings for any additional fields
-        const customFields = Object.entries(data.fieldMapping)
-          .filter(([key]) => !['phone', 'name', 'email'].includes(key))
-          .map(([key, value]) => ({ key, value: value as string }));
-        setCustomFieldMappings(customFields);
+      
+      // Update field mappings for display
+      const mappings = Object.entries(webhook.fieldMapping || {}).map(([key, value]) => ({
+        key,
+        value: value as string
+      }));
+      
+      // Split into standard and custom mappings
+      const standardKeys = ['phone', 'name', 'email'];
+      const standardMappings = mappings.filter(m => standardKeys.includes(m.key));
+      const customMappings = mappings.filter(m => !standardKeys.includes(m.key));
+      
+      setFieldMappings(standardMappings.length > 0 ? standardMappings : [
+        { key: 'phone', value: 'phone' },
+        { key: 'name', value: 'full_name' },
+        { key: 'email', value: 'email_address' },
+      ]);
+      setCustomFieldMappings(customMappings);
+      
+      // Update auto tag rules
+      if (webhook.autoTagRules && webhook.autoTagRules.length > 0) {
+        setAutoTagRules(webhook.autoTagRules);
       }
-
-      // Populate autoTagRules state
-      if (data.autoTagRules) {
-        setAutoTagRules(data.autoTagRules);
+      
+      // Update required headers
+      if (webhook.requiredHeaders) {
+        const headers = Object.entries(webhook.requiredHeaders).map(([key, value]) => ({
+          key,
+          value: value as string
+        }));
+        setRequiredHeaders(headers);
       }
-
-      // Populate requiredHeaders state
-      if (data.requiredHeaders) {
-        const headerEntries = Object.entries(data.requiredHeaders)
-          .map(([key, value]) => ({ key, value: value as string }));
-        setRequiredHeaders(headerEntries);
-      }
-
-      // Load conditional rules if they exist
-      if (data.conditionalRules) {
-        setConditionalRules(data.conditionalRules);
+      
+      // Check for conditional rules or advanced processing rules
+      if (webhook.conditionalRules) {
+        setConditionalRules({
+          enabled: true,
+          logicOperator: webhook.conditionalRules.logicOperator || 'AND',
+          conditionSets: webhook.conditionalRules.conditionSets || []
+        });
+      } else if (webhook.rules) {
+        // Handle older format if it exists
+        setConditionalRules({
+          enabled: true,
+          logicOperator: 'AND',
+          conditionSets: webhook.rules || []
+        });
       }
     } catch (error) {
-      console.error('Error fetching webhook:', error);
-      toast.error('Failed to load webhook');
+      console.error('Error fetching webhook details:', error);
+      toast.error('Failed to load webhook details');
     } finally {
       setLoading(false);
     }
@@ -473,31 +493,49 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
     if (!validateForm()) {
       return;
     }
-
-    setSaving(true);
     
     try {
-      const submitData = {
+      setSaving(true);
+      
+      // Prepare the webhook data
+      const webhookData = {
         ...formData,
-        autoEnrollJourneyId: formData.autoEnrollJourneyId === '' ? null : formData.autoEnrollJourneyId,
-        conditionalRules: conditionalRules.enabled ? conditionalRules : null,
+        fieldMapping: buildFieldMapping(),
+        requiredHeaders: buildRequiredHeaders(),
+        autoTagRules: autoTagRules.length > 0 ? autoTagRules : [],
       };
-
+      
+      // Add conditional rules if enabled
+      if (conditionalRules.enabled && conditionalRules.conditionSets.length > 0) {
+        // @ts-ignore - add conditionalRules to the data
+        webhookData.conditionalRules = {
+          logicOperator: conditionalRules.logicOperator,
+          conditionSets: conditionalRules.conditionSets
+        };
+      }
+      
       let response;
-      if (webhookId) {
-        response = await api.webhooks.update(webhookId, submitData);
+      if (isEdit && webhookId) {
+        // Update existing webhook
+        response = await updateWebhook(webhookId, webhookData);
         toast.success('Webhook updated successfully');
       } else {
-        response = await api.webhooks.create(submitData);
+        // Create new webhook
+        response = await createWebhook(webhookData);
         toast.success('Webhook created successfully');
       }
-
-      if (onSuccess) {
-        onSuccess(response.data || response);
+      
+      // Call onSuccess if provided
+      if (onSuccess && response.data) {
+        onSuccess(response.data);
+      } else if (!isEdit) {
+        // Redirect to webhooks list or details page
+        router.push('/webhooks');
       }
     } catch (error: any) {
       console.error('Error saving webhook:', error);
-      toast.error(error.response?.data?.error || 'Failed to save webhook');
+      const message = error.response?.data?.message || error.message || 'Failed to save webhook';
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -728,9 +766,42 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
           { key: 'dueDate', label: 'Due Date', type: 'text', placeholder: '+1d (1 day from now)' },
           { key: 'assignee', label: 'Assignee', type: 'text', placeholder: 'user@example.com' },
         ];
+      case 'set_dialer_assignment':
+        return [
+          { name: 'dialerAssignment', label: 'Dialer Assignment', type: 'select', options: [
+            { value: 'auto_dialer', label: 'Auto Dialer' },
+            { value: 'journey_only', label: 'Journey Only' },
+            { value: 'both', label: 'Both' },
+            { value: 'none', label: 'None' },
+          ], required: true },
+        ];
       default:
         return [];
     }
+  };
+
+  const buildFieldMapping = () => {
+    const mappingObject = fieldMappings.reduce((acc, { key, value }) => {
+      if (key) acc[key] = value;
+      return acc;
+    }, {} as Record<string, string>);
+    
+    const customMappingObject = customFieldMappings.reduce((acc, { key, value }) => {
+      if (key) acc[key] = value;
+      return acc;
+    }, {} as Record<string, string>);
+    
+    return {
+      ...mappingObject,
+      ...customMappingObject,
+    };
+  };
+
+  const buildRequiredHeaders = () => {
+    return requiredHeaders.reduce((acc, { key, value }) => {
+      if (key) acc[key] = value;
+      return acc;
+    }, {} as Record<string, string>);
   };
 
   if (loading) {
@@ -1387,7 +1458,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                             {/* Action Configuration */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               {getActionConfigFields(action.type).map(field => (
-                                <div key={field.key} className="space-y-1">
+                                <div key={field.name} className="space-y-1">
                                   <Label className="text-xs">{field.label}</Label>
                                   {field.type === 'select' ? (
                                     <Select

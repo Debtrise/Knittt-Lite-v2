@@ -22,6 +22,10 @@ const getActionIcon = (actionType: string) => {
       return <Phone className="h-4 w-4 text-blue-500" />;
     case 'sms':
       return <MessageSquare className="h-4 w-4 text-green-500" />;
+    case 'sms_twilio':
+      return <MessageSquare className="h-4 w-4 text-purple-500" />;
+    case 'sms_meera':
+      return <MessageSquare className="h-4 w-4 text-orange-500" />;
     case 'email':
       return <Mail className="h-4 w-4 text-amber-500" />;
     case 'status_change':
@@ -53,6 +57,10 @@ const getNodeBorderColor = (actionType: string, isStart: boolean, isEnd: boolean
       return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-blue-300';
     case 'sms':
       return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-green-300';
+    case 'sms_twilio':
+      return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-purple-300';
+    case 'sms_meera':
+      return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-orange-300';
     case 'email':
       return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-amber-300';
     case 'status_change':
@@ -84,6 +92,10 @@ const getActionTypeLabel = (actionType: string, isStart: boolean, isEnd: boolean
       return isStart ? 'Start' : isEnd ? 'End' : 'Call';
     case 'sms':
       return isStart ? 'Start' : isEnd ? 'End' : 'SMS';
+    case 'sms_twilio':
+      return isStart ? 'Start' : isEnd ? 'End' : 'SMS (Twilio)';
+    case 'sms_meera':
+      return isStart ? 'Start' : isEnd ? 'End' : 'SMS (Meera)';
     case 'email':
       return isStart ? 'Start' : isEnd ? 'End' : 'Email';
     case 'status_change':
@@ -151,15 +163,21 @@ const StepNode = ({ data }: StepNodeProps) => {
   // Display index (1, 2, 3) or fall back to the step ID if not provided
   const displayNumber = displayIndex !== undefined ? displayIndex + 1 : Math.ceil(step.stepOrder / 10);
 
+  const handleClick = (e: React.MouseEvent) => {
+    // Only trigger onClick if not in the middle of a drag operation
+    e.stopPropagation();
+    onEdit(step);
+  };
+
   return (
     <div 
-      className={`relative p-4 rounded-lg border-2 w-72 bg-white shadow-md transition-all hover:shadow-lg
+      className={`relative p-4 rounded-lg border-2 w-72 bg-white shadow-md transition-all hover:shadow-lg cursor-pointer
         ${selected ? 'border-brand ring-2 ring-brand ring-opacity-50' : borderColor}
         ${!isActive ? 'opacity-60' : ''}
         ${isStart ? 'bg-gradient-to-br from-green-50 to-white' : ''}
         ${isEnd ? 'bg-gradient-to-br from-red-50 to-white' : ''}
       `}
-      onClick={() => onEdit(step)}
+      onClick={handleClick}
     >
       {!isStart && !isEnd && (
         <div className="absolute -left-3 -top-3 bg-brand text-white w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium shadow-md">
@@ -196,15 +214,64 @@ const StepNode = ({ data }: StepNodeProps) => {
       {/* Action-specific details */}
       <div className="text-sm text-gray-600 my-3 bg-gray-50 p-2 rounded-md border border-gray-100">
         {step.actionType === 'call' && (
-          <div className="flex items-center gap-2">
-            <Phone className="h-4 w-4 text-gray-400" />
-            <span>{step.actionConfig?.transferNumber || 'No number'}</span>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <Phone className="h-4 w-4 text-gray-400" />
+              <span className="font-medium">
+                {step.actionConfig?.transferGroupId ? 'Transfer Group' : 'Dialer Context'}
+              </span>
+            </div>
+            {step.actionConfig?.transferGroupId ? (
+              <div className="text-xs">
+                <div className="font-medium">Group ID: {step.actionConfig.transferGroupId}</div>
+                {step.actionConfig.fallbackDID && (
+                  <div className="text-gray-500">Fallback: {step.actionConfig.fallbackDID}</div>
+                )}
+                {step.actionConfig.dialerContext && (
+                  <div className="text-gray-500">Override Context: {step.actionConfig.dialerContext}</div>
+                )}
+              </div>
+            ) : step.actionConfig?.dialerContext ? (
+              <div className="text-xs font-mono bg-gray-100 p-2 rounded overflow-x-auto">
+                {typeof step.actionConfig.dialerContext === 'string' ? (
+                  <span className="whitespace-pre-wrap break-all">
+                    {step.actionConfig.dialerContext}
+                  </span>
+                ) : (
+                  <pre className="whitespace-pre-wrap break-all">
+                    {JSON.stringify(step.actionConfig.dialerContext, null, 2)}
+                  </pre>
+                )}
+              </div>
+            ) : (
+              <span className="text-gray-400 italic text-xs">No configuration</span>
+            )}
           </div>
         )}
         
-        {step.actionType === 'sms' && (
-          <div className="line-clamp-2">
-            {step.actionConfig?.message || step.actionConfig?.templateId || 'No message'}
+        {(step.actionType === 'sms' || step.actionType === 'sms_twilio' || step.actionType === 'sms_meera') && (
+          <div className="flex flex-col gap-1">
+            <div className="line-clamp-2">
+              {step.actionConfig?.message || step.actionConfig?.templateId || 'No message'}
+            </div>
+            {step.actionConfig?.provider && (
+              <div className="flex items-center gap-1 text-xs">
+                <MessageSquare className="h-3 w-3 text-gray-400" />
+                <span className="text-gray-500">Provider: {step.actionConfig.provider}</span>
+              </div>
+            )}
+            {step.actionType === 'sms_twilio' && (
+              <div className="flex items-center gap-1 text-xs">
+                <MessageSquare className="h-3 w-3 text-purple-400" />
+                <span className="text-purple-600">Twilio</span>
+              </div>
+            )}
+            {step.actionType === 'sms_meera' && (
+              <div className="flex items-center gap-1 text-xs">
+                <MessageSquare className="h-3 w-3 text-orange-400" />
+                <span className="text-orange-600">Meera</span>
+              </div>
+            )}
           </div>
         )}
         
@@ -224,14 +291,17 @@ const StepNode = ({ data }: StepNodeProps) => {
         {step.actionType === 'tag_update' && (
           <div className="flex flex-wrap gap-1">
             {step.actionConfig?.operation || 'add'}: 
-            {(step.actionConfig?.tags || []).map((tag: string, idx: number) => (
-              <span key={idx} className="bg-gray-200 px-2 py-0.5 rounded-full text-xs">
-                {tag}
+            {Array.isArray(step.actionConfig?.tags) ? (
+              step.actionConfig.tags.map((tag: string, idx: number) => (
+                <span key={idx} className="bg-gray-200 px-2 py-0.5 rounded-full text-xs">
+                  {tag}
+                </span>
+              ))
+            ) : (
+              <span className="bg-gray-200 px-2 py-0.5 rounded-full text-xs">
+                {step.actionConfig?.tags || 'No tags'}
               </span>
-            ))}
-            {(!step.actionConfig?.tags || step.actionConfig?.tags.length === 0) && 
-              <span className="text-gray-400">No tags</span>
-            }
+            )}
           </div>
         )}
         

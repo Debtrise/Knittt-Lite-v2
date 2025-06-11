@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Phone, List, Clock, User, PhoneIncoming, PhoneForwarded, PhoneOff, PhoneCall, Settings, Play, Save, Plus, Edit, Trash2, Eye } from 'lucide-react';
+import { Phone, List, Clock, User, PhoneIncoming, PhoneForwarded, PhoneOff, PhoneCall, Settings, Play, Save, Plus, Edit, Trash2, Eye, X } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Input } from '@/app/components/ui/Input';
 import { Button } from '@/app/components/ui/button';
@@ -18,6 +18,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/ca
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { useToast } from '@/app/components/ui/use-toast';
 import type { Call } from '@/app/lib/api';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/app/components/ui/table';
+import { Badge } from '@/app/components/ui/badge';
 
 type CallFormData = {
   to: string;
@@ -81,16 +83,19 @@ export default function CallsPage() {
   const [currentCallId, setCurrentCallId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'make-call' | 'call-list' | 'dialplan'>('call-list');
   const [calls, setCalls] = useState<Call[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [selectedCall, setSelectedCall] = useState<Call | null>(null);
-  const [loadingCall, setLoadingCall] = useState(false);
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  const [callLimit] = useState(10);
-  const [uniqueStatuses, setUniqueStatuses] = useState<string[]>([]);
-
-  // Dialplan state
+  const [totalCount, setTotalCount] = useState(0);
+  const [filters, setFilters] = useState({
+    status: '',
+    startDate: '',
+    endDate: '',
+    from: '',
+    to: '',
+    ingroup: '',
+  });
   const [dialplanTab, setDialplanTab] = useState<'templates' | 'projects' | 'capabilities'>('templates');
   const [callTemplates, setCallTemplates] = useState<CallTemplate[]>([]);
   const [dialplanProjects, setDialplanProjects] = useState<DialplanProject[]>([]);
@@ -112,6 +117,7 @@ export default function CallsPage() {
     name: '',
     description: ''
   });
+  const [selectedCall, setSelectedCall] = useState<Call | null>(null);
 
   const {
     register,
@@ -121,25 +127,28 @@ export default function CallsPage() {
   } = useForm<CallFormData>();
 
   const fetchCalls = async () => {
-    setIsLoading(true);
     try {
-      const response = await api.calls.list({ 
-        page: currentPage, 
-        limit: callLimit,
-        ...(statusFilter ? { status: statusFilter } : {})
+      setLoading(true);
+      const response = await api.calls.list({
+        page,
+        limit: 10,
+        ...filters,
+        status: filters.status === 'all' ? undefined : filters.status,
+        startDate: filters.startDate || undefined,
+        endDate: filters.endDate || undefined,
+        from: filters.from || undefined,
+        to: filters.to || undefined,
+        ingroup: filters.ingroup || undefined,
       });
-      setCalls(response.data.data);
-      setTotalPages(response.data.totalPages);
-      // Extract unique statuses from the data for filter options
-      if (!statusFilter) {
-        const statuses = Array.from(new Set(response.data.data.map((call: Call) => call.status))) as string[];
-        setUniqueStatuses(statuses);
-      }
-    } catch (error) {
-      console.error('Error fetching calls:', error);
-      toast.error('Failed to load calls');
+      setCalls(response.calls);
+      setTotalPages(response.totalPages);
+      setTotalCount(response.totalCount);
+      setError(null);
+    } catch (err) {
+      setError('Failed to fetch calls');
+      console.error('Error fetching calls:', err);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -161,7 +170,12 @@ export default function CallsPage() {
 
     fetchDIDs();
     fetchCalls();
-  }, [isAuthenticated, router, currentPage, statusFilter, fetchCalls]);
+  }, [isAuthenticated, router, page, filters]);
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+    setPage(1); // Reset to first page when filters change
+  };
 
   const loadDialplanData = async () => {
     setLoadingDialplan(true);
@@ -241,30 +255,43 @@ export default function CallsPage() {
   };
 
   const fetchCallDetails = async (callId: number) => {
-    setLoadingCall(true);
+    setLoading(true);
     try {
       const response = await api.calls.get(callId.toString());
-      setSelectedCall(response.data.data);
-    } catch (error) {
-      console.error('Error fetching call details:', error);
-      toast.error('Failed to load call details');
+      const call = response.data.data;
+      
+      // If the call has a leadId, fetch the lead details separately
+      if (call.leadId) {
+        try {
+          const leadResponse = await api.leads.get(call.leadId.toString());
+          call.lead = leadResponse.data.data;
+        } catch (error) {
+          console.error('Error fetching lead details:', error);
+          // Don't throw the error, just continue without lead details
+        }
+      }
+      
+      setSelectedCall(call);
+      setCurrentCallId(Number(call.id));
+    } catch (error: any) {
+      console.error('Error fetching call details:', error.response?.data || error.message);
+      toast.error(error.response?.data?.error || 'Failed to load call details');
+      setSelectedCall(null);
+      setCurrentCallId(null);
     } finally {
-      setLoadingCall(false);
+      setLoading(false);
     }
   };
 
   const handleUpdateStatus = async (callId: number, newStatus: 'initiated' | 'answered' | 'transferred' | 'completed' | 'failed') => {
-    setIsUpdatingStatus(true);
+    setIsLoading(true);
     try {
       await api.calls.updateStatus(callId.toString(), newStatus);
       toast.success(`Call status updated to ${newStatus}`);
       
       // Update the call in the UI
-      if (selectedCall && selectedCall.id === callId.toString()) {
-        setSelectedCall({
-          ...selectedCall,
-          status: newStatus
-        });
+      if (currentCallId === callId) {
+        setCurrentCallId(null);
       }
       
       // Refresh the call list
@@ -273,7 +300,7 @@ export default function CallsPage() {
       console.error('Error updating call status:', error);
       toast.error(error.response?.data?.error || 'Failed to update call status');
     } finally {
-      setIsUpdatingStatus(false);
+      setIsLoading(false);
     }
   };
 
@@ -430,839 +457,325 @@ export default function CallsPage() {
     }
   };
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage);
-    }
-  };
-
   if (!isAuthenticated) {
     return null;
   }
 
   return (
     <DashboardLayout>
-      <div className="py-6">
+      <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Call Management</h1>
-          <div className="space-x-2">
-            <Button
-              type="button"
-              variant={activeTab === 'call-list' ? 'default' : 'secondary'}
-              onClick={() => setActiveTab('call-list')}
+          <h1 className="text-2xl font-bold">Calls</h1>
+          <div className="flex space-x-4">
+            <Button onClick={() => setActiveTab('make-call')}>Make Call</Button>
+            <Button onClick={() => setActiveTab('dialplan')}>Dialplan</Button>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Status</label>
+            <Select
+              value={filters.status}
+              onValueChange={(value) => handleFilterChange('status', value)}
             >
-              <List className="w-4 h-4 mr-2" />
-              Call List
+              <SelectTrigger>
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="initiated">Initiated</SelectItem>
+                <SelectItem value="answered">Answered</SelectItem>
+                <SelectItem value="transferred">Transferred</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-1">Date Range</label>
+            <div className="flex gap-2">
+              <Input
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => handleFilterChange('startDate', e.target.value)}
+              />
+              <Input
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => handleFilterChange('endDate', e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Phone Number</label>
+            <Input
+              placeholder="Search by phone number"
+              value={filters.to}
+              onChange={(e) => handleFilterChange('to', e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Total Calls</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">{totalCount}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Active Calls</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">
+                {(calls || []).filter(call => call.status === 'initiated').length}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Completed Calls</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">
+                {(calls || []).filter(call => call.status === 'completed').length}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Failed Calls</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">
+                {(calls || []).filter(call => call.status === 'failed').length}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Calls Table */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>ID</TableHead>
+                <TableHead>Lead</TableHead>
+                <TableHead>From</TableHead>
+                <TableHead>To</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead>Start Time</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-4">
+                    Loading...
+                  </TableCell>
+                </TableRow>
+              ) : error ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-4 text-red-500">
+                    {error}
+                  </TableCell>
+                </TableRow>
+              ) : (calls || []).length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-4">
+                    No calls found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                (calls || []).map((call) => (
+                  <TableRow key={call.id}>
+                    <TableCell>{call.id}</TableCell>
+                    <TableCell>
+                      {call.lead ? (
+                        <div>
+                          <div className="font-medium">{call.lead.name}</div>
+                          <div className="text-sm text-gray-500">{call.lead.phone}</div>
+                        </div>
+                      ) : (
+                        'No lead'
+                      )}
+                    </TableCell>
+                    <TableCell>{call.from}</TableCell>
+                    <TableCell>{call.to}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          call.status === 'completed'
+                            ? 'success'
+                            : call.status === 'failed'
+                            ? 'destructive'
+                            : 'default'
+                        }
+                      >
+                        {call.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {call.duration !== null ? `${call.duration}s` : '-'}
+                    </TableCell>
+                    <TableCell>
+                      {formatDateTime(call.createdAt)}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleUpdateStatus(Number(call.id), 'completed')}
+                      >
+                        Complete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Pagination */}
+        <div className="mt-4 flex justify-between items-center">
+          <div className="text-sm text-gray-500">
+            Showing {(calls || []).length} of {totalCount} calls
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              Previous
             </Button>
             <Button
-              type="button"
-              variant={activeTab === 'make-call' ? 'default' : 'secondary'}
-              onClick={() => setActiveTab('make-call')}
+              variant="outline"
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
             >
-              <Phone className="w-4 h-4 mr-2" />
-              Make Call
-            </Button>
-            <Button
-              type="button"
-              variant={activeTab === 'dialplan' ? 'default' : 'secondary'}
-              onClick={() => setActiveTab('dialplan')}
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              Dialplan
+              Next
             </Button>
           </div>
         </div>
 
-        {activeTab === 'make-call' ? (
-          <div className="bg-white rounded-lg shadow p-6">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div>
-                <Label htmlFor="to">To Number</Label>
-                <Input
-                  id="to"
-                  name="to"
-                  type="tel"
-                  placeholder="+1234567890"
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="from">From Number</Label>
-                <Input
-                  id="from"
-                  name="from"
-                  type="tel"
-                  placeholder="+1234567890"
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="message">Message (Optional)</Label>
-                <Textarea
-                  id="message"
-                  name="message"
-                  placeholder="Enter a message to be read to the recipient"
-                />
-              </div>
-
-              <div>
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full"
-                >
-                  {isLoading ? 'Initiating Call...' : 'Make Call'}
-                </Button>
-              </div>
-            </form>
-          </div>
-        ) : activeTab === 'call-list' ? (
-          <div className="bg-white rounded-lg shadow">
-            <div className="p-4 border-b">
-              <div className="flex justify-between items-center">
-                <h2 className="text-lg font-medium text-gray-900">Call List</h2>
-                <div className="flex items-center space-x-2">
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  >
-                    <option value="">All Statuses</option>
-                    {uniqueStatuses.map((status) => (
-                      <option key={status} value={status}>
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                      </option>
-                    ))}
-                  </select>
+        {/* Call Details Section */}
+        {selectedCall && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-6">
+                  <h2 className="text-2xl font-semibold text-gray-900">Call Details</h2>
                   <Button
-                    type="button"
-                    onClick={fetchCalls}
-                    disabled={isLoading}
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedCall(null)}
                   >
-                    Refresh
+                    <X className="h-4 w-4" />
                   </Button>
                 </div>
-              </div>
-            </div>
 
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      From
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      To
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Start Time
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Duration
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {calls.map((call) => (
-                    <tr key={call.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          {getStatusIcon(call.status)}
-                          <span className="ml-2 text-sm text-gray-900">
-                            {call.status.charAt(0).toUpperCase() + call.status.slice(1)}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {call.from}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {call.to}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatDateTime(call.createdAt)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatDuration(call.duration ?? 0)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <Button
-                          type="button"
-                          onClick={() => fetchCallDetails(Number(call.id))}
-                          disabled={loadingCall}
-                        >
-                          Details
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {selectedCall && (
-              <div className="p-4 border-t">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Call Details</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500">Status</p>
-                    <p className="text-sm font-medium text-gray-900">
-                      {selectedCall.status.charAt(0).toUpperCase() + selectedCall.status.slice(1)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Duration</p>
-                    <p className="text-sm font-medium text-gray-900">
-                      {formatDuration(selectedCall.duration ?? 0)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">From</p>
-                    <p className="text-sm font-medium text-gray-900">{selectedCall.from}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">To</p>
-                    <p className="text-sm font-medium text-gray-900">{selectedCall.to}</p>
-                  </div>
-                  {selectedCall.transfer_number && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Basic Call Information */}
+                  <div className="space-y-4">
                     <div>
-                      <p className="text-sm text-gray-500">Transfer Number</p>
-                      <p className="text-sm font-medium text-gray-900">{selectedCall.transfer_number}</p>
+                      <h3 className="text-sm font-medium text-gray-500">Status</h3>
+                      <Badge variant={getStatusVariant(selectedCall.status)}>
+                        {selectedCall.status}
+                      </Badge>
                     </div>
-                  )}
-                  <div>
-                    <p className="text-sm text-gray-500">Start Time</p>
-                    <p className="text-sm font-medium text-gray-900">
-                      {formatDateTime(selectedCall.createdAt)}
-                    </p>
-                  </div>
-                  {selectedCall.updatedAt && (
                     <div>
-                      <p className="text-sm text-gray-500">End Time</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {formatDateTime(selectedCall.updatedAt)}
-                      </p>
+                      <h3 className="text-sm font-medium text-gray-500">Duration</h3>
+                      <p className="mt-1">{selectedCall.duration ? formatDuration(selectedCall.duration) : 'N/A'}</p>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500">Start Time</h3>
+                      <p className="mt-1">{formatDateTime(selectedCall.startTime)}</p>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500">End Time</h3>
+                      <p className="mt-1">{selectedCall.endTime ? formatDateTime(selectedCall.endTime) : 'N/A'}</p>
+                    </div>
+                  </div>
+
+                  {/* Call Numbers */}
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500">From</h3>
+                      <p className="mt-1">{selectedCall.from}</p>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500">To</h3>
+                      <p className="mt-1">{selectedCall.to}</p>
+                    </div>
+                    {selectedCall.transferNumber && (
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500">Transfer Number</h3>
+                        <p className="mt-1">{selectedCall.transferNumber}</p>
+                      </div>
+                    )}
+                    {selectedCall.ingroup && (
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500">In Group</h3>
+                        <p className="mt-1">{selectedCall.ingroup}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Lead Information */}
+                  {selectedCall.lead && (
+                    <div className="col-span-2 border-t pt-6">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Lead Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-500">Name</h4>
+                          <p className="mt-1">{selectedCall.lead.name}</p>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-500">Phone</h4>
+                          <p className="mt-1">{selectedCall.lead.phone}</p>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-500">Email</h4>
+                          <p className="mt-1">{selectedCall.lead.email || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-500">Status</h4>
+                          <Badge variant={getStatusVariant(selectedCall.lead.status)}>
+                            {selectedCall.lead.status}
+                          </Badge>
+                        </div>
+                      </div>
                     </div>
                   )}
-                </div>
 
-                {selectedCall.status !== 'completed' && selectedCall.status !== 'failed' && (
-                  <div className="mt-4">
-                    <Button
-                      type="button"
-                      onClick={() => handleUpdateStatus(Number(selectedCall.id), 'completed')}
-                      disabled={isUpdatingStatus}
-                    >
-                      Mark as Completed
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="px-4 py-3 border-t">
-              <div className="flex justify-between items-center">
-                <div className="text-sm text-gray-700">
-                  Showing page {currentPage} of {totalPages}
-                </div>
-                <div className="flex space-x-2">
-                  <Button
-                    type="button"
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow">
-            <div className="p-4 border-b">
-              <div className="flex justify-between items-center">
-                <h2 className="text-lg font-medium text-gray-900">Dialplan</h2>
-                <div className="flex space-x-2">
-                  <Button
-                    type="button"
-                    variant={dialplanTab === 'templates' ? 'default' : 'secondary'}
-                    size="sm"
-                    onClick={() => setDialplanTab('templates')}
-                  >
-                    Call Templates
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={dialplanTab === 'projects' ? 'default' : 'secondary'}
-                    size="sm"
-                    onClick={() => setDialplanTab('projects')}
-                  >
-                    Dialplan Projects
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={dialplanTab === 'capabilities' ? 'default' : 'secondary'}
-                    size="sm"
-                    onClick={() => setDialplanTab('capabilities')}
-                  >
-                    Capabilities
-                  </Button>
+                  {/* Recording */}
+                  {selectedCall.recordingUrl && (
+                    <div className="col-span-2 border-t pt-6">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Call Recording</h3>
+                      <audio controls className="w-full">
+                        <source src={selectedCall.recordingUrl} type="audio/mpeg" />
+                        Your browser does not support the audio element.
+                      </audio>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-
-            <div className="p-6">
-              {loadingDialplan ? (
-                <div className="flex justify-center items-center h-64">
-                  <div className="text-gray-500">Loading dialplan data...</div>
-                </div>
-              ) : dialplanTab === 'templates' ? (
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-medium text-gray-900">Call Templates</h3>
-                    <Button
-                      onClick={() => setShowCreateTemplate(true)}
-                      className="flex items-center gap-2"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Create Template
-                    </Button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {callTemplates.map((template) => (
-                      <div key={template.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-medium text-gray-900">{template.name}</h4>
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            template.type === 'script' 
-                              ? 'bg-blue-100 text-blue-800' 
-                              : 'bg-green-100 text-green-800'
-                          }`}>
-                            {template.type}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-3">{template.description}</p>
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs text-gray-500">
-                            {new Date(template.updatedAt).toLocaleDateString()}
-                          </span>
-                          <div className="flex space-x-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handlePreviewTemplate(template)}
-                            >
-                              <Eye className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedTemplate(template);
-                                setNewTemplate({
-                                  name: template.name,
-                                  description: template.description,
-                                  type: template.type,
-                                  content: template.content
-                                });
-                                setShowCreateTemplate(true);
-                              }}
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {callTemplates.length === 0 && (
-                    <div className="text-center py-12">
-                      <Phone className="mx-auto h-12 w-12 text-gray-400" />
-                      <h3 className="mt-2 text-sm font-medium text-gray-900">No call templates</h3>
-                      <p className="mt-1 text-sm text-gray-500">Get started by creating a new call template.</p>
-                      <div className="mt-6">
-                        <Button onClick={() => setShowCreateTemplate(true)}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Create Template
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : dialplanTab === 'projects' ? (
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-medium text-gray-900">Dialplan Projects</h3>
-                    <Button
-                      onClick={() => setShowCreateProject(true)}
-                      className="flex items-center gap-2"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Create Project
-                    </Button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {dialplanProjects.map((project) => (
-                      <div key={project.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-medium text-gray-900">{project.name}</h4>
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            project.isActive 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {project.isActive ? 'Active' : 'Inactive'}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-3">{project.description}</p>
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs text-gray-500">
-                            {project.lastDeployed 
-                              ? `Deployed: ${new Date(project.lastDeployed).toLocaleDateString()}`
-                              : 'Never deployed'
-                            }
-                          </span>
-                          <div className="flex space-x-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleGenerateDialplan(project)}
-                              disabled={loadingDialplan}
-                            >
-                              <Play className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => router.push(`/dialplan/${project.id}`)}
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {dialplanProjects.length === 0 && (
-                    <div className="text-center py-12">
-                      <Settings className="mx-auto h-12 w-12 text-gray-400" />
-                      <h3 className="mt-2 text-sm font-medium text-gray-900">No dialplan projects</h3>
-                      <p className="mt-1 text-sm text-gray-500">Create a dialplan project to manage call flows.</p>
-                      <div className="mt-6">
-                        <Button onClick={() => setShowCreateProject(true)}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Create Project
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <h3 className="text-lg font-medium text-gray-900">Dialplan Capabilities</h3>
-                  
-                  {dialplanCapabilities ? (
-                    <div className="space-y-4">
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <h4 className="font-medium text-blue-900 mb-2">System Status</h4>
-                        <p className="text-sm text-blue-700">{dialplanCapabilities.message}</p>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="bg-white border rounded-lg p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">Node Types</p>
-                              <p className="text-2xl font-bold text-blue-600">
-                                {dialplanCapabilities.capabilities.nodeTypes}
-                              </p>
-                            </div>
-                            <Settings className="h-8 w-8 text-blue-500" />
-                          </div>
-                        </div>
-
-                        <div className="bg-white border rounded-lg p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">Generator</p>
-                              <p className={`text-sm font-medium ${
-                                dialplanCapabilities.capabilities.generator 
-                                  ? 'text-green-600' 
-                                  : 'text-red-600'
-                              }`}>
-                                {dialplanCapabilities.capabilities.generator ? 'Available' : 'Unavailable'}
-                              </p>
-                            </div>
-                            <Play className={`h-8 w-8 ${
-                              dialplanCapabilities.capabilities.generator 
-                                ? 'text-green-500' 
-                                : 'text-red-500'
-                            }`} />
-                          </div>
-                        </div>
-
-                        <div className="bg-white border rounded-lg p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">Validator</p>
-                              <p className={`text-sm font-medium ${
-                                dialplanCapabilities.capabilities.validator 
-                                  ? 'text-green-600' 
-                                  : 'text-red-600'
-                              }`}>
-                                {dialplanCapabilities.capabilities.validator ? 'Available' : 'Unavailable'}
-                              </p>
-                            </div>
-                            <Eye className={`h-8 w-8 ${
-                              dialplanCapabilities.capabilities.validator 
-                                ? 'text-green-500' 
-                                : 'text-red-500'
-                            }`} />
-                          </div>
-                        </div>
-
-                        <div className="bg-white border rounded-lg p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">Deployment</p>
-                              <p className={`text-sm font-medium ${
-                                dialplanCapabilities.capabilities.deployment 
-                                  ? 'text-green-600' 
-                                  : 'text-red-600'
-                              }`}>
-                                {dialplanCapabilities.capabilities.deployment ? 'Available' : 'Unavailable'}
-                              </p>
-                            </div>
-                            <Save className={`h-8 w-8 ${
-                              dialplanCapabilities.capabilities.deployment 
-                                ? 'text-green-500' 
-                                : 'text-red-500'
-                            }`} />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="bg-gray-50 border rounded-lg p-4">
-                        <h4 className="font-medium text-gray-900 mb-2">Integration with Journey Builder</h4>
-                        <p className="text-sm text-gray-600 mb-3">
-                          Call templates created here can be used in the Journey Builder for automated call campaigns. 
-                          Script templates provide agent guidance, while voicemail templates handle automated messages.
-                        </p>
-                        <div className="flex space-x-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => router.push('/journeys')}
-                          >
-                            Go to Journey Builder
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => router.push('/dialplan')}
-                          >
-                            Advanced Dialplan Builder
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-12">
-                      <Settings className="mx-auto h-12 w-12 text-gray-400" />
-                      <h3 className="mt-2 text-sm font-medium text-gray-900">Loading capabilities...</h3>
-                      <p className="mt-1 text-sm text-gray-500">Checking dialplan system status.</p>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         )}
       </div>
-
-      {/* Create Template Modal */}
-      {showCreateTemplate && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-medium text-gray-900">
-                {selectedTemplate ? 'Edit Template' : 'Create Call Template'}
-              </h3>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setShowCreateTemplate(false);
-                  setSelectedTemplate(null);
-                  setNewTemplate({ name: '', description: '', type: 'script', content: '' });
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-            
-            <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-120px)]">
-              <div>
-                <Label htmlFor="template-name">Template Name</Label>
-                <Input
-                  id="template-name"
-                  value={newTemplate.name}
-                  onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
-                  placeholder="Enter template name"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="template-description">Description</Label>
-                <Input
-                  id="template-description"
-                  value={newTemplate.description}
-                  onChange={(e) => setNewTemplate({ ...newTemplate, description: e.target.value })}
-                  placeholder="Enter template description"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="template-type">Template Type</Label>
-                <Select
-                  value={newTemplate.type}
-                  onValueChange={(value: 'script' | 'voicemail') => 
-                    setNewTemplate({ ...newTemplate, type: value })
-                  }
-                >
-                  <SelectTrigger id="template-type">
-                    <SelectValue placeholder="Select template type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="script">Call Script</SelectItem>
-                    <SelectItem value="voicemail">Voicemail Message</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="template-content">Template Content</Label>
-                <Textarea
-                  id="template-content"
-                  value={newTemplate.content}
-                  onChange={(e) => setNewTemplate({ ...newTemplate, content: e.target.value })}
-                  placeholder={
-                    newTemplate.type === 'script' 
-                      ? "Enter call script content. Use {{firstName}}, {{lastName}}, {{company}} for variables..."
-                      : "Enter voicemail message. Use {{firstName}}, {{lastName}}, {{company}} for variables..."
-                  }
-                  rows={8}
-                  className="font-mono text-sm"
-                />
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <h4 className="text-sm font-medium text-blue-900 mb-1">Available Variables</h4>
-                <p className="text-xs text-blue-700">
-                  {`{{firstName}}, {{lastName}}, {{email}}, {{phone}}, {{company}}, {{leadId}}`}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex justify-end space-x-2 p-4 border-t">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowCreateTemplate(false);
-                  setSelectedTemplate(null);
-                  setNewTemplate({ name: '', description: '', type: 'script', content: '' });
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCreateTemplate}
-                disabled={loadingDialplan}
-              >
-                {loadingDialplan ? 'Saving...' : (selectedTemplate ? 'Update Template' : 'Create Template')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Create Project Modal */}
-      {showCreateProject && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-medium text-gray-900">Create Dialplan Project</h3>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setShowCreateProject(false);
-                  setNewProject({ name: '', description: '' });
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <div>
-                <Label htmlFor="project-name">Project Name</Label>
-                <Input
-                  id="project-name"
-                  value={newProject.name}
-                  onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
-                  placeholder="Enter project name"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="project-description">Description</Label>
-                <Textarea
-                  id="project-description"
-                  value={newProject.description}
-                  onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-                  placeholder="Enter project description"
-                  rows={3}
-                />
-              </div>
-
-              <div className="bg-gray-50 border rounded-lg p-3">
-                <h4 className="text-sm font-medium text-gray-900 mb-1">About Dialplan Projects</h4>
-                <p className="text-xs text-gray-600">
-                  Dialplan projects allow you to create complex call flows using a visual node-based editor. 
-                  You can define call routing, IVR menus, and automated responses.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex justify-end space-x-2 p-4 border-t">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowCreateProject(false);
-                  setNewProject({ name: '', description: '' });
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCreateProject}
-                disabled={loadingDialplan}
-              >
-                {loadingDialplan ? 'Creating...' : 'Create Project'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Template Preview Modal */}
-      {showTemplatePreview && selectedTemplate && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="text-lg font-medium text-gray-900">
-                Template Preview: {selectedTemplate.name}
-              </h3>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setShowTemplatePreview(false);
-                  setSelectedTemplate(null);
-                  setTemplatePreview('');
-                }}
-              >
-                Close
-              </Button>
-            </div>
-            
-            <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-120px)]">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h4 className="text-sm font-medium text-gray-900 mb-2">Template Info</h4>
-                  <div className="bg-gray-50 border rounded-lg p-3 space-y-2">
-                    <div>
-                      <span className="text-xs font-medium text-gray-500">Type:</span>
-                      <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
-                        selectedTemplate.type === 'script' 
-                          ? 'bg-blue-100 text-blue-800' 
-                          : 'bg-green-100 text-green-800'
-                      }`}>
-                        {selectedTemplate.type}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-xs font-medium text-gray-500">Description:</span>
-                      <p className="text-xs text-gray-700 mt-1">{selectedTemplate.description}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs font-medium text-gray-500">Last Updated:</span>
-                      <p className="text-xs text-gray-700 mt-1">
-                        {new Date(selectedTemplate.updatedAt).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-sm font-medium text-gray-900 mb-2">Sample Variables</h4>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <div className="text-xs space-y-1">
-                      <div><strong>firstName:</strong> John</div>
-                      <div><strong>lastName:</strong> Doe</div>
-                      <div><strong>company:</strong> Example Company</div>
-                      <div><strong>phone:</strong> +1234567890</div>
-                      <div><strong>email:</strong> john.doe@example.com</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Rendered Preview</h4>
-                <div className="bg-white border rounded-lg p-4 min-h-[200px]">
-                  <pre className="whitespace-pre-wrap text-sm text-gray-800 font-mono leading-relaxed">
-                    {templatePreview}
-                  </pre>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 border rounded-lg p-3">
-                <h4 className="text-sm font-medium text-gray-900 mb-1">Usage in Journey Builder</h4>
-                <p className="text-xs text-gray-600">
-                  This template can be selected in the Journey Builder when configuring call actions. 
-                  {selectedTemplate.type === 'script' 
-                    ? ' Script templates provide guidance for agents during calls.'
-                    : ' Voicemail templates are used for automated voicemail messages.'
-                  }
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
     </DashboardLayout>
   );
 } 

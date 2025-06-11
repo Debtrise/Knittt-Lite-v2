@@ -668,198 +668,150 @@ const StepEditor: React.FC<StepEditorProps> = ({
 
   // Generate form field for a specific parameter
   const renderParamField = (param: any, value: any, onChange: (field: string, value: any) => void) => {
+    const hasDialerContext = !!formData.actionConfig?.dialerContext;
+    const isDisabled = hasDialerContext && param.id !== 'dialerContext' && param.id !== 'transferGroupId';
+
     switch (param.type) {
       case 'string':
         return (
+          <div key={param.id} className="space-y-2">
+            <Label htmlFor={param.id}>{param.name}</Label>
           <Input
             id={param.id}
-            value={value || param.default || ''}
+              value={value || ''}
             onChange={(e) => onChange(param.id, e.target.value)}
             placeholder={param.description}
+              disabled={isDisabled}
           />
+            {param.description && (
+              <p className="text-sm text-gray-500">{param.description}</p>
+            )}
+          </div>
         );
       case 'number':
         return (
+          <div key={param.id} className="space-y-2">
+            <Label htmlFor={param.id}>{param.name}</Label>
           <Input
             id={param.id}
             type="number"
-            value={value !== undefined ? value : (param.default || 0)}
-            onChange={(e) => onChange(param.id, parseInt(e.target.value, 10) || 0)}
-            placeholder={param.description}
-          />
+              value={value || param.default || 0}
+              onChange={(e) => onChange(param.id, parseInt(e.target.value, 10))}
+              min={param.min}
+              max={param.max}
+              disabled={isDisabled}
+            />
+            {param.description && (
+              <p className="text-sm text-gray-500">{param.description}</p>
+            )}
+          </div>
         );
       case 'boolean':
         return (
-          <div className="flex items-center space-x-2">
+          <div key={param.id} className="flex items-center space-x-2">
             <Checkbox
               id={param.id}
-              checked={value !== undefined ? value : (param.default || false)}
-              onCheckedChange={(checked) => onChange(param.id, !!checked)}
+              checked={value ?? param.default ?? false}
+              onCheckedChange={(checked) => onChange(param.id, checked)}
+              disabled={isDisabled}
             />
-            <Label htmlFor={param.id}>{param.description}</Label>
+            <Label htmlFor={param.id}>{param.name}</Label>
+            {param.description && (
+              <p className="text-sm text-gray-500">{param.description}</p>
+            )}
           </div>
         );
-      case 'select':
-        return (
-          <Select
-            value={value || param.default || (param.options ? param.options[0] : '')}
-            onValueChange={(v) => onChange(param.id, v)}
-          >
-            <SelectTrigger id={param.id}>
-              <SelectValue placeholder={param.description} />
-            </SelectTrigger>
-            <SelectContent>
-              {param.options?.map((option: string) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        );
       case 'template_select':
-        const templateOptions = param.templateType ? templates[param.templateType] || [] : [];
-        const isEmailTemplate = param.templateType === 'email';
-        const selectedTemplateId = value || param.default;
-        
         return (
-          <div className="space-y-2">
+          <div key={param.id} className="space-y-2">
+            <Label htmlFor={param.id}>{param.name}</Label>
             <Select
-              value={selectedTemplateId || 'none'}
-              onValueChange={(v) => {
-                const newValue = v === 'none' ? '' : v;
-                onChange(param.id, newValue);
-                // Clear preview when template changes
-                if (isEmailTemplate) {
-                  setEmailPreview(null);
-                  setShowEmailPreview(false);
-                }
-              }}
-              disabled={loadingTemplates}
-              onOpenChange={(open) => {
-                if (open && param.templateType && (!templates[param.templateType] || templates[param.templateType].length === 0) && isAuthenticated) {
-                  console.log(`Template dropdown opened for ${param.templateType}, loading templates...`);
-                  loadTemplates([param.templateType]);
-                }
-              }}
+              value={value || 'none'}
+              onValueChange={(val) => onChange(param.id, val === 'none' ? '' : val)}
+              disabled={isDisabled}
             >
               <SelectTrigger id={param.id}>
-                <SelectValue placeholder={loadingTemplates ? 'Loading templates...' : 'Select a template'} />
+                <SelectValue placeholder="Select template" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">No template</SelectItem>
-                {templateOptions.map((template: any) => (
-                  <SelectItem key={template.id} value={template.id.toString()}>
+                <SelectItem value="none">None</SelectItem>
+                {templates[param.templateType]?.map((template: any) => (
+                  <SelectItem key={template.id} value={template.id}>
                     {template.name}
                   </SelectItem>
                 ))}
-                {templateOptions.length === 0 && !loadingTemplates && (
-                  <SelectItem value="no-templates" disabled>
-                    No {param.templateType} templates found
-                  </SelectItem>
-                )}
               </SelectContent>
             </Select>
-            
-            {isEmailTemplate && selectedTemplateId && selectedTemplateId !== 'none' && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => loadEmailPreview(selectedTemplateId)}
-                disabled={loadingEmailPreview}
-                className="w-full flex items-center gap-2"
-              >
-                <Eye className="h-4 w-4" />
-                {loadingEmailPreview ? 'Loading Preview...' : 'Preview Email'}
-              </Button>
+            {param.description && (
+              <p className="text-sm text-gray-500">{param.description}</p>
             )}
           </div>
         );
       case 'transfer_group_select':
         return (
+          <div key={param.id} className="space-y-2">
+            <Label htmlFor={param.id}>{param.name}</Label>
           <Select
-            value={value || param.default || 'none'}
-            onValueChange={(v) => onChange(param.id, v === 'none' ? '' : v)}
-            disabled={loadingTransferGroups}
-            onOpenChange={(open) => {
-              if (open && transferGroups.length === 0 && isAuthenticated) {
-                console.log('Transfer group dropdown opened, loading transfer groups...');
-                loadTransferGroups();
-              }
-            }}
+              value={value || 'none'}
+              onValueChange={(val) => onChange(param.id, val === 'none' ? '' : val)}
           >
             <SelectTrigger id={param.id}>
-              <SelectValue placeholder={loadingTransferGroups ? 'Loading transfer groups...' : 'Select a transfer group'} />
+                <SelectValue placeholder="Select transfer group" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">No transfer group</SelectItem>
+                <SelectItem value="none">None</SelectItem>
               {transferGroups.map((group: any) => (
-                <SelectItem key={group.id} value={group.id.toString()}>
-                  {group.name} ({group.type})
+                  <SelectItem key={group.id} value={group.id}>
+                    {group.name}
                 </SelectItem>
               ))}
-              {transferGroups.length === 0 && !loadingTransferGroups && (
-                <SelectItem value="no-groups" disabled>
-                  No transfer groups found
-                </SelectItem>
-              )}
             </SelectContent>
           </Select>
-        );
-      case 'recording_select':
-        const selectedRecordingId = value || param.default;
-        
-        return (
-          <div className="space-y-2">
-            <Select
-              value={selectedRecordingId?.toString() || 'none'}
-              onValueChange={(v) => {
-                const newValue = v === 'none' ? null : parseInt(v);
-                onChange(param.id, newValue);
-              }}
-              disabled={loadingRecordings}
-              onOpenChange={(open) => {
-                if (open && recordings.length === 0 && isAuthenticated) {
-                  console.log('Recording dropdown opened, loading recordings...');
-                  loadRecordings();
-                }
-              }}
-            >
-              <SelectTrigger id={param.id}>
-                <SelectValue placeholder={loadingRecordings ? 'Loading recordings...' : 'Select a recording'} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No recording (use text-to-speech)</SelectItem>
-                {recordings.map((recording: any) => (
-                  <SelectItem key={recording.id} value={recording.id.toString()}>
-                    {recording.name} ({recording.type})
-                  </SelectItem>
-                ))}
-                {recordings.length === 0 && !loadingRecordings && (
-                  <SelectItem value="none" disabled>
-                    No recordings available - Configure Eleven Labs in Settings
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-            
-            {selectedRecordingId && (
-              <div className="mt-2 p-2 bg-gray-50 rounded border">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">Preview Recording</span>
-                </div>
-                <AudioPlayer
-                  recordingId={selectedRecordingId.toString()}
-                  recordingName={recordings.find(r => r.id.toString() === selectedRecordingId.toString())?.name || 'Recording'}
-                  audioUrl={recordings.find(r => r.id.toString() === selectedRecordingId.toString())?.audioUrl}
-                />
-              </div>
+            {param.description && (
+              <p className="text-sm text-gray-500">{param.description}</p>
             )}
           </div>
         );
+      case 'recording_select':
+        return (
+          <div key={param.id} className="space-y-2">
+            <Label htmlFor={param.id}>{param.name}</Label>
+            <Select
+              value={value || 'none'}
+              onValueChange={(val) => onChange(param.id, val === 'none' ? '' : val)}
+              disabled={isDisabled}
+            >
+              <SelectTrigger id={param.id}>
+                <SelectValue placeholder="Select recording" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {recordings.map((recording: any) => (
+                  <SelectItem key={recording.id} value={recording.id}>
+                    {recording.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {param.description && (
+              <p className="text-sm text-gray-500">{param.description}</p>
+            )}
+                </div>
+        );
       case 'ivr_options':
-        return <IVROptionsField value={value} onChange={onChange} fieldId={param.id} />;
+        return (
+          <div key={param.id} className="space-y-2">
+            <Label htmlFor={param.id}>{param.name}</Label>
+            <IVROptionsField
+              value={value || []}
+              onChange={onChange}
+              fieldId={param.id}
+            />
+            {param.description && (
+              <p className="text-sm text-gray-500">{param.description}</p>
+            )}
+          </div>
+        );
       default:
         return null;
     }
@@ -917,7 +869,9 @@ const StepEditor: React.FC<StepEditorProps> = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="call">Call</SelectItem>
-              <SelectItem value="sms">SMS</SelectItem>
+              <SelectItem value="sms">SMS (Auto Provider)</SelectItem>
+              <SelectItem value="sms_twilio">SMS via Twilio</SelectItem>
+              <SelectItem value="sms_meera">SMS via Meera</SelectItem>
               <SelectItem value="email">Email</SelectItem>
               <SelectItem value="status_change">Status Change</SelectItem>
               <SelectItem value="tag_update">Tag Update</SelectItem>
@@ -938,14 +892,10 @@ const StepEditor: React.FC<StepEditorProps> = ({
           <div className="space-y-3">
             {actionParams.filter(param => !param.id.startsWith('ivr') || param.id === 'ivrEnabled').map((param) => (
               <div key={param.id}>
-                <Label htmlFor={param.id}>{param.name}{param.required ? ' *' : ''}</Label>
                 {renderParamField(
                   param, 
                   formData.actionConfig?.[param.id], 
                   handleActionConfigChange
-                )}
-                {param.description && (
-                  <p className="text-xs text-gray-500 mt-1">{param.description}</p>
                 )}
               </div>
             ))}
@@ -962,14 +912,10 @@ const StepEditor: React.FC<StepEditorProps> = ({
             <div className="space-y-3">
               {actionParams.filter(param => param.id.startsWith('ivr') && param.id !== 'ivrEnabled').map((param) => (
                 <div key={param.id}>
-                  <Label htmlFor={param.id}>{param.name}{param.required ? ' *' : ''}</Label>
                   {renderParamField(
                     param, 
                     formData.actionConfig?.[param.id], 
                     handleActionConfigChange
-                  )}
-                  {param.description && (
-                    <p className="text-xs text-gray-500 mt-1">{param.description}</p>
                   )}
                 </div>
               ))}
@@ -1003,14 +949,10 @@ const StepEditor: React.FC<StepEditorProps> = ({
             <div className="space-y-3">
               {delayParams.map((param) => (
                 <div key={param.id}>
-                  <Label htmlFor={param.id}>{param.name}{param.required ? ' *' : ''}</Label>
                   {renderParamField(
                     param, 
                     formData.delayConfig?.[param.id], 
                     handleDelayConfigChange
-                  )}
-                  {param.description && (
-                    <p className="text-xs text-gray-500 mt-1">{param.description}</p>
                   )}
                 </div>
               ))}
