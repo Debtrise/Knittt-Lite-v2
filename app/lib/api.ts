@@ -12,6 +12,22 @@ import {
   WebhookEvent,
   WebhookTestResponse
 } from '@/app/types/api';
+import {
+  TracersPhoneSearchRequest,
+  TracersComprehensiveSearchRequest,
+  TracersSearchResponse,
+  LeadEnrichmentRequest,
+  LeadEnrichmentResponse,
+  BulkEnrichmentRequest,
+  BulkEnrichmentResponse,
+  EnrichmentStatusResponse,
+  SearchHistoryResponse,
+  UsageStatsResponse,
+  TracersServiceStatus,
+  TracersTestConnectionResponse,
+  TracersTenantAccessRequest,
+  TracersErrorResponse
+} from '@/app/types/tracers';
 import { Template, TemplateCategory, CreateTemplateData, TemplateListResponse, TemplateCategoryListResponse, TemplateType } from '@/app/types/templates';
 import {
   EmailProvider,
@@ -68,28 +84,13 @@ const smsApi = axios.create({
 // Add request interceptor to add auth token and tenant ID
 const addAuthToken = (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
   const token = useAuthStore.getState().token;
-  const user = useAuthStore.getState().user;
-  
   if (token) {
-    config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
   }
-  
-  // Add tenant ID to headers for all requests
-  if (user?.tenantId) {
-    config.headers = config.headers || {};
-    config.headers['X-Tenant-ID'] = user.tenantId;
-    
-    // For FreePBX related endpoints, also add as query parameter
-    if (config.url && (config.url.includes('freepbx') || config.url.includes('upload-to-freepbx'))) {
-      const separator = config.url.includes('?') ? '&' : '?';
-      config.url += `${separator}tenantId=${user.tenantId}`;
-    }
-  }
-  
   return config;
 };
 
+// Add the interceptor to the api instance
 api.interceptors.request.use(addAuthToken);
 localApi.interceptors.request.use(addAuthToken);
 smsApi.interceptors.request.use(addAuthToken);
@@ -1199,6 +1200,49 @@ export const smsMessaging = {
   }) => api.post('/sms/send-template', data),
 };
 
+// TracersAPI endpoints for lead enrichment
+export const tracers = {
+  // Search endpoints
+  searchByPhone: (data: TracersPhoneSearchRequest) => 
+    api.post<TracersSearchResponse>('/tracers/search/phone', data),
+  
+  searchComprehensive: (data: TracersComprehensiveSearchRequest) => 
+    api.post<TracersSearchResponse>('/tracers/search', data),
+  
+  // Lead enrichment endpoints
+  enrichLead: (leadId: number, data?: LeadEnrichmentRequest) => 
+    api.post<LeadEnrichmentResponse>(`/tracers/enrich-lead/${leadId}`, data || {}),
+  
+  bulkEnrich: (data: BulkEnrichmentRequest) => 
+    api.post<BulkEnrichmentResponse>('/tracers/bulk-enrich', data),
+  
+  getEnrichmentStatus: (leadId: number) => 
+    api.get<EnrichmentStatusResponse>(`/tracers/enrichment/${leadId}`),
+  
+  // History and usage endpoints
+  getSearchHistory: (params: {
+    page?: number;
+    limit?: number;
+    leadId?: number;
+    status?: 'success' | 'no_results' | 'error';
+    startDate?: string;
+    endDate?: string;
+  }) => api.get<SearchHistoryResponse>('/tracers/search-history', { params }),
+  
+  getUsageStats: (params: {
+    startDate?: string;
+    endDate?: string;
+  }) => api.get<UsageStatsResponse>('/tracers/usage', { params }),
+  
+  getServiceStatus: () => api.get<ApiResponse<TracersServiceStatus>>('/tracers/status'),
+  
+  // Admin endpoints
+  testConnection: () => api.post<TracersTestConnectionResponse>('/tracers/test-connection'),
+  
+  manageTenantAccess: (tenantId: string, data: TracersTenantAccessRequest) => 
+    api.put<ApiResponse<void>>(`/tracers/access/${tenantId}`, data),
+};
+
 export default {
   auth,
   users,
@@ -1220,4 +1264,5 @@ export default {
   system,
   recordings,
   freepbx,
+  tracers,
 }; 

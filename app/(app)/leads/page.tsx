@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Upload, User, CheckCircle, XCircle, PhoneOutgoing, Filter, Trash2, Edit, AlertTriangle, Tag } from 'lucide-react';
+import { Upload, User, CheckCircle, XCircle, PhoneOutgoing, Filter, Trash2, Edit, AlertTriangle, Tag, Search } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
@@ -16,6 +16,8 @@ import { Label } from '@/app/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { useToast } from '@/app/components/ui/use-toast';
 import { getLeads, createLead, updateLead, deleteLead } from '@/app/utils/api';
+import { debounce } from 'lodash';
+import BulkEnrichmentModal from './components/BulkEnrichmentModal';
 
 type Lead = {
   id: number;
@@ -49,14 +51,19 @@ export default function LeadsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [uploadIsLoading, setUploadIsLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState({
+    phone: '',
+    name: '',
+    email: '',
+    brand: '',
+    source: ''
+  });
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMethod, setUploadMethod] = useState<'text' | 'file'>('text');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedLeads, setSelectedLeads] = useState<number[]>([]);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isDeletingAll, setIsDeletingAll] = useState(false);
-  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [uniqueStatuses, setUniqueStatuses] = useState<string[]>([]);
+  const [selectedLeads, setSelectedLeads] = useState<Lead[]>([]);
+  const [isBulkEnrichmentOpen, setIsBulkEnrichmentOpen] = useState(false);
 
   // Function to calculate lead age in days
   const calculateLeadAge = (createdAt: string): number => {
@@ -96,15 +103,28 @@ export default function LeadsPage() {
     try {
       const allowedStatuses = ["pending", "contacted", "transferred", "completed", "failed"] as const;
       const statusFilter = allowedStatuses.includes(filterStatus as any) ? filterStatus as typeof allowedStatuses[number] : undefined;
-      const response = await api.leads.list({
+      
+      // Build search parameters
+      const searchParams: any = {
         page,
         limit: 10,
         ...(statusFilter ? { status: statusFilter } : {})
-      });
-      setLeads(response.leads);
-      setTotalPages(response.totalPages);
-      setCurrentPage(response.currentPage);
-      setTotalLeads(response.totalCount);
+      };
+
+      // Add search fields if they have values
+      if (searchQuery.phone) searchParams.phone = searchQuery.phone;
+      if (searchQuery.name) searchParams.name = searchQuery.name;
+      if (searchQuery.email) searchParams.email = searchQuery.email;
+      if (searchQuery.brand) searchParams.brand = searchQuery.brand;
+      if (searchQuery.source) searchParams.source = searchQuery.source;
+
+      const response = await api.leads.list(searchParams);
+      
+      // Update state with pagination info
+      setLeads(response.leads || []);
+      setTotalPages(Math.ceil((response.totalCount || 0) / 10));
+      setCurrentPage(page);
+      setTotalLeads(response.totalCount || 0);
       
       // Extract unique statuses from the data for filter options
       if (!filterStatus) {
@@ -119,14 +139,29 @@ export default function LeadsPage() {
     }
   };
 
+  // Add debounced search handler
+  const debouncedSearch = useCallback(
+    debounce(() => {
+      fetchLeads(1); // Reset to page 1 when search changes
+    }, 500),
+    [searchQuery]
+  );
+
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
 
-    fetchLeads();
+    fetchLeads(currentPage);
   }, [isAuthenticated, router, currentPage, filterStatus]);
+
+  useEffect(() => {
+    debouncedSearch();
+    return () => {
+      debouncedSearch.cancel();
+    };
+  }, [searchQuery, debouncedSearch]);
 
   const onUploadSubmit = async (data: UploadFormData) => {
     setUploadIsLoading(true);
@@ -180,74 +215,7 @@ export default function LeadsPage() {
   const handlePageChange = (page: number) => {
     if (page > 0 && page <= totalPages) {
       setCurrentPage(page);
-    }
-  };
-
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this lead?')) return;
-    
-    try {
-      await api.leads.delete(id.toString());
-      toast.success('Lead deleted successfully');
-      fetchLeads(currentPage);
-    } catch (error: any) {
-      console.error('Error deleting lead:', error);
-      toast.error(error.response?.data?.error || 'Failed to delete lead');
-    }
-  };
-
-  const handleBulkDelete = async () => {
-    if (selectedLeads.length === 0) {
-      toast.error('No leads selected');
-      return;
-    }
-
-    if (!confirm(`Are you sure you want to delete ${selectedLeads.length} leads?`)) return;
-    
-    setIsDeleting(true);
-    try {
-      await api.leads.bulkDelete(selectedLeads);
-      toast.success(`${selectedLeads.length} leads deleted successfully`);
-      setSelectedLeads([]);
-      fetchLeads(currentPage);
-    } catch (error: any) {
-      console.error('Error deleting leads:', error);
-      toast.error(error.response?.data?.error || 'Failed to delete leads');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const toggleLeadSelection = (id: number) => {
-    setSelectedLeads(prev => 
-      prev.includes(id) ? prev.filter(leadId => leadId !== id) : [...prev, id]
-    );
-  };
-
-  const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.checked) {
-      setSelectedLeads(leads.map(lead => lead.id));
-    } else {
-      setSelectedLeads([]);
-    }
-  };
-
-  const handleDeleteAll = async () => {
-    if (!confirm('Are you sure you want to delete all leads?')) return;
-    
-    setIsDeletingAll(true);
-    try {
-      const response = await api.leads.list({ page: 1, limit: 1000 });
-      const leadIds = response.leads.map((lead: { id: string }) => lead.id);
-      await api.leads.bulkDelete(leadIds);
-      toast.success('All leads deleted successfully');
-      fetchLeads(1);
-    } catch (error: any) {
-      console.error('Error deleting all leads:', error);
-      toast.error(error.response?.data?.error || 'Failed to delete all leads');
-    } finally {
-      setIsDeletingAll(false);
-      setShowDeleteAllConfirm(false);
+      fetchLeads(page);
     }
   };
 
@@ -266,245 +234,153 @@ export default function LeadsPage() {
     return [];
   };
 
+  // Handle lead selection for bulk operations
+  const toggleLeadSelection = (lead: Lead, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setSelectedLeads(prev => {
+      const isSelected = prev.some(l => l.id === lead.id);
+      if (isSelected) {
+        return prev.filter(l => l.id !== lead.id);
+      } else {
+        return [...prev, lead];
+      }
+    });
+  };
+
+  const selectAllLeads = () => {
+    if (selectedLeads.length === leads.length) {
+      setSelectedLeads([]);
+    } else {
+      setSelectedLeads([...leads]);
+    }
+  };
+
+  const handleBulkEnrichment = () => {
+    if (selectedLeads.length === 0) {
+      toast.error('Please select leads to enrich');
+      return;
+    }
+    setIsBulkEnrichmentOpen(true);
+  };
+
   if (!isAuthenticated) {
     return null;
   }
 
   return (
     <DashboardLayout>
-      <div className="py-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Leads</h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Total Leads: {totalLeads}
-            </p>
-          </div>
-          <div className="flex space-x-3">
-            <Button 
-              onClick={() => setShowDeleteAllConfirm(true)}
-              variant="destructive"
-              disabled={leads.length === 0 || isLoading}
-            >
-              <AlertTriangle className="w-4 h-4 mr-2" />
-              Delete All Leads
-            </Button>
-            <Button
-              onClick={() => setIsUploading(!isUploading)}
-              variant="brand"
-            >
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Leads</h1>
+          <div className="flex gap-2">
+            <Button onClick={() => setIsUploading(true)}>
               <Upload className="w-4 h-4 mr-2" />
               Upload Leads
             </Button>
+            {selectedLeads.length > 0 && (
+              <Button onClick={handleBulkEnrichment} variant="outline">
+                <Search className="w-4 h-4 mr-2" />
+                Enrich Selected ({selectedLeads.length})
+              </Button>
+            )}
           </div>
         </div>
 
-        {/* Delete All Confirmation Modal */}
-        {showDeleteAllConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
-              <div className="flex items-center mb-4 text-red-600">
-                <AlertTriangle className="h-6 w-6 mr-2" />
-                <h3 className="text-lg font-medium">Delete All Leads</h3>
+        {/* Search and Filter Section */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Search & Filter</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  placeholder="Search by phone"
+                  value={searchQuery.phone}
+                  onChange={(e) => setSearchQuery(prev => ({ ...prev, phone: e.target.value }))}
+                />
               </div>
-              <p className="mb-4 text-gray-900">
-                Are you sure you want to delete <strong>all{filterStatus ? ` ${filterStatus}` : ''} leads</strong>? This action cannot be undone.
-              </p>
-              <div className="flex justify-end space-x-3">
-                <Button
-                  variant="secondary"
-                  onClick={() => setShowDeleteAllConfirm(false)}
+              <div>
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  placeholder="Search by name"
+                  value={searchQuery.name}
+                  onChange={(e) => setSearchQuery(prev => ({ ...prev, name: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  placeholder="Search by email"
+                  value={searchQuery.email}
+                  onChange={(e) => setSearchQuery(prev => ({ ...prev, email: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="brand">Brand</Label>
+                <Input
+                  id="brand"
+                  placeholder="Search by brand"
+                  value={searchQuery.brand}
+                  onChange={(e) => setSearchQuery(prev => ({ ...prev, brand: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="source">Source</Label>
+                <Input
+                  id="source"
+                  placeholder="Search by source"
+                  value={searchQuery.source}
+                  onChange={(e) => setSearchQuery(prev => ({ ...prev, source: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="status">Status</Label>
+                <select
+                  id="status"
+                  className="w-full p-2 border rounded-md"
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
                 >
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleDeleteAll}
-                  isLoading={isDeletingAll}
-                >
-                  Delete All
-                </Button>
+                  <option value="">All Statuses</option>
+                  {uniqueStatuses.map((status) => (
+                    <option key={status} value={status}>
+                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
-          </div>
-        )}
+          </CardContent>
+        </Card>
 
-        {isUploading && (
-          <div className="mt-6 bg-white shadow px-4 py-5 sm:rounded-lg sm:p-6">
-            <div className="md:grid md:grid-cols-3 md:gap-6">
-              <div className="md:col-span-1">
-                <h3 className="text-lg font-medium leading-6 text-gray-900">Upload Leads</h3>
-                <p className="mt-1 text-sm text-gray-600">
-                  Upload your leads from a CSV file or paste the CSV content directly.
-                </p>
-                <div className="mt-4">
-                  <div className="flex space-x-4">
-                    <button
-                      type="button"
-                      onClick={() => setUploadMethod('text')}
-                      className={`px-3 py-2 text-sm font-medium rounded-md ${
-                        uploadMethod === 'text' 
-                          ? 'bg-brand text-white' 
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      Paste CSV
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setUploadMethod('file')}
-                      className={`px-3 py-2 text-sm font-medium rounded-md ${
-                        uploadMethod === 'file' 
-                          ? 'bg-brand text-white' 
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      Upload File
-                    </button>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-5 md:mt-0 md:col-span-2">
-                {uploadMethod === 'text' ? (
-                  <form onSubmit={handleSubmit(onUploadSubmit)}>
-                    <div className="grid grid-cols-6 gap-6">
-                      <div className="col-span-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">CSV Content</label>
-                        <textarea
-                          id="fileContent"
-                          rows={10}
-                          className="shadow-sm focus:ring-brand focus:border-brand block w-full sm:text-sm border border-gray-300 rounded-md"
-                          placeholder="name,phone,email&#10;John Doe,8001234567,john@example.com"
-                          {...register('fileContent', { 
-                            required: 'CSV content is required',
-                            onChange: onCsvInputChange,
-                          })}
-                        ></textarea>
-                        {errors.fileContent && <p className="mt-1 text-sm text-red-600">{errors.fileContent.message}</p>}
-                      </div>
-                      
-                      <div className="col-span-6 sm:col-span-3">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Sort Order</label>
-                        <select
-                          id="sortOrder"
-                          className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-brand focus:border-brand sm:text-sm"
-                          {...register('sortOrder')}
-                        >
-                          <option value="oldest">Oldest First</option>
-                          <option value="fewest">Fewest Attempts First</option>
-                        </select>
-                      </div>
-                      
-                      <div className="col-span-6 sm:col-span-3">
-                        <div className="flex items-start mt-5">
-                          <div className="flex items-center h-5">
-                            <input
-                              id="autoDelete"
-                              type="checkbox"
-                              className="focus:ring-brand h-4 w-4 text-brand border-gray-300 rounded"
-                              {...register('autoDelete')}
-                            />
-                          </div>
-                          <div className="ml-3 text-sm">
-                            <label htmlFor="autoDelete" className="font-medium text-gray-700">Auto Delete</label>
-                            <p className="text-gray-500">Delete leads after successful contact</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-6 flex justify-end">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="mr-3"
-                        onClick={() => setIsUploading(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="submit"
-                        variant="brand"
-                        isLoading={uploadIsLoading}
-                      >
-                        Upload
-                      </Button>
-                    </div>
-                  </form>
-                ) : (
-                  <div>
-                    <div className="grid grid-cols-6 gap-6">
-                      <div className="col-span-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">CSV File</label>
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept=".csv"
-                          onChange={handleFileChange}
-                          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-brand file:bg-opacity-10 file:text-brand hover:file:bg-brand hover:file:bg-opacity-20"
-                        />
-                        <p className="mt-2 text-sm text-gray-500">
-                          The CSV file should have a header row with column names. Required columns: name, phone, email
-                        </p>
-                        <div className="mt-4 p-3 bg-gray-50 rounded-md">
-                          <h4 className="text-sm font-medium text-gray-700">Example CSV format:</h4>
-                          <pre className="mt-1 text-xs text-gray-600">name,phone,email
-John Doe,8001234567,john@example.com
-Jane Smith,8007654321,jane@example.com</pre>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-6 flex justify-end">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="mr-3"
-                        onClick={() => setIsUploading(false)}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-        
         <div className="mt-6">
           <div className="bg-white shadow overflow-hidden sm:rounded-md">
             <div className="p-4 border-b border-gray-200 sm:px-6">
               <div className="flex items-center justify-between flex-wrap sm:flex-nowrap">
-                <h3 className="text-lg leading-6 font-medium text-gray-900">Lead List</h3>
-                <div className="flex items-center space-x-4">
-                  {selectedLeads.length > 0 && (
-                    <Button
-                      variant="destructive"
-                      onClick={handleBulkDelete}
-                      isLoading={isDeleting}
-                      disabled={isDeleting}
-                    >
-                      Delete Selected ({selectedLeads.length})
-                    </Button>
+                <div className="flex items-center gap-4">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900">Lead List</h3>
+                  {leads.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedLeads.length === leads.length}
+                        onChange={selectAllLeads}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm text-gray-600">Select All</span>
+                    </div>
                   )}
-                  <div className="flex items-center">
-                    <Filter className="h-5 w-5 text-gray-400 mr-2" />
-                    <select
-                      className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-brand focus:border-brand sm:text-sm"
-                      value={filterStatus}
-                      onChange={(e) => setFilterStatus(e.target.value)}
-                    >
-                      <option value="">All Status</option>
-                      {uniqueStatuses.map(status => (
-                        <option key={status} value={status}>
-                          {status.charAt(0).toUpperCase() + status.slice(1)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
                 </div>
+                {selectedLeads.length > 0 && (
+                  <div className="text-sm text-gray-600">
+                    {selectedLeads.length} lead{selectedLeads.length !== 1 ? 's' : ''} selected
+                  </div>
+                )}
               </div>
             </div>
 
@@ -520,33 +396,22 @@ Jane Smith,8007654321,jane@example.com</pre>
               </div>
             ) : (
               <>
-                <div className="px-4 py-2 border-b border-gray-200">
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      className="focus:ring-brand h-4 w-4 text-brand border-gray-300 rounded"
-                      checked={selectedLeads.length === leads.length && leads.length > 0}
-                      onChange={handleSelectAll}
-                    />
-                    <span className="ml-2 text-sm text-gray-500">
-                      {selectedLeads.length > 0 
-                        ? `Selected ${selectedLeads.length} of ${leads.length}` 
-                        : 'Select all'}
-                    </span>
-                  </div>
-                </div>
                 <ul className="divide-y divide-gray-200">
                   {leads.map((lead) => (
                     <li key={lead.id}>
-                      <div className="px-4 py-4 sm:px-6">
+                      <div 
+                        className="px-4 py-4 sm:px-6 cursor-pointer hover:bg-gray-50 transition-colors duration-150"
+                        onClick={() => router.push(`/leads/${lead.id}`)}
+                      >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center">
-                            <div className="mr-2">
+                            <div className="flex-shrink-0 mr-3">
                               <input
                                 type="checkbox"
-                                className="focus:ring-brand h-4 w-4 text-brand border-gray-300 rounded"
-                                checked={selectedLeads.includes(lead.id)}
-                                onChange={() => toggleLeadSelection(lead.id)}
+                                checked={selectedLeads.some(l => l.id === lead.id)}
+                                onChange={(e) => toggleLeadSelection(lead, e)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="rounded border-gray-300"
                               />
                             </div>
                             <div className="flex-shrink-0">
@@ -558,21 +423,13 @@ Jane Smith,8007654321,jane@example.com</pre>
                             </div>
                           </div>
                           <div className="flex space-x-2">
-                            <a href={`tel:${lead.phone}`} className="inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-white bg-brand hover:bg-brand focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand">
+                            <a 
+                              href={`tel:${lead.phone}`} 
+                              className="inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-white bg-brand hover:bg-brand focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand"
+                              onClick={(e) => e.stopPropagation()} // Prevent row click when clicking phone button
+                            >
                               <PhoneOutgoing className="h-4 w-4" />
                             </a>
-                            <button
-                              onClick={() => router.push(`/leads/${lead.id}`)}
-                              className="inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-white bg-brand hover:bg-brand focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(lead.id)}
-                              className="inline-flex items-center p-2 border border-transparent rounded-full shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
                           </div>
                         </div>
                         <div className="mt-2 sm:flex sm:justify-between">
@@ -646,8 +503,11 @@ Jane Smith,8007654321,jane@example.com</pre>
                   <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm text-gray-700">
-                        Showing page <span className="font-medium">{currentPage}</span> of{' '}
-                        <span className="font-medium">{totalPages}</span> pages
+                        Showing <span className="font-medium">{((currentPage - 1) * 10) + 1}</span> to{' '}
+                        <span className="font-medium">
+                          {Math.min(currentPage * 10, totalLeads)}
+                        </span> of{' '}
+                        <span className="font-medium">{totalLeads}</span> leads
                       </p>
                     </div>
                     <div>
@@ -700,6 +560,17 @@ Jane Smith,8007654321,jane@example.com</pre>
             )}
           </div>
         </div>
+
+        {/* Bulk Enrichment Modal */}
+        <BulkEnrichmentModal
+          isOpen={isBulkEnrichmentOpen}
+          onClose={() => setIsBulkEnrichmentOpen(false)}
+          selectedLeads={selectedLeads}
+          onEnrichmentComplete={() => {
+            setSelectedLeads([]);
+            fetchLeads(currentPage);
+          }}
+        />
       </div>
     </DashboardLayout>
   );

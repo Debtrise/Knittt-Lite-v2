@@ -59,6 +59,14 @@ import {
   exportLeadSourceReport,
   getRealTimeLeadMetrics
 } from "@/app/utils/api";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/app/components/ui/dropdown-menu";
 
 type ReportType = 'call-summary' | 'agent-performance' | 'journey-analytics' | 'lead-source-performance' | 'lead-source-comparison' | 'lead-source-realtime' | 'templates';
 
@@ -112,6 +120,7 @@ export default function ReportsPage() {
   const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [reportType, setReportType] = useState<ReportType>('lead-source-realtime');
   
   // Dashboard data
@@ -174,7 +183,7 @@ export default function ReportsPage() {
   }, [isAuthenticated, user?.tenantId, router]);
 
   useEffect(() => {
-    if (reportType === 'dashboard' && user?.tenantId) {
+    if (user?.tenantId) {
       const ws = new WebSocket(`wss://api.knittt.com/ws/dashboard?tenantId=${user.tenantId}`);
       
       ws.onmessage = (event) => {
@@ -188,7 +197,7 @@ export default function ReportsPage() {
         ws.close();
       };
     }
-  }, [reportType, user?.tenantId]);
+  }, [user?.tenantId]);
 
   useEffect(() => {
     if (reportType === 'templates') {
@@ -306,7 +315,7 @@ export default function ReportsPage() {
               startDate: dateRange.startDate,
               endDate: dateRange.endDate,
               sources: selectedSources.length > 0 ? selectedSources : undefined,
-              groupBy,
+              groupBy: groupBy === 'hour' ? 'day' : groupBy, // Convert 'hour' to 'day' for API compatibility
               closedTag,
               contactedStatuses
             });
@@ -350,7 +359,7 @@ export default function ReportsPage() {
               _fallbackData: true,
               _note: "Backend team is fixing PostgreSQL date_format compatibility issue"
             };
-            toast.warn('Using fallback data - Backend team is fixing database compatibility issues');
+            toast.error('Using fallback data - Backend team is fixing database compatibility issues');
           }
           break;
         case 'lead-source-comparison':
@@ -436,96 +445,161 @@ export default function ReportsPage() {
   };
 
   const renderReportTypeSelector = () => (
-    <div className="space-y-4 mb-6">
-      <div className="flex space-x-4">
-
-        <Button
-          variant={reportType === 'call-summary' ? 'default' : 'outline'}
-          onClick={() => handleReportTypeChange('call-summary')}
-        >
-          <PhoneCall className="w-4 h-4 mr-2" />
-          Call Summary
-        </Button>
-        <Button
-          variant={reportType === 'agent-performance' ? 'default' : 'outline'}
-          onClick={() => handleReportTypeChange('agent-performance')}
-        >
-          <Users className="w-4 h-4 mr-2" />
-          Agent Performance
-        </Button>
-        <Button
-          variant={reportType === 'journey-analytics' ? 'default' : 'outline'}
-          onClick={() => handleReportTypeChange('journey-analytics')}
-        >
-          <Route className="w-4 h-4 mr-2" />
-          Journey Analytics
-        </Button>
-        <Button
-          variant={reportType === 'lead-source-performance' ? 'default' : 'outline'}
-          onClick={() => handleReportTypeChange('lead-source-performance')}
-        >
-          <TrendingUp className="w-4 h-4 mr-2" />
-          Lead Source Performance ⚠️
-        </Button>
-        <Button
-          variant={reportType === 'lead-source-comparison' ? 'default' : 'outline'}
-          onClick={() => handleReportTypeChange('lead-source-comparison')}
-        >
-          <BarChart3 className="w-4 h-4 mr-2" />
-          Lead Source Comparison ✅
-        </Button>
-        <Button
-          variant={reportType === 'lead-source-realtime' ? 'default' : 'outline'}
-          onClick={() => handleReportTypeChange('lead-source-realtime')}
-        >
-          <Activity className="w-4 h-4 mr-2" />
-          Lead Real-time ✅
-        </Button>
-        <Button
-          variant={reportType === 'templates' ? 'default' : 'outline'}
-          onClick={() => handleReportTypeChange('templates')}
-        >
-          <FileText className="w-4 h-4 mr-2" />
-          Templates
-        </Button>
+    <div className="mb-6">
+      <div className="flex flex-col md:flex-row md:items-center gap-4">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="bg-brand hover:bg-brand-dark text-white w-full md:w-auto">
+              {getReportTypeLabel(reportType)}
+              <ChevronDown className="ml-2 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56">
+            <DropdownMenuLabel>Report Types</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleReportTypeChange('call-summary')}>
+              <PhoneCall className="mr-2 h-4 w-4 text-brand" />
+              <span>Call Summary</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleReportTypeChange('journey-analytics')}>
+              <Route className="mr-2 h-4 w-4 text-brand" />
+              <span>Journey Analytics</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleReportTypeChange('lead-source-performance')}>
+              <TrendingUp className="mr-2 h-4 w-4 text-brand" />
+              <span>Lead Source Performance</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleReportTypeChange('lead-source-comparison')}>
+              <BarChart3 className="mr-2 h-4 w-4 text-brand" />
+              <span>Lead Source Comparison</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleReportTypeChange('lead-source-realtime')}>
+              <Activity className="mr-2 h-4 w-4 text-brand" />
+              <span>Lead Real-time</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleReportTypeChange('templates')}>
+              <FileText className="mr-2 h-4 w-4 text-brand" />
+              <span>Templates</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        
+        {reportType !== 'templates' && reportType !== 'lead-source-realtime' && (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center"
+            >
+              <Filter className="w-4 h-4 mr-2 text-brand" />
+              {showFilters ? 'Hide Filters' : 'Show Filters'}
+            </Button>
+            
+            <Button
+              onClick={generateReport}
+              isLoading={isLoading}
+              className="bg-brand hover:bg-brand-dark text-white"
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin text-white" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <BarChart className="w-4 h-4 mr-2" />
+                  Generate Report
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+        
+        {reportType === 'lead-source-realtime' && (
+          <Button
+            onClick={generateReport}
+            isLoading={isLoading}
+            className="bg-brand hover:bg-brand-dark text-white"
+          >
+            {isLoading ? (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin text-white" />
+                Refreshing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh Data
+              </>
+            )}
+          </Button>
+        )}
       </div>
       
-
+      {reportType === 'lead-source-realtime' && (
+        <div className="flex items-center gap-2 mt-2">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand bg-opacity-10 text-brand">
+            ✅ Live Data
+          </span>
+          <span className="text-sm text-gray-500">
+            Real-time metrics are automatically updated
+          </span>
+        </div>
+      )}
     </div>
   );
 
+  // Helper function to get the label for the selected report type
+  const getReportTypeLabel = (type: ReportType): string => {
+    switch (type) {
+      case 'call-summary': return 'Call Summary';
+      case 'agent-performance': return 'Agent Performance';
+      case 'journey-analytics': return 'Journey Analytics';
+      case 'lead-source-performance': return 'Lead Source Performance';
+      case 'lead-source-comparison': return 'Lead Source Comparison';
+      case 'lead-source-realtime': return 'Lead Real-time Metrics';
+      case 'templates': return 'Report Templates';
+      default: return 'Select Report Type';
+    }
+  };
+
   const renderDateRangeSelector = () => (
-    <div className="flex items-center gap-4 mb-4">
-      <div className="flex items-center gap-2">
-        <label className="text-sm font-medium text-gray-700">From:</label>
-        <input
-          type="date"
-          className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          value={dateRange.startDate}
-          onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <label className="text-sm font-medium text-gray-700">To:</label>
-        <input
-          type="date"
-          className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          value={dateRange.endDate}
-          onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <label className="text-sm font-medium text-gray-700">Group by:</label>
-        <select
-          className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          value={groupBy}
-          onChange={(e) => setGroupBy(e.target.value as any)}
-        >
-          <option value="hour">Hour</option>
-          <option value="day">Day</option>
-          <option value="week">Week</option>
-          <option value="month">Month</option>
-        </select>
+    <div className="bg-white p-4 rounded-lg shadow mb-6">
+      <h3 className="text-md font-medium text-gray-700 mb-3">Report Parameters</h3>
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-700">From:</label>
+          <input
+            type="date"
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand"
+            value={dateRange.startDate}
+            onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-700">To:</label>
+          <input
+            type="date"
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand"
+            value={dateRange.endDate}
+            onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-700">Group by:</label>
+          <select
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand"
+            value={groupBy}
+            onChange={(e) => setGroupBy(e.target.value as any)}
+          >
+            <option value="hour">Hour</option>
+            <option value="day">Day</option>
+            <option value="week">Week</option>
+            <option value="month">Month</option>
+          </select>
+        </div>
       </div>
     </div>
   );
@@ -534,8 +608,18 @@ export default function ReportsPage() {
     if (!showFilters) return null;
 
     return (
-      <div className="bg-gray-50 p-4 rounded-lg mb-4">
-        <h3 className="text-lg font-medium mb-3">Filters</h3>
+      <div className="bg-white p-6 rounded-lg shadow mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium text-gray-900">Advanced Filters</h3>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setShowFilters(false)}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            <ChevronDown className="w-5 h-5" />
+          </Button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {reportType === 'call-summary' && (
             <>
@@ -572,7 +656,7 @@ export default function ReportsPage() {
             </>
           )}
           
-          {reportType === 'sms-summary' && (
+          {false && (
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Direction</label>
@@ -690,7 +774,7 @@ export default function ReportsPage() {
             </div>
           )}
 
-          {reportType === 'custom' && (
+          {false && (
             <div className="col-span-full">
               <label className="block text-sm font-medium text-gray-700 mb-1">SQL Query</label>
               <textarea
@@ -755,7 +839,7 @@ export default function ReportsPage() {
                 {hourlyBreakdown.calls && Object.entries(hourlyBreakdown.calls).map(([hour, count]) => (
                   <div key={hour} className="flex justify-between items-center">
                     <span className="text-sm text-gray-600 dark:text-gray-300">{hour}:00</span>
-                    <span className="text-sm font-medium">{count}</span>
+                    <span className="text-sm font-medium">{String(count)}</span>
                   </div>
                 ))}
               </div>
@@ -766,7 +850,7 @@ export default function ReportsPage() {
                 {hourlyBreakdown.sms && Object.entries(hourlyBreakdown.sms).map(([hour, count]) => (
                   <div key={hour} className="flex justify-between items-center">
                     <span className="text-sm text-gray-600 dark:text-gray-300">{hour}:00</span>
-                    <span className="text-sm font-medium">{count}</span>
+                    <span className="text-sm font-medium">{String(count)}</span>
                   </div>
                 ))}
               </div>
@@ -778,7 +862,7 @@ export default function ReportsPage() {
       {/* Loading State */}
       {!todaysStats && !hourlyBreakdown && (
         <div className="text-center py-8">
-          <RefreshCw className="w-8 h-8 text-gray-400 mx-auto mb-2 animate-spin" />
+          <RefreshCw className="w-8 h-8 text-brand mx-auto mb-2 animate-spin" />
           <p className="text-gray-500">Loading dashboard data...</p>
         </div>
       )}
@@ -815,9 +899,10 @@ export default function ReportsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleDeleteCustomReport(report.id)}
+                onClick={() => deleteCustomReport(report.id)}
+                isLoading={isDeleting}
+                className="text-red-500 hover:text-red-700"
               >
-                <Trash2 className="w-4 h-4 mr-2" />
                 Delete
               </Button>
             </div>
@@ -921,32 +1006,29 @@ export default function ReportsPage() {
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-medium text-gray-900">Call Summary Report</h3>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => handleExportReport('csv')}
-                  className="flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  CSV
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => handleExportReport('excel')}
-                  className="flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  Excel
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => handleExportReport('pdf')}
-                  className="flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  PDF
-                </Button>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="flex items-center">
+                    <Download className="w-4 h-4 mr-2 text-brand" />
+                    Export
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleExportReport('csv')}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    <span>CSV</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportReport('excel')}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    <span>Excel</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExportReport('pdf')}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    <span>PDF</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
@@ -955,8 +1037,8 @@ export default function ReportsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-blue-100">
-                <PhoneCall className="h-6 w-6 text-blue-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <PhoneCall className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Calls</p>
@@ -967,8 +1049,8 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-green-100">
-                <Phone className="h-6 w-6 text-green-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <Phone className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Answered Calls</p>
@@ -979,8 +1061,8 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-purple-100">
-                <PhoneForwarded className="h-6 w-6 text-purple-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <PhoneForwarded className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Transferred</p>
@@ -991,8 +1073,8 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-orange-100">
-                <Clock className="h-6 w-6 text-orange-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <Clock className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Avg Duration</p>
@@ -1006,11 +1088,11 @@ export default function ReportsPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600">{summary.connectionRate}%</div>
+              <div className="text-3xl font-bold text-brand">{summary.connectionRate}%</div>
               <div className="text-sm text-gray-600 mt-1">Connection Rate</div>
               <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
                 <div 
-                  className="bg-blue-600 h-2 rounded-full" 
+                  className="bg-brand h-2 rounded-full" 
                   style={{ width: `${Math.min(parseFloat(summary.connectionRate), 100)}%` }}
                 ></div>
               </div>
@@ -1019,11 +1101,11 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="text-center">
-              <div className="text-3xl font-bold text-purple-600">{summary.transferRate}%</div>
+              <div className="text-3xl font-bold text-brand">{summary.transferRate}%</div>
               <div className="text-sm text-gray-600 mt-1">Transfer Rate</div>
               <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
                 <div 
-                  className="bg-purple-600 h-2 rounded-full" 
+                  className="bg-brand h-2 rounded-full" 
                   style={{ width: `${Math.min(summary.transferRate, 100)}%` }}
                 ></div>
               </div>
@@ -1032,7 +1114,7 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="text-center">
-              <div className="text-3xl font-bold text-green-600">{summary.uniqueLeads.toLocaleString()}</div>
+              <div className="text-3xl font-bold text-brand">{summary.uniqueLeads.toLocaleString()}</div>
               <div className="text-sm text-gray-600 mt-1">Unique Leads</div>
               <div className="text-sm text-gray-500 mt-2">
                 {summary.totalCalls > 0 ? (summary.uniqueLeads / summary.totalCalls * 100).toFixed(1) : 0}% of total calls
@@ -1048,23 +1130,23 @@ export default function ReportsPage() {
           </div>
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{summary.answeredCalls}</div>
-                <div className="text-sm text-green-600">Answered</div>
+              <div className="text-center p-4 bg-brand bg-opacity-10 rounded-lg">
+                <div className="text-2xl font-bold text-brand">{summary.answeredCalls}</div>
+                <div className="text-sm text-brand">Answered</div>
                 <div className="text-xs text-gray-500 mt-1">
                   {summary.totalCalls > 0 ? ((summary.answeredCalls / summary.totalCalls) * 100).toFixed(1) : 0}%
                 </div>
               </div>
-              <div className="text-center p-4 bg-red-50 rounded-lg">
-                <div className="text-2xl font-bold text-red-600">{summary.failedCalls}</div>
-                <div className="text-sm text-red-600">Failed</div>
+              <div className="text-center p-4 bg-brand bg-opacity-10 rounded-lg">
+                <div className="text-2xl font-bold text-brand">{summary.failedCalls}</div>
+                <div className="text-sm text-brand">Failed</div>
                 <div className="text-xs text-gray-500 mt-1">
                   {summary.totalCalls > 0 ? ((summary.failedCalls / summary.totalCalls) * 100).toFixed(1) : 0}%
                 </div>
               </div>
-              <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">{summary.transferredCalls}</div>
-                <div className="text-sm text-purple-600">Transferred</div>
+              <div className="text-center p-4 bg-brand bg-opacity-10 rounded-lg">
+                <div className="text-2xl font-bold text-brand">{summary.transferredCalls}</div>
+                <div className="text-sm text-brand">Transferred</div>
                 <div className="text-xs text-gray-500 mt-1">
                   {summary.totalCalls > 0 ? ((summary.transferredCalls / summary.totalCalls) * 100).toFixed(1) : 0}%
                 </div>
@@ -1088,7 +1170,7 @@ export default function ReportsPage() {
                   return (
                     <div key={item.hour} className="flex flex-col items-center flex-1">
                       <div
-                        className="bg-blue-500 rounded-t w-full min-w-8"
+                        className="bg-brand rounded-t w-full min-w-8"
                         style={{ height: `${height}%` }}
                         title={`Hour ${item.hour}: ${item.calls} calls`}
                       />
@@ -1117,8 +1199,8 @@ export default function ReportsPage() {
                   return (
                     <div key={did.from} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                          <span className="text-sm font-medium text-blue-600">#{index + 1}</span>
+                        <div className="w-8 h-8 bg-brand bg-opacity-10 rounded-full flex items-center justify-center">
+                          <span className="text-sm font-medium text-brand">#{index + 1}</span>
                         </div>
                         <div>
                           <div className="font-medium text-gray-900">{did.from}</div>
@@ -1128,7 +1210,7 @@ export default function ReportsPage() {
                       <div className="flex items-center gap-4">
                         <div className="w-32 bg-gray-200 rounded-full h-2">
                           <div 
-                            className="bg-blue-600 h-2 rounded-full" 
+                            className="bg-brand h-2 rounded-full" 
                             style={{ width: `${percentage}%` }}
                           ></div>
                         </div>
@@ -1234,8 +1316,8 @@ export default function ReportsPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-blue-100">
-                <Route className="h-6 w-6 text-blue-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <Route className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Journeys</p>
@@ -1246,8 +1328,8 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-green-100">
-                <Users className="h-6 w-6 text-green-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <Users className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Enrollments</p>
@@ -1260,8 +1342,8 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-purple-100">
-                <CheckCircle className="h-6 w-6 text-purple-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <CheckCircle className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Completed</p>
@@ -1274,8 +1356,8 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-orange-100">
-                <TrendingUp className="h-6 w-6 text-orange-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <TrendingUp className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Avg Conversion Rate</p>
@@ -1326,9 +1408,9 @@ export default function ReportsPage() {
                       <td className="py-3 px-4 text-gray-900">{journey.enrollments.completedEnrollments}</td>
                       <td className="py-3 px-4">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          parseFloat(journey.conversionRate || '0') >= 80 ? 'bg-green-100 text-green-800' :
-                          parseFloat(journey.conversionRate || '0') >= 60 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
+                          parseFloat(journey.conversionRate || '0') >= 80 ? 'bg-brand bg-opacity-10 text-brand' :
+                          parseFloat(journey.conversionRate || '0') >= 60 ? 'bg-brand-light bg-opacity-10 text-brand-light' :
+                          'bg-brand-dark bg-opacity-10 text-brand-dark'
                         }`}>
                           {journey.conversionRate || '0'}%
                         </span>
@@ -1336,7 +1418,7 @@ export default function ReportsPage() {
                       <td className="py-3 px-4">
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div 
-                            className="bg-blue-600 h-2 rounded-full" 
+                            className="bg-brand h-2 rounded-full" 
                             style={{ width: `${Math.min(parseFloat(journey.conversionRate || '0'), 100)}%` }}
                           ></div>
                         </div>
@@ -1365,21 +1447,21 @@ export default function ReportsPage() {
             <div className="p-6">
               {/* Enrollment Status */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div className="text-center p-4 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">{journey.enrollments.totalEnrollments}</div>
-                  <div className="text-sm text-blue-600">Total Enrollments</div>
+                <div className="text-center p-4 bg-brand bg-opacity-10 rounded-lg">
+                  <div className="text-2xl font-bold text-brand">{journey.enrollments.totalEnrollments}</div>
+                  <div className="text-sm text-brand">Total Enrollments</div>
                 </div>
-                <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">{journey.enrollments.activeEnrollments}</div>
-                  <div className="text-sm text-green-600">Active</div>
+                <div className="text-center p-4 bg-brand bg-opacity-10 rounded-lg">
+                  <div className="text-2xl font-bold text-brand">{journey.enrollments.activeEnrollments}</div>
+                  <div className="text-sm text-brand">Active</div>
                 </div>
-                <div className="text-center p-4 bg-purple-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600">{journey.enrollments.completedEnrollments}</div>
-                  <div className="text-sm text-purple-600">Completed</div>
+                <div className="text-center p-4 bg-brand bg-opacity-10 rounded-lg">
+                  <div className="text-2xl font-bold text-brand">{journey.enrollments.completedEnrollments}</div>
+                  <div className="text-sm text-brand">Completed</div>
                 </div>
-                <div className="text-center p-4 bg-orange-50 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-600">{journey.enrollments.exitedEnrollments}</div>
-                  <div className="text-sm text-orange-600">Exited</div>
+                <div className="text-center p-4 bg-brand bg-opacity-10 rounded-lg">
+                  <div className="text-2xl font-bold text-brand">{journey.enrollments.exitedEnrollments}</div>
+                  <div className="text-sm text-brand">Exited</div>
                 </div>
               </div>
 
@@ -1393,7 +1475,7 @@ export default function ReportsPage() {
                   </div>
                   <div className="flex-1 mx-4">
                     <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-blue-600 h-2 rounded-full" style={{ width: '100%' }}></div>
+                      <div className="bg-brand h-2 rounded-full" style={{ width: '100%' }}></div>
                     </div>
                   </div>
                   <div className="text-center">
@@ -1403,7 +1485,7 @@ export default function ReportsPage() {
                   <div className="flex-1 mx-4">
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div 
-                        className="bg-green-600 h-2 rounded-full" 
+                        className="bg-brand-light h-2 rounded-full" 
                         style={{ 
                           width: `${journey.conversionFunnel.uniqueLeads > 0 
                             ? (parseInt(journey.conversionFunnel.reachedFirstStep) / parseInt(journey.conversionFunnel.uniqueLeads)) * 100 
@@ -1419,7 +1501,7 @@ export default function ReportsPage() {
                   <div className="flex-1 mx-4">
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div 
-                        className="bg-purple-600 h-2 rounded-full" 
+                        className="bg-brand-dark h-2 rounded-full" 
                         style={{ 
                           width: `${journey.conversionFunnel.uniqueLeads > 0 
                             ? (parseInt(journey.conversionFunnel.reachedLastStep) / parseInt(journey.conversionFunnel.uniqueLeads)) * 100 
@@ -1453,17 +1535,17 @@ export default function ReportsPage() {
                           <div className="w-32 bg-gray-200 rounded-full h-2">
                             <div 
                               className={`h-2 rounded-full ${
-                                successRate >= 90 ? 'bg-green-500' :
-                                successRate >= 70 ? 'bg-yellow-500' :
-                                'bg-red-500'
+                                successRate >= 90 ? 'bg-brand' :
+                                successRate >= 70 ? 'bg-brand-light' :
+                                'bg-brand-dark'
                               }`}
                               style={{ width: `${Math.min(successRate, 100)}%` }}
                             ></div>
                           </div>
                           <span className={`text-sm font-medium ${
-                            successRate >= 90 ? 'text-green-600' :
-                            successRate >= 70 ? 'text-yellow-600' :
-                            'text-red-600'
+                            successRate >= 90 ? 'text-brand' :
+                            successRate >= 70 ? 'text-brand-light' :
+                            'text-brand-dark'
                           }`}>
                             {successRate.toFixed(1)}%
                           </span>
@@ -1487,14 +1569,14 @@ export default function ReportsPage() {
       <div className="space-y-6">
         {/* Status Banner for Fallback Data */}
         {_fallbackData && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="bg-brand bg-opacity-10 border border-brand border-opacity-20 rounded-lg p-4">
             <div className="flex items-center">
-              <Clock className="w-5 h-5 text-yellow-600 mr-2" />
+              <Clock className="w-5 h-5 text-brand mr-2" />
               <div>
-                <span className="text-yellow-800 font-medium">
+                <span className="text-brand font-medium">
                   ⚠️ Using Fallback Data - {_note}
                 </span>
-                <p className="text-yellow-700 text-sm mt-1">
+                <p className="text-gray-700 text-sm mt-1">
                   The backend team is fixing PostgreSQL compatibility issues. This report shows basic structure with available data.
                 </p>
               </div>
@@ -1543,8 +1625,8 @@ export default function ReportsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-blue-100">
-                <Users className="h-6 w-6 text-blue-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <Users className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total New Leads</p>
@@ -1555,8 +1637,8 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-green-100">
-                <PhoneCall className="h-6 w-6 text-green-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <PhoneCall className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Contacted Leads</p>
@@ -1567,8 +1649,8 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-purple-100">
-                <CheckCircle className="h-6 w-6 text-purple-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <CheckCircle className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Closed Leads</p>
@@ -1579,8 +1661,8 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-orange-100">
-                <TrendingUp className="h-6 w-6 text-orange-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <TrendingUp className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Overall Close Rate</p>
@@ -1594,16 +1676,16 @@ export default function ReportsPage() {
         <div className="bg-white p-6 rounded-lg shadow">
           <h4 className="text-lg font-medium text-gray-900 mb-4">Conversion Funnel</h4>
           <div className="space-y-4">
-            {conversionFunnel.stages.map((stage, index) => (
+            {conversionFunnel.stages.map((stage: any, index: number) => (
               <div key={stage.name} className="flex items-center">
                 <div className="w-32 text-sm font-medium text-gray-700">{stage.name}</div>
                 <div className="flex-1 mx-4">
                   <div className="w-full bg-gray-200 rounded-full h-4">
                     <div 
                       className={`h-4 rounded-full ${
-                        index === 0 ? 'bg-blue-500' :
-                        index === 1 ? 'bg-green-500' :
-                        'bg-purple-500'
+                        index === 0 ? 'bg-brand' :
+                        index === 1 ? 'bg-brand-light' :
+                        'bg-brand-dark'
                       }`}
                       style={{ width: `${stage.percentage}%` }}
                     ></div>
@@ -1637,7 +1719,7 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {sourcePerformance.map((source) => (
+                {sourcePerformance.map((source: any) => (
                   <tr key={source.source}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 capitalize">
                       {source.source}
@@ -1654,9 +1736,9 @@ export default function ReportsPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div className="flex items-center">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          source.contactRate >= 80 ? 'bg-green-100 text-green-800' :
-                          source.contactRate >= 60 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
+                          source.contactRate >= 80 ? 'bg-brand bg-opacity-10 text-brand' :
+                          source.contactRate >= 60 ? 'bg-brand-light bg-opacity-10 text-brand-light' :
+                          'bg-brand-dark bg-opacity-10 text-brand-dark'
                         }`}>
                           {source.contactRate.toFixed(1)}%
                         </span>
@@ -1665,9 +1747,9 @@ export default function ReportsPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div className="flex items-center">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          source.closeRate >= 25 ? 'bg-green-100 text-green-800' :
-                          source.closeRate >= 15 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
+                          source.closeRate >= 25 ? 'bg-brand bg-opacity-10 text-brand' :
+                          source.closeRate >= 15 ? 'bg-brand-light bg-opacity-10 text-brand-light' :
+                          'bg-brand-dark bg-opacity-10 text-brand-dark'
                         }`}>
                           {source.closeRate.toFixed(1)}%
                         </span>
@@ -1730,19 +1812,19 @@ export default function ReportsPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600">{summary.totalSources}</div>
+              <div className="text-3xl font-bold text-brand">{summary.totalSources}</div>
               <div className="text-sm text-gray-600 mt-1">Total Sources Compared</div>
             </div>
           </div>
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="text-center">
-              <div className="text-3xl font-bold text-green-600">{summary.improvingSources}</div>
+              <div className="text-3xl font-bold text-brand">{summary.improvingSources}</div>
               <div className="text-sm text-gray-600 mt-1">Improving Sources</div>
             </div>
           </div>
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="text-center">
-              <div className="text-3xl font-bold text-red-600">{summary.decliningSourcees}</div>
+              <div className="text-3xl font-bold text-brand-dark">{summary.decliningSourcees}</div>
               <div className="text-sm text-gray-600 mt-1">Declining Sources</div>
             </div>
           </div>
@@ -1766,7 +1848,7 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {comparison.map((source) => (
+                {comparison.map((source: any) => (
                   <React.Fragment key={source.source}>
                     <tr className="bg-gray-50">
                       <td rowSpan={5} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 capitalize border-r">
@@ -1776,12 +1858,12 @@ export default function ReportsPage() {
                       <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">{source.current.newLeads.toLocaleString()}</td>
                       <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">{source.previous.newLeads.toLocaleString()}</td>
                       <td className="px-6 py-2 whitespace-nowrap text-sm">
-                        <span className={`${source.changes.newLeads >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`${source.changes.newLeads >= 0 ? 'text-brand' : 'text-brand-dark'}`}>
                           {source.changes.newLeads >= 0 ? '+' : ''}{source.changes.newLeads}
                         </span>
                       </td>
                       <td className="px-6 py-2 whitespace-nowrap text-sm">
-                        <span className={`${source.percentageChanges.newLeads >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`${source.percentageChanges.newLeads >= 0 ? 'text-brand' : 'text-brand-dark'}`}>
                           {source.percentageChanges.newLeads >= 0 ? '+' : ''}{source.percentageChanges.newLeads.toFixed(1)}%
                         </span>
                       </td>
@@ -1791,12 +1873,12 @@ export default function ReportsPage() {
                       <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">{source.current.contactedLeads.toLocaleString()}</td>
                       <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">{source.previous.contactedLeads.toLocaleString()}</td>
                       <td className="px-6 py-2 whitespace-nowrap text-sm">
-                        <span className={`${source.changes.contactedLeads >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`${source.changes.contactedLeads >= 0 ? 'text-brand' : 'text-brand-dark'}`}>
                           {source.changes.contactedLeads >= 0 ? '+' : ''}{source.changes.contactedLeads}
                         </span>
                       </td>
                       <td className="px-6 py-2 whitespace-nowrap text-sm">
-                        <span className={`${source.percentageChanges.contactedLeads >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`${source.percentageChanges.contactedLeads >= 0 ? 'text-brand' : 'text-brand-dark'}`}>
                           {source.percentageChanges.contactedLeads >= 0 ? '+' : ''}{source.percentageChanges.contactedLeads.toFixed(1)}%
                         </span>
                       </td>
@@ -1806,12 +1888,12 @@ export default function ReportsPage() {
                       <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">{source.current.closedLeads.toLocaleString()}</td>
                       <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">{source.previous.closedLeads.toLocaleString()}</td>
                       <td className="px-6 py-2 whitespace-nowrap text-sm">
-                        <span className={`${source.changes.closedLeads >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`${source.changes.closedLeads >= 0 ? 'text-brand' : 'text-brand-dark'}`}>
                           {source.changes.closedLeads >= 0 ? '+' : ''}{source.changes.closedLeads}
                         </span>
                       </td>
                       <td className="px-6 py-2 whitespace-nowrap text-sm">
-                        <span className={`${source.percentageChanges.closedLeads >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`${source.percentageChanges.closedLeads >= 0 ? 'text-brand' : 'text-brand-dark'}`}>
                           {source.percentageChanges.closedLeads >= 0 ? '+' : ''}{source.percentageChanges.closedLeads.toFixed(1)}%
                         </span>
                       </td>
@@ -1821,12 +1903,12 @@ export default function ReportsPage() {
                       <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">{source.current.contactRate.toFixed(1)}%</td>
                       <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">{source.previous.contactRate.toFixed(1)}%</td>
                       <td className="px-6 py-2 whitespace-nowrap text-sm">
-                        <span className={`${source.changes.contactRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`${source.changes.contactRate >= 0 ? 'text-brand' : 'text-brand-dark'}`}>
                           {source.changes.contactRate >= 0 ? '+' : ''}{source.changes.contactRate.toFixed(1)}pp
                         </span>
                       </td>
                       <td className="px-6 py-2 whitespace-nowrap text-sm">
-                        <span className={`${source.percentageChanges.contactRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`${source.percentageChanges.contactRate >= 0 ? 'text-brand' : 'text-brand-dark'}`}>
                           {source.percentageChanges.contactRate >= 0 ? '+' : ''}{source.percentageChanges.contactRate.toFixed(1)}%
                         </span>
                       </td>
@@ -1836,12 +1918,12 @@ export default function ReportsPage() {
                       <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{source.current.closeRate.toFixed(1)}%</td>
                       <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900 border-b">{source.previous.closeRate.toFixed(1)}%</td>
                       <td className="px-6 py-2 whitespace-nowrap text-sm border-b">
-                        <span className={`${source.changes.closeRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`${source.changes.closeRate >= 0 ? 'text-brand' : 'text-brand-dark'}`}>
                           {source.changes.closeRate >= 0 ? '+' : ''}{source.changes.closeRate.toFixed(1)}pp
                         </span>
                       </td>
                       <td className="px-6 py-2 whitespace-nowrap text-sm border-b">
-                        <span className={`${source.percentageChanges.closeRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className={`${source.percentageChanges.closeRate >= 0 ? 'text-brand' : 'text-brand-dark'}`}>
                           {source.percentageChanges.closeRate >= 0 ? '+' : ''}{source.percentageChanges.closeRate.toFixed(1)}%
                         </span>
                       </td>
@@ -1866,7 +1948,7 @@ export default function ReportsPage() {
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-medium text-gray-900">
-                Real-time Lead Metrics ✅
+                Real-time Lead Metrics
               </h3>
               <div className="flex items-center gap-2 text-sm text-gray-500">
                 <Clock className="w-4 h-4" />
@@ -1876,22 +1958,12 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Status Banner */}
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="flex items-center">
-            <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-            <span className="text-green-800 font-medium">
-              ✅ This endpoint is working correctly! Real-time data from the API.
-            </span>
-          </div>
-        </div>
-
         {/* Today's Metrics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-blue-100">
-                <Users className="h-6 w-6 text-blue-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <Users className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">New Leads Today</p>
@@ -1902,8 +1974,8 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-green-100">
-                <PhoneCall className="h-6 w-6 text-green-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <PhoneCall className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Contacted Leads</p>
@@ -1914,8 +1986,8 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-purple-100">
-                <CheckCircle className="h-6 w-6 text-purple-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <CheckCircle className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Closed Leads</p>
@@ -1926,8 +1998,8 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-orange-100">
-                <TrendingUp className="h-6 w-6 text-orange-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <TrendingUp className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Contact Rate</p>
@@ -1938,8 +2010,8 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-3 rounded-full bg-red-100">
-                <Activity className="h-6 w-6 text-red-600" />
+              <div className="p-3 rounded-full bg-brand bg-opacity-10">
+                <Activity className="h-6 w-6 text-brand" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Close Rate</p>
@@ -1957,16 +2029,16 @@ export default function ReportsPage() {
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">{trends.newLeads}</div>
+                <div className="text-3xl font-bold text-brand">{trends.newLeads}</div>
                 <div className="text-sm text-gray-600 mt-1">New Leads Trend</div>
                 <div className="mt-2">
                   {trends.newLeads > 0 ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand bg-opacity-10 text-brand">
                       <TrendingUp className="w-3 h-3 mr-1" />
                       Increasing
                     </span>
                   ) : trends.newLeads < 0 ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-dark bg-opacity-10 text-brand-dark">
                       <TrendingUp className="w-3 h-3 mr-1 transform rotate-180" />
                       Decreasing
                     </span>
@@ -1979,16 +2051,16 @@ export default function ReportsPage() {
               </div>
               
               <div className="text-center">
-                <div className="text-3xl font-bold text-green-600">{trends.contactedLeads}</div>
+                <div className="text-3xl font-bold text-brand">{trends.contactedLeads}</div>
                 <div className="text-sm text-gray-600 mt-1">Contacted Leads Trend</div>
                 <div className="mt-2">
                   {trends.contactedLeads > 0 ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand bg-opacity-10 text-brand">
                       <TrendingUp className="w-3 h-3 mr-1" />
                       Increasing
                     </span>
                   ) : trends.contactedLeads < 0 ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-dark bg-opacity-10 text-brand-dark">
                       <TrendingUp className="w-3 h-3 mr-1 transform rotate-180" />
                       Decreasing
                     </span>
@@ -2001,16 +2073,16 @@ export default function ReportsPage() {
               </div>
               
               <div className="text-center">
-                <div className="text-3xl font-bold text-purple-600">{trends.closedLeads}</div>
+                <div className="text-3xl font-bold text-brand">{trends.closedLeads}</div>
                 <div className="text-sm text-gray-600 mt-1">Closed Leads Trend</div>
                 <div className="mt-2">
                   {trends.closedLeads > 0 ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand bg-opacity-10 text-brand">
                       <TrendingUp className="w-3 h-3 mr-1" />
                       Increasing
                     </span>
                   ) : trends.closedLeads < 0 ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-brand-dark bg-opacity-10 text-brand-dark">
                       <TrendingUp className="w-3 h-3 mr-1 transform rotate-180" />
                       Decreasing
                     </span>
@@ -2024,8 +2096,6 @@ export default function ReportsPage() {
             </div>
           </div>
         </div>
-
-
       </div>
     );
   };
@@ -2033,130 +2103,130 @@ export default function ReportsPage() {
   return (
     <DashboardLayout>
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">Reports</h1>
-        
-
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold">Reports</h1>
+          
+          {reportData && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="flex items-center">
+                  <Download className="w-4 h-4 mr-2 text-brand" />
+                  Export
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExportReport('csv')}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  <span>CSV</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportReport('excel')}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  <span>Excel</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportReport('pdf')}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  <span>PDF</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
         
         {renderReportTypeSelector()}
         
-        {renderDateRangeSelector()}
+        {reportType !== 'templates' && reportType !== 'lead-source-realtime' && (
+          renderDateRangeSelector()
+        )}
         
         {renderFilters()}
-        
-        {/* Generate Report Button and Actions */}
-        {reportType !== 'custom' && reportType !== 'templates' && reportType !== 'lead-source-realtime' && (
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center gap-4">
-              <Button
-                onClick={generateReport}
-                disabled={isLoading}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                {isLoading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <BarChart className="w-4 h-4 mr-2" />
-                    Generate Report
-                  </>
-                )}
-              </Button>
-              
-              <Button
-                variant="outline"
-                onClick={() => setShowFilters(!showFilters)}
-              >
-                <Filter className="w-4 h-4 mr-2" />
-                {showFilters ? 'Hide Filters' : 'Show Filters'}
-              </Button>
-            </div>
-            
-            {reportData && (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleExportReport('csv')}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export CSV
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleExportReport('excel')}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Excel
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleExportReport('pdf')}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export PDF
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-        
-
-        {reportType === 'custom' && renderCustomReports()}
-        {reportType === 'templates' && renderReportData()}
-        
-        {/* Real-time Report Controls */}
-        {reportType === 'lead-source-realtime' && (
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center gap-4">
-              <h2 className="text-xl font-semibold text-gray-900">Real-time Lead Metrics</h2>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                ✅ Live Data
-              </span>
-            </div>
-            <Button
-              onClick={generateReport}
-              disabled={isLoading}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              {isLoading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Refreshing...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Refresh Data
-                </>
-              )}
-            </Button>
-          </div>
-        )}
         
         {/* Report Results or Empty State */}
         {(reportType === 'call-summary' || reportType === 'agent-performance' || reportType === 'journey-analytics' || reportType === 'lead-source-performance' || reportType === 'lead-source-comparison' || reportType === 'lead-source-realtime') && (
           <>
             {reportData ? (
               renderReportData()
+            ) : isLoading ? (
+              <div className="bg-white rounded-lg shadow p-8 text-center">
+                <RefreshCw className="w-12 h-12 text-brand mx-auto mb-4 animate-spin" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Generating Report...</h3>
+                <p className="text-gray-600">
+                  Please wait while we process your data and generate the report.
+                </p>
+              </div>
             ) : (
               <div className="bg-white rounded-lg shadow p-8 text-center">
-                <BarChart className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <BarChart className="w-12 h-12 text-brand mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No Report Generated Yet</h3>
                 <p className="text-gray-600 mb-4">
                   Select your date range, configure any filters you need, and click "Generate Report" to view your data.
                 </p>
-                <Button onClick={() => setShowFilters(true)} variant="outline">
-                  <Filter className="w-4 h-4 mr-2" />
-                  Configure Filters
+                <Button onClick={generateReport} className="bg-brand hover:bg-brand-dark text-white">
+                  <BarChart className="w-4 h-4 mr-2" />
+                  Generate Report
                 </Button>
               </div>
             )}
           </>
+        )}
+        
+        {reportType === 'templates' && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold">Report Templates</h2>
+              <Button 
+                onClick={() => setShowTemplateModal(true)}
+                className="bg-brand hover:bg-brand-dark text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create Template
+              </Button>
+            </div>
+            
+            {reportTemplates.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {reportTemplates.map(template => (
+                  <div key={template.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <h3 className="font-medium text-gray-900">{template.name}</h3>
+                    <p className="text-sm text-gray-500 capitalize mt-1">{template.type.replace('_', ' ')}</p>
+                    <div className="flex justify-between items-center mt-4">
+                      <span className="text-xs text-gray-500">
+                        {new Date(template.updatedAt).toLocaleDateString()}
+                      </span>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTemplate(template);
+                            setShowTemplateModal(true);
+                          }}
+                          className="text-brand hover:text-brand-dark"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Templates Yet</h3>
+                <p className="text-gray-600 mb-4">
+                  Create your first report template to save report configurations for future use.
+                </p>
+                <Button 
+                  onClick={() => setShowTemplateModal(true)}
+                  className="bg-brand hover:bg-brand-dark text-white"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Template
+                </Button>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </DashboardLayout>

@@ -1,5 +1,7 @@
 // Types for the Webhook API
 
+export type WebhookType = 'go' | 'pause' | 'stop';
+
 export interface WebhookEndpoint {
   id: number;
   tenantId: string;
@@ -7,6 +9,7 @@ export interface WebhookEndpoint {
   description: string;
   endpointKey: string;
   webhookUrl?: string; // Only returned in detailed responses
+  webhookType: WebhookType;
   isActive: boolean;
   brand: string;
   source: string;
@@ -18,6 +21,8 @@ export interface WebhookEndpoint {
   autoEnrollJourneyId?: number | null;
   testPayload?: Record<string, any>;
   conditionalRules?: ConditionalRules;
+  pauseResumeConfig?: PauseResumeConfig;
+  stopConfig?: StopConfig;
   createdAt: string;
   updatedAt: string;
 }
@@ -51,12 +56,25 @@ export interface WebhookEvent {
   ipAddress: string;
   processingTime: number;
   createdLeadIds: number[];
+  affectedLeadIds: number[];
   payload: Record<string, any>;
   errorMessage?: string;
   validationErrors?: string[];
   processedData?: Record<string, any>;
   headers?: Record<string, string>;
   responseData?: Record<string, any>;
+  pauseResumeActions?: {
+    leadsPaused: number;
+    leadsResumed: number;
+    journeysPaused: number;
+    journeysResumed: number;
+  };
+  stopActions?: {
+    leadsStopped: number;
+    journeysExited: number;
+    leadsMarkedDNC: number;
+    leadsMarkedSold: number;
+  };
 }
 
 export interface WebhookListResponse {
@@ -91,6 +109,7 @@ export interface WebhookTestResponse {
 export interface CreateWebhookParams {
   name: string;
   description: string;
+  webhookType: WebhookType;
   brand: string;
   source: string;
   fieldMapping: FieldMapping;
@@ -99,11 +118,14 @@ export interface CreateWebhookParams {
   requiredHeaders?: Record<string, string>;
   autoEnrollJourneyId?: number | null;
   conditionalRules?: ConditionalRules | null;
+  pauseResumeConfig?: PauseResumeConfig;
+  stopConfig?: StopConfig;
 }
 
 export interface UpdateWebhookParams {
   name?: string;
   description?: string;
+  webhookType?: WebhookType;
   brand?: string;
   source?: string;
   fieldMapping?: FieldMapping;
@@ -112,6 +134,8 @@ export interface UpdateWebhookParams {
   requiredHeaders?: Record<string, string>;
   autoEnrollJourneyId?: number | null;
   conditionalRules?: ConditionalRules | null;
+  pauseResumeConfig?: PauseResumeConfig;
+  stopConfig?: StopConfig;
 }
 
 export interface WebhookDeleteResponse {
@@ -184,4 +208,64 @@ export interface Condition {
 export interface Action {
   type: 'create_lead' | 'update_lead' | 'delete_lead' | 'send_notification' | 'enroll_journey' | 'call_webhook' | 'set_tags' | 'create_task';
   config: Record<string, any>;
+}
+
+export interface PauseResumeConfig {
+  enabled: boolean;
+  resumeConditions: {
+    timerResume?: {
+      enabled: boolean;
+      delayMinutes?: number;
+      delayHours?: number;
+      delayDays?: number;
+    };
+    statusResume?: {
+      enabled: boolean;
+      targetStatuses: string[];
+      checkInterval: number;
+    };
+    tagResume?: {
+      enabled: boolean;
+      requiredTags: string[];
+      forbiddenTags: string[];
+      checkInterval: number;
+    };
+    externalResume?: {
+      enabled: boolean;
+    };
+  };
+  pauseActions: {
+    pauseJourneys: boolean;
+    addPauseTag: boolean;
+    pauseTagName: string;
+    sendNotification: boolean;
+    notificationTemplate?: string;
+  };
+  resumeActions: {
+    resumeJourneys: boolean;
+    removePauseTag: boolean;
+    addResumeTag: boolean;
+    resumeTagName: string;
+    sendNotification: boolean;
+    notificationTemplate?: string;
+  };
+}
+
+export interface StopConfig {
+  enabled: boolean;
+  stopActions: {
+    exitJourneys: boolean;
+    addStopTag: boolean;
+    stopTagName: string;
+    markAsDNC: boolean;
+    dncReason?: string;
+    markAsSold: boolean;
+    soldReason?: string;
+    preventFutureEnrollment: boolean;
+  };
+  stopMetadata: {
+    trackStopReason: boolean;
+    trackStopSource: boolean;
+    trackStopTimestamp: boolean;
+  };
 } 

@@ -42,6 +42,7 @@ import {
   BatchPreviewResponse 
 } from '@/app/types/recordings';
 import { renderPreview } from '@/app/utils/api';
+import { recordingsService } from '@/app/services/recordingsService';
 
 interface EnhancedPreviewProps {
   text: string;
@@ -76,6 +77,7 @@ export default function EnhancedPreview({
   const [selectedPreset, setSelectedPreset] = useState<string>('');
   const [audioErrors, setAudioErrors] = useState<Set<string>>(new Set());
   const [isApiConfigured, setIsApiConfigured] = useState<boolean | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     loadInitialData();
@@ -159,11 +161,6 @@ export default function EnhancedPreview({
       return;
     }
 
-    if (!selectedVoiceId) {
-      toast.error('Please select a voice');
-      return;
-    }
-
     try {
       setIsGenerating(true);
       console.log('Generating preview with:', {
@@ -172,59 +169,35 @@ export default function EnhancedPreview({
         voiceSettings
       });
 
-      const requestData = {
-        text: text.trim(),
-        voiceId: selectedVoiceId,
-        voiceSettings,
-      };
-
-      console.log('Making preview request to /api/recordings/preview with:', requestData);
-
-      const response = await recordings.preview(requestData);
-
-      console.log('Preview response received:', response.data);
+      const response = await recordingsService.testVoice(selectedVoiceId, text.trim());
+      console.log('Raw preview response:', response);
       
+      if (!response.success) {
+        console.error('Preview generation failed:', response.message);
+        throw new Error(response.message || 'Failed to generate preview');
+      }
+      
+      console.log('Original streamUrl:', response.streamUrl);
       // Fix the streamUrl to use the absolute API URL
       const previewData = {
-        ...response.data,
-        streamUrl: response.data.streamUrl.startsWith('/api/') 
-          ? `http://34.122.156.88:3001${response.data.streamUrl}`
-          : response.data.streamUrl
+        ...response,
+        streamUrl: response.streamUrl.startsWith('/api/') 
+          ? `http://34.122.156.88:3001${response.streamUrl}`
+          : response.streamUrl
       };
+      console.log('Processed preview data:', previewData);
       
       setCurrentPreview(previewData);
       onPreviewReady?.(previewData);
-      toast.success(`🎵 Preview ready! (${previewData.characterCount} characters, ~$${(previewData.estimatedCost / 1000).toFixed(3)})`);
+      toast.success(`🎵 Preview ready! (${response.charactersUsed} characters)`);
     } catch (error: any) {
       console.error('Preview generation failed:', error);
       console.error('Error details:', {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        message: error.message
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
       });
-      
-      // Check if it's a backend endpoint not found error
-      if (error.response?.status === 404) {
-        // Create mock preview data for demonstration
-        const mockPreview: PreviewResponse = {
-          previewId: `preview_${Date.now()}_mock`,
-          streamUrl: '#', // Use # to prevent actual loading
-          characterCount: text.trim().length,
-          estimatedCost: text.trim().length,
-          expiresAt: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
-          voiceId: selectedVoiceId || 'mock-voice',
-          voiceSettings: voiceSettings,
-        };
-        
-        setCurrentPreview(mockPreview);
-        onPreviewReady?.(mockPreview);
-        toast.info(`Preview interface ready! (${mockPreview.characterCount} characters) - Backend endpoints needed for audio`);
-      } else if (error.response?.status === 500 && error.response?.data?.error?.includes('API key not configured')) {
-        toast.error('ElevenLabs API key not configured. Please configure it in the Settings page.');
-      } else {
-        toast.error(`Failed to generate preview: ${error.response?.data?.error || error.message}`);
-      }
+      toast.error(`Failed to generate preview: ${error.response?.data?.error || error.message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -245,7 +218,7 @@ export default function EnhancedPreview({
       setIsBatchGenerating(true);
       const topVoices = voices.slice(0, 3).map(v => v.voiceId);
       
-      const response = await recordings.batchPreview({
+      const response = await recordingsService.generateBatchPreviews({
         text: text.trim(),
         voiceIds: topVoices,
         voiceSettings,
@@ -253,8 +226,8 @@ export default function EnhancedPreview({
 
       // Fix the streamUrls to use absolute API URLs
       const batchData = {
-        ...response.data,
-        previews: response.data.previews.map(preview => ({
+        ...response,
+        previews: response.previews.map(preview => ({
           ...preview,
           streamUrl: preview.streamUrl.startsWith('/api/') 
             ? `http://34.122.156.88:3001${preview.streamUrl}`
@@ -266,91 +239,52 @@ export default function EnhancedPreview({
       toast.success(`Generated ${batchData.previews.length} voice comparisons (${batchData.totalCharacters} total characters)`);
     } catch (error: any) {
       console.error('Batch preview generation failed:', error);
-      
-      // Check if it's a backend endpoint not found error
-      if (error.response?.status === 404) {
-        // Create mock batch preview data for demonstration
-        const topVoices = voices.slice(0, 3);
-        const mockBatchPreview: BatchPreviewResponse = {
-          previews: topVoices.map((voice, index) => ({
-            previewId: `preview_${Date.now()}_${index}_mock`,
-            voiceId: voice.voiceId,
-            voiceName: voice.name,
-            streamUrl: '#', // Use # to prevent actual loading
-            characterCount: text.trim().length,
-          })),
-          totalCharacters: text.trim().length * topVoices.length,
-          expiresAt: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
-        };
-        
-        setBatchPreviews(mockBatchPreview);
-        toast.info(`Voice comparison interface ready! (${mockBatchPreview.totalCharacters} total characters) - Backend endpoints needed for audio`);
-      } else {
-        toast.error('Failed to generate voice comparison');
-      }
+      toast.error(`Failed to generate batch preview: ${error.response?.data?.error || error.message}`);
     } finally {
       setIsBatchGenerating(false);
     }
   };
 
-  const playPreview = async (previewId: string, streamUrl: string) => {
-    if (playingPreview === previewId) {
-      setPlayingPreview(null);
-      return;
-    }
-
-    // Check if this is a mock URL
-    if (streamUrl === '#') {
-      // Simulate playback for demo purposes
-      setPlayingPreview(previewId);
-      toast.info('🎵 Demo playback - Audio will work when backend is implemented');
-      
-      // Auto-stop after 3 seconds to simulate playback
-      setTimeout(() => {
-        setPlayingPreview(null);
-      }, 3000);
-      return;
-    }
-
+  const playPreview = async (preview: VoicePreviewResponse) => {
     try {
-      setPlayingPreview(previewId);
+      console.log('Playing preview:', preview);
       
-      // For authenticated streams, we need to fetch the audio data first
-      if (streamUrl.includes('34.122.156.88:3001')) {
-        const response = await recordings.streamPreview(previewId);
-        const blob = new Blob([response.data], { type: 'audio/mpeg' });
-        const audioUrl = URL.createObjectURL(blob);
-        
-        const audio = new Audio(audioUrl);
-        audio.onended = () => {
-          setPlayingPreview(null);
-          URL.revokeObjectURL(audioUrl);
-        };
-        audio.onerror = () => {
-          setAudioErrors(prev => new Set([...prev, previewId]));
-          toast.error('Failed to play preview');
-          setPlayingPreview(null);
-          URL.revokeObjectURL(audioUrl);
-        };
-        
-        await audio.play();
-      } else {
-        // For direct URLs, use the audio element directly
-        const audio = new Audio(streamUrl);
-        audio.onended = () => setPlayingPreview(null);
-        audio.onerror = () => {
-          setAudioErrors(prev => new Set([...prev, previewId]));
-          toast.error('Failed to play preview - backend endpoint not available');
-          setPlayingPreview(null);
-        };
-        
-        await audio.play();
+      if (!preview.streamUrl) {
+        throw new Error('No audio URL available');
       }
-    } catch (error) {
-      console.error('Playback failed:', error);
-      setAudioErrors(prev => new Set([...prev, previewId]));
-      toast.error('Failed to play preview');
-      setPlayingPreview(null);
+
+      // Create a new audio element
+      const audio = new Audio();
+      
+      // Set up event listeners
+      audio.onended = () => {
+        console.log('Audio playback ended');
+        setIsPlaying(false);
+      };
+      
+      audio.onerror = (error) => {
+        console.error('Audio playback error:', error);
+        toast.error('Failed to play audio preview');
+        setIsPlaying(false);
+      };
+      
+      // Set the source and start playing
+      audio.src = preview.streamUrl;
+      console.log('Setting audio source to:', preview.streamUrl);
+      
+      try {
+        await audio.play();
+        setIsPlaying(true);
+        console.log('Audio playback started');
+      } catch (playError: any) {
+        console.error('Error playing audio:', playError);
+        toast.error(`Failed to play audio: ${playError.message}`);
+        setIsPlaying(false);
+      }
+    } catch (error: any) {
+      console.error('Error in playPreview:', error);
+      toast.error(`Failed to play preview: ${error.message}`);
+      setIsPlaying(false);
     }
   };
 
@@ -679,10 +613,10 @@ export default function EnhancedPreview({
           <CardContent>
             <div className="flex items-center gap-4">
               <Button
-                onClick={() => playPreview(currentPreview.previewId, currentPreview.streamUrl)}
+                onClick={() => playPreview(currentPreview)}
                 variant="outline"
               >
-                {playingPreview === currentPreview.previewId ? (
+                {isPlaying ? (
                   <Pause className="w-4 h-4" />
                 ) : (
                   <Play className="w-4 h-4" />
@@ -691,7 +625,7 @@ export default function EnhancedPreview({
               
               {/* Audio playback info */}
               <div className="flex-1 flex items-center justify-center p-4 bg-gray-100 rounded border">
-                {playingPreview === currentPreview.previewId ? (
+                {isPlaying ? (
                   <div className="flex items-center gap-2">
                     <div className="animate-pulse w-2 h-2 bg-blue-500 rounded-full"></div>
                     <p className="text-sm text-blue-600 font-medium">
@@ -742,11 +676,11 @@ export default function EnhancedPreview({
                 </div>
                 
                 <Button
-                  onClick={() => playPreview(preview.previewId, preview.streamUrl)}
+                  onClick={() => playPreview(preview)}
                   variant="outline"
                   size="sm"
                 >
-                  {playingPreview === preview.previewId ? (
+                  {isPlaying ? (
                     <Pause className="w-4 h-4" />
                   ) : (
                     <Play className="w-4 h-4" />
@@ -755,7 +689,7 @@ export default function EnhancedPreview({
                 
                 {/* Audio playback info */}
                 <div className="w-48 flex items-center justify-center p-2 bg-gray-100 rounded border">
-                  {playingPreview === preview.previewId ? (
+                  {isPlaying ? (
                     <div className="flex items-center gap-1">
                       <div className="animate-pulse w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
                       <p className="text-xs text-blue-600 font-medium">Playing...</p>

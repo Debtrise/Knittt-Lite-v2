@@ -1,0 +1,862 @@
+# Webhook API Documentation - Enhanced with Go/Pause/Stop
+
+## Overview
+
+The Knittt webhook system now supports three distinct webhook types:
+- **GO**: Create leads and process them through journeys (default behavior)
+- **PAUSE**: Pause existing leads and their journeys with configurable resume conditions
+- **STOP**: Stop leads and exit them from all journeys (for DNC/sold leads)
+
+## Authentication
+
+All authenticated endpoints require a Bearer token in the Authorization header:
+```
+Authorization: Bearer your-jwt-token
+```
+
+Public webhook receiver endpoints use optional security tokens configured per webhook.
+
+---
+
+## Webhook Management Endpoints
+
+### List Webhooks
+```http
+GET /api/webhooks
+```
+
+**Query Parameters:**
+- `page` (optional): Page number (default: 1)
+- `limit` (optional): Items per page (default: 50)
+- `isActive` (optional): Filter by active status (true/false)
+- `webhookType` (optional): Filter by type (go/pause/stop)
+
+**Response:**
+```json
+{
+  "webhooks": [
+    {
+      "id": 1,
+      "name": "Lead Creation Webhook",
+      "description": "Creates new leads from external source",
+      "endpointKey": "abc123def456",
+      "webhookType": "go",
+      "isActive": true,
+      "brand": "TaxSales",
+      "source": "Website",
+      "fieldMapping": {
+        "phone": "phone",
+        "name": "full_name",
+        "email": "email_address"
+      },
+      "createdAt": "2024-01-15T10:00:00Z",
+      "updatedAt": "2024-01-15T10:00:00Z"
+    }
+  ],
+  "totalCount": 1,
+  "currentPage": 1,
+  "totalPages": 1
+}
+```
+
+### Get Webhook Details
+```http
+GET /api/webhooks/{id}
+```
+
+**Response:**
+```json
+{
+  "id": 1,
+  "name": "Lead Creation Webhook",
+  "description": "Creates new leads from external source",
+  "endpointKey": "abc123def456",
+  "webhookType": "go",
+  "isActive": true,
+  "brand": "TaxSales",
+  "source": "Website",
+  "fieldMapping": {
+    "phone": "phone",
+    "name": "full_name",
+    "email": "email_address"
+  },
+  "validationRules": {
+    "requirePhone": true,
+    "requireName": false,
+    "requireEmail": false,
+    "allowDuplicatePhone": false
+  },
+  "autoTagRules": [],
+  "securityToken": "secure-token-here",
+  "webhookUrl": "https://api.knittt.com/api/webhook-receiver/abc123def456",
+  "pauseResumeConfig": null,
+  "stopConfig": null,
+  "createdAt": "2024-01-15T10:00:00Z",
+  "updatedAt": "2024-01-15T10:00:00Z"
+}
+```
+
+### Create Webhook
+```http
+POST /api/webhooks
+```
+
+**Request Body:**
+```json
+{
+  "name": "New Lead Webhook",
+  "description": "Webhook for new lead creation",
+  "webhookType": "go",
+  "brand": "TaxSales",
+  "source": "Website",
+  "fieldMapping": {
+    "phone": "phone",
+    "name": "full_name",
+    "email": "email_address"
+  },
+  "validationRules": {
+    "requirePhone": true,
+    "requireName": true,
+    "requireEmail": false,
+    "allowDuplicatePhone": false
+  },
+  "autoTagRules": [
+    {
+      "field": "source",
+      "operator": "equals",
+      "value": "website",
+      "tag": "website-lead"
+    }
+  ],
+  "autoEnrollJourneyId": 1,
+  "isActive": true
+}
+```
+
+**Response:**
+```json
+{
+  "id": 2,
+  "name": "New Lead Webhook",
+  "endpointKey": "generated-key-here",
+  "webhookUrl": "https://api.knittt.com/api/webhook-receiver/generated-key-here",
+  "webhookType": "go",
+  "securityToken": "generated-security-token",
+  "createdAt": "2024-01-15T10:30:00Z"
+}
+```
+
+### Update Webhook
+```http
+PUT /api/webhooks/{id}
+```
+
+**Request Body:** Same structure as create, all fields optional.
+
+### Delete Webhook
+```http
+DELETE /api/webhooks/{id}
+```
+
+**Response:**
+```json
+{
+  "message": "Webhook deleted successfully",
+  "id": 1
+}
+```
+
+---
+
+## Webhook Type Configuration
+
+### Get Webhook Type Options
+```http
+GET /api/webhooks/types/config-options
+```
+
+**Response:**
+```json
+{
+  "go": {
+    "name": "Go",
+    "description": "Create leads and process them through journeys",
+    "configFields": ["fieldMapping", "validationRules", "autoTagRules", "autoEnrollJourneyId", "conditionalRules"],
+    "defaultActions": ["create_lead", "enroll_journey"]
+  },
+  "pause": {
+    "name": "Pause",
+    "description": "Pause existing leads and their journeys",
+    "configFields": ["fieldMapping", "pauseResumeConfig"],
+    "resumeConditions": [
+      {
+        "type": "timer",
+        "label": "Timer-based Resume",
+        "description": "Resume after specified time delay"
+      },
+      {
+        "type": "status",
+        "label": "Status Change Resume",
+        "description": "Resume when lead status changes"
+      },
+      {
+        "type": "tag",
+        "label": "Tag Change Resume",
+        "description": "Resume when specific tags are added/removed"
+      },
+      {
+        "type": "external",
+        "label": "Manual Resume",
+        "description": "Resume via API or manual trigger"
+      }
+    ]
+  },
+  "stop": {
+    "name": "Stop",
+    "description": "Stop leads and exit them from all journeys",
+    "configFields": ["fieldMapping", "stopConfig"],
+    "stopActions": [
+      {
+        "type": "exit_journeys",
+        "label": "Exit Journeys",
+        "description": "Remove lead from all active journeys"
+      },
+      {
+        "type": "mark_dnc",
+        "label": "Mark as DNC",
+        "description": "Add to do-not-call list"
+      },
+      {
+        "type": "mark_sold",
+        "label": "Mark as Sold",
+        "description": "Mark lead as converted/sold"
+      },
+      {
+        "type": "prevent_enrollment",
+        "label": "Prevent Future Enrollment",
+        "description": "Block future journey enrollments"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Pause/Resume Management
+
+### Get Paused Leads
+```http
+GET /api/webhooks/paused-leads
+```
+
+**Query Parameters:**
+- `page` (optional): Page number (default: 1)
+- `limit` (optional): Items per page (default: 50)
+- `status` (optional): Filter by status (paused/scheduled_resume/resumed/stopped)
+- `webhookId` (optional): Filter by webhook ID
+
+**Response:**
+```json
+{
+  "pausedLeads": [
+    {
+      "id": 1,
+      "tenantId": "tenant-123",
+      "leadId": 456,
+      "webhookEndpointId": 1,
+      "status": "paused",
+      "pausedAt": "2024-01-15T14:30:00Z",
+      "resumeScheduledAt": "2024-01-15T15:30:00Z",
+      "pauseReason": "webhook_pause",
+      "affectedJourneyIds": [1, 2],
+      "WebhookEndpoint": {
+        "id": 1,
+        "name": "Pause Webhook",
+        "webhookType": "pause"
+      }
+    }
+  ],
+  "totalCount": 1,
+  "currentPage": 1,
+  "totalPages": 1
+}
+```
+
+### Resume Paused Lead
+```http
+POST /api/webhooks/paused-leads/{pauseStateId}/resume
+```
+
+**Response:**
+```json
+{
+  "message": "Lead resumed successfully",
+  "result": {
+    "success": true,
+    "leadId": 456
+  }
+}
+```
+
+### Bulk Resume Leads
+```http
+POST /api/webhooks/paused-leads/bulk-resume
+```
+
+**Request Body:**
+```json
+{
+  "pauseStateIds": [1, 2, 3]
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Bulk resume completed: 2 successful, 1 failed",
+  "results": [
+    {
+      "pauseStateId": 1,
+      "status": "success",
+      "result": {"success": true, "leadId": 456}
+    },
+    {
+      "pauseStateId": 2,
+      "status": "success", 
+      "result": {"success": true, "leadId": 457}
+    },
+    {
+      "pauseStateId": 3,
+      "status": "error",
+      "error": "Lead not in paused state"
+    }
+  ],
+  "successCount": 2,
+  "errorCount": 1
+}
+```
+
+### Get Pause/Resume Statistics
+```http
+GET /api/webhooks/pause-resume-stats
+```
+
+**Query Parameters:**
+- `startDate` (optional): Filter from date (YYYY-MM-DD)
+- `endDate` (optional): Filter to date (YYYY-MM-DD)
+
+**Response:**
+```json
+{
+  "statusBreakdown": [
+    {"status": "paused", "count": "15"},
+    {"status": "resumed", "count": "42"},
+    {"status": "stopped", "count": "8"}
+  ],
+  "webhookBreakdown": [
+    {
+      "webhookName": "Pause Webhook",
+      "webhookType": "pause",
+      "count": "35"
+    },
+    {
+      "webhookName": "Stop Webhook", 
+      "webhookType": "stop",
+      "count": "8"
+    }
+  ]
+}
+```
+
+---
+
+## Webhook Configuration
+
+### Get Webhook Conditions
+```http
+GET /api/webhooks/{id}/conditions
+```
+
+**Response:**
+```json
+{
+  "webhookId": 1,
+  "webhookType": "pause",
+  "conditionalRules": {
+    "enabled": true,
+    "logicOperator": "AND",
+    "conditionSets": [],
+    "defaultActions": []
+  },
+  "executionSettings": {
+    "stopOnFirstMatch": true,
+    "executeDefaultOnNoMatch": true,
+    "logExecution": true,
+    "timeoutMs": 30000
+  },
+  "pauseResumeConfig": {
+    "enabled": true,
+    "resumeConditions": {
+      "timerResume": {
+        "enabled": true,
+        "delayMinutes": 60,
+        "delayHours": 0,
+        "delayDays": 0
+      },
+      "statusResume": {
+        "enabled": false,
+        "targetStatuses": ["contacted"],
+        "checkInterval": 30
+      },
+      "tagResume": {
+        "enabled": false,
+        "requiredTags": ["qualified"],
+        "forbiddenTags": ["dnc"],
+        "checkInterval": 30
+      },
+      "externalResume": {
+        "enabled": true
+      }
+    },
+    "pauseActions": {
+      "pauseJourneys": true,
+      "addPauseTag": true,
+      "pauseTagName": "paused",
+      "sendNotification": false,
+      "notificationTemplate": null
+    },
+    "resumeActions": {
+      "resumeJourneys": true,
+      "removePauseTag": true,
+      "addResumeTag": false,
+      "resumeTagName": "resumed",
+      "sendNotification": false,
+      "notificationTemplate": null
+    }
+  },
+  "stopConfig": null
+}
+```
+
+### Update Webhook Configuration
+```http
+PUT /api/webhooks/{id}/conditions
+```
+
+**Request Body for PAUSE webhook:**
+```json
+{
+  "pauseResumeConfig": {
+    "enabled": true,
+    "resumeConditions": {
+      "timerResume": {
+        "enabled": true,
+        "delayMinutes": 0,
+        "delayHours": 2,
+        "delayDays": 0
+      },
+      "statusResume": {
+        "enabled": true,
+        "targetStatuses": ["contacted", "qualified"],
+        "checkInterval": 15
+      },
+      "tagResume": {
+        "enabled": true,
+        "requiredTags": ["qualified"],
+        "forbiddenTags": ["dnc", "sold"],
+        "checkInterval": 15
+      }
+    },
+    "pauseActions": {
+      "pauseJourneys": true,
+      "addPauseTag": true,
+      "pauseTagName": "webhook-paused"
+    },
+    "resumeActions": {
+      "resumeJourneys": true,
+      "removePauseTag": true,
+      "addResumeTag": true,
+      "resumeTagName": "auto-resumed"
+    }
+  }
+}
+```
+
+**Request Body for STOP webhook:**
+```json
+{
+  "stopConfig": {
+    "enabled": true,
+    "stopActions": {
+      "exitJourneys": true,
+      "addStopTag": true,
+      "stopTagName": "webhook-stopped",
+      "markAsDNC": true,
+      "dncReason": "customer_request",
+      "markAsSold": false,
+      "soldReason": null,
+      "preventFutureEnrollment": true
+    },
+    "stopMetadata": {
+      "trackStopReason": true,
+      "trackStopSource": true,
+      "trackStopTimestamp": true
+    }
+  }
+}
+```
+
+---
+
+## Public Webhook Endpoints
+
+### Webhook Receiver (Public)
+```http
+POST /api/webhook-receiver/{endpointKey}
+```
+
+**Headers:**
+- `Authorization: Bearer {securityToken}` (if webhook has security token configured)
+- `Content-Type: application/json`
+
+**Request Body Examples:**
+
+**GO Webhook (Create Lead):**
+```json
+{
+  "phone": "+1234567890",
+  "full_name": "John Doe",
+  "email_address": "john@example.com",
+  "source": "website",
+  "campaign": "tax-relief-2024"
+}
+```
+
+**PAUSE Webhook (Pause Existing Lead):**
+```json
+{
+  "phone": "+1234567890",
+  "reason": "customer_request",
+  "pause_duration": "2_hours"
+}
+```
+
+**STOP Webhook (Stop Lead):**
+```json
+{
+  "phone": "+1234567890",
+  "reason": "sold",
+  "stop_type": "converted"
+}
+```
+
+**Success Response:**
+```json
+{
+  "message": "Webhook processed successfully",
+  "webhookType": "go",
+  "leadsCreated": 1,
+  "leadsAffected": 0,
+  "webhookEventId": 123
+}
+```
+
+**Error Response:**
+```json
+{
+  "error": "Invalid phone number format",
+  "message": "Webhook processing failed"
+}
+```
+
+### Webhook Health Check
+```http
+GET /api/webhook-health/{endpointKey}
+```
+
+**Response:**
+```json
+{
+  "message": "Webhook endpoint is active",
+  "name": "Lead Creation Webhook",
+  "endpointKey": "abc123def456",
+  "webhookType": "go",
+  "isActive": true
+}
+```
+
+---
+
+## Webhook Events & Logs
+
+### Get Webhook Events
+```http
+GET /api/webhooks/{id}/events
+```
+
+**Query Parameters:**
+- `page` (optional): Page number (default: 1)
+- `limit` (optional): Items per page (default: 50) 
+- `status` (optional): Filter by status (success/partial_success/failed)
+
+**Response:**
+```json
+{
+  "events": [
+    {
+      "id": 123,
+      "webhookEndpointId": 1,
+      "status": "success",
+      "payload": {
+        "phone": "+1234567890",
+        "full_name": "John Doe"
+      },
+      "createdLeadIds": [456],
+      "affectedLeadIds": [],
+      "pauseResumeActions": {
+        "leadsPaused": 0,
+        "leadsResumed": 0,
+        "journeysPaused": 0,
+        "journeysResumed": 0
+      },
+      "stopActions": {
+        "leadsStopped": 0,
+        "journeysExited": 0,
+        "leadsMarkedDNC": 0,
+        "leadsMarkedSold": 0
+      },
+      "receivedAt": "2024-01-15T10:00:00Z",
+      "processingTime": 245,
+      "ipAddress": "192.168.1.100"
+    }
+  ],
+  "totalCount": 1,
+  "currentPage": 1,
+  "totalPages": 1
+}
+```
+
+### Get Execution Log
+```http
+GET /api/webhooks/events/{eventId}/execution-log
+```
+
+**Response:**
+```json
+{
+  "eventId": 123,
+  "webhookName": "Lead Creation Webhook",
+  "webhookType": "go",
+  "status": "success",
+  "receivedAt": "2024-01-15T10:00:00Z",
+  "processingTime": 245,
+  "executionLog": {
+    "conditionsEvaluated": [],
+    "actionsExecuted": [
+      {
+        "leadId": 456,
+        "action": "create_lead",
+        "result": {"success": true, "leadId": 456},
+        "executedAt": "2024-01-15T10:00:00Z"
+      }
+    ],
+    "executionOrder": ["default_lead_creation"],
+    "totalExecutionTime": 245
+  },
+  "payload": {
+    "phone": "+1234567890",
+    "full_name": "John Doe"
+  },
+  "createdLeadIds": [456],
+  "affectedLeadIds": [],
+  "pauseResumeActions": {},
+  "stopActions": {}
+}
+```
+
+---
+
+## Testing Endpoints
+
+### Test Webhook
+```http
+POST /api/webhooks/{id}/test
+```
+
+**Request Body:**
+```json
+{
+  "phone": "+1234567890",
+  "full_name": "Test User",
+  "email_address": "test@example.com"
+}
+```
+
+**GO Webhook Test Response:**
+```json
+{
+  "success": true,
+  "webhookType": "go",
+  "processedLeads": [
+    {
+      "phone": "+11234567890",
+      "name": "Test User",
+      "email": "test@example.com",
+      "brand": "TaxSales",
+      "source": "Website"
+    }
+  ],
+  "errors": [],
+  "validCount": 1,
+  "errorCount": 0
+}
+```
+
+**PAUSE Webhook Test Response:**
+```json
+{
+  "success": true,
+  "webhookType": "pause",
+  "processedLeads": [
+    {
+      "leadId": 456,
+      "phone": "+11234567890",
+      "name": "Test User",
+      "currentStatus": "pending",
+      "action": "would_pause",
+      "pauseConfig": {
+        "pauseJourneys": true,
+        "addPauseTag": true,
+        "pauseTagName": "paused"
+      }
+    }
+  ],
+  "errors": [],
+  "validCount": 1,
+  "errorCount": 0
+}
+```
+
+**STOP Webhook Test Response:**
+```json
+{
+  "success": true,
+  "webhookType": "stop",
+  "processedLeads": [
+    {
+      "leadId": 456,
+      "phone": "+11234567890", 
+      "name": "Test User",
+      "currentStatus": "pending",
+      "action": "would_stop",
+      "stopConfig": {
+        "exitJourneys": true,
+        "markAsDNC": true,
+        "preventFutureEnrollment": true
+      }
+    }
+  ],
+  "errors": [],
+  "validCount": 1,
+  "errorCount": 0
+}
+```
+
+---
+
+## Utility Endpoints
+
+### Regenerate Endpoint Key
+```http
+POST /api/webhooks/{id}/regenerate-key
+```
+
+**Response:**
+```json
+{
+  "message": "Endpoint key regenerated successfully",
+  "endpointKey": "new-key-here",
+  "webhookUrl": "https://api.knittt.com/api/webhook-receiver/new-key-here"
+}
+```
+
+### Regenerate Security Token
+```http
+POST /api/webhooks/{id}/regenerate-token
+```
+
+**Response:**
+```json
+{
+  "message": "Security token regenerated successfully",
+  "securityToken": "new-secure-token-here"
+}
+```
+
+### Get Condition Operators
+```http
+GET /api/webhooks/condition-operators
+```
+
+**Response:**
+```json
+[
+  {
+    "value": "equals",
+    "label": "Equals",
+    "description": "Field value equals specified value",
+    "dataTypes": ["string", "number", "boolean"]
+  },
+  {
+    "value": "contains",
+    "label": "Contains", 
+    "description": "Field value contains specified text",
+    "dataTypes": ["string"]
+  }
+]
+```
+
+### Get Action Types
+```http
+GET /api/webhooks/action-types?webhookType=pause
+```
+
+**Response:**
+```json
+[
+  {
+    "value": "pause_lead",
+    "label": "Pause Lead",
+    "description": "Pause lead and their active journeys",
+    "applicableTypes": ["pause"],
+    "configSchema": {
+      "pauseJourneys": "boolean",
+      "addPauseTag": "boolean",
+      "pauseTagName": "string"
+    }
+  }
+]
+```
+
+---
+
+## Error Codes
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | Bad Request | Invalid request data or parameters |
+| 401 | Unauthorized | Missing or invalid authentication token |
+| 403 | Forbidden | Insufficient permissions |
+| 404 | Not Found | Webhook or resource not found |
+| 409 | Conflict | Duplicate webhook or constraint violation |
+| 429 | Too Many Requests | Rate limit exceeded |
+| 500 | Internal Server Error | Server processing error |
+
+## Rate Limits
+
+- Authenticated endpoints: 1000 requests per hour per user
+- Public webhook receiver: 10,000 requests per hour per endpoint
+- Bulk operations: 100 requests per hour per user
+
+## Best Practices

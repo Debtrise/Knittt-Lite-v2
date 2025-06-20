@@ -134,7 +134,7 @@ export default function WebhookDetailPage({ params }: { params: { id: string } }
   }, [webhookId, fetchWebhookData, fetchEvents]);
 
   const handleEdit = () => {
-    router.push(`/webhooks/edit/${webhookId}`);
+    router.push(`/webhooks/${webhookId}/review`);
   };
 
   const handleCopyEndpoint = () => {

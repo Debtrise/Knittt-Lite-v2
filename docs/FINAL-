@@ -1,0 +1,376 @@
+"/api"
+Authentication
+All endpoints require authentication via authenticateToken middleware. Include your authentication token in the request headers.
+
+1. Core Recording Operations
+List Recordings
+httpGET /api/recordings?type={type}&isActive={boolean}&page={number}&limit={number}
+
+Example:
+GET /api/recordings?type=tts&isActive=true&page=1&limit=50
+
+Response:
+{
+  "recordings": [...],
+  "totalCount": 100,
+  "currentPage": 1,
+  "totalPages": 2
+}
+Get Single Recording
+httpGET /api/recordings/{id}
+
+Example:
+GET /api/recordings/123
+
+Response:
+{
+  "id": 123,
+  "name": "Welcome Message",
+  "text": "Welcome to our service",
+  "type": "tts",
+  "fileUrl": "/recordings/tenant_123_file.mp3",
+  "asteriskStatus": "deployed",
+  ...
+}
+Create Recording
+httpPOST /api/recordings
+
+Example Body:
+{
+  "name": "New Welcome Message",
+  "description": "Main IVR greeting",
+  "text": "Thank you for calling. Press 1 for sales.",
+  "type": "tts",
+  "elevenLabsVoiceId": "21m00Tcm4TlvDq8ikWAM"
+}
+Update Recording
+httpPUT /api/recordings/{id}
+
+Example Body:
+{
+  "name": "Updated Welcome Message",
+  "text": "Updated greeting text",
+  "isActive": true
+}
+Delete Recording
+httpDELETE /api/recordings/{id}
+
+Response:
+{
+  "message": "Recording deleted successfully",
+  "deletedFromAsterisk": true,
+  "deletedFile": "/recordings/file.mp3"
+}
+
+2. Audio Generation & Files
+Generate Audio (Eleven Labs TTS)
+httpPOST /api/recordings/{id}/generate
+
+Response:
+{
+  "id": 123,
+  "fileName": "tenant_1_recording_123.mp3",
+  "fileUrl": "/recordings/tenant_1_recording_123.mp3",
+  "fileSize": 45678,
+  "generatedAt": "2024-01-15T10:30:00Z",
+  "message": "Audio generated successfully"
+}
+Upload Audio File
+httpPOST /api/recordings/{id}/upload
+Content-Type: multipart/form-data
+
+Form Data:
+- audio: [audio file]
+
+Response:
+{
+  "success": true,
+  "message": "File uploaded successfully",
+  "recording": {
+    "id": 123,
+    "fileName": "uploaded_file.mp3",
+    "fileSize": 98765,
+    "generatedAt": "2024-01-15T10:30:00Z"
+  }
+}
+Download/Stream Audio
+httpGET /api/recordings/{id}/audio
+
+Returns: Audio file stream
+Preview Text-to-Speech
+httpPOST /api/recordings/preview
+
+Example Body:
+{
+  "text": "This is a preview of the voice",
+  "voiceId": "21m00Tcm4TlvDq8ikWAM"  // optional
+}
+
+Response:
+{
+  "audioUrl": "/api/recordings/preview/cache/{cacheKey}",
+  "cacheKey": "abc123...",
+  "cached": false,
+  "expiresAt": "2024-01-15T11:30:00Z",
+  "charactersUsed": 28
+}
+
+3. Asterisk Integration
+Deploy to Asterisk
+httpPOST /api/recordings/{id}/deploy-to-asterisk
+
+Response:
+{
+  "success": true,
+  "asteriskPath": "tenant_1_123.mp3",
+  "remoteFilePath": "/var/lib/asterisk/sounds/custom/tenant_1_123.mp3",
+  "deployedAt": "2024-01-15T10:30:00Z",
+  "fileInfo": "SUCCESS: -rw-r--r-- 1 asterisk asterisk 45678 Jan 15 10:30...",
+  "message": "Recording deployed to remote Asterisk server successfully"
+}
+Test SSH Connection
+httpPOST /api/recordings/test-asterisk-ssh
+
+Response:
+{
+  "success": true,
+  "message": "SSH connection successful",
+  "host": "34.29.105.211",
+  "output": "SSH connection test successful"
+}
+List Remote Recordings
+httpGET /api/recordings/asterisk/list
+
+Response:
+{
+  "recordings": [
+    {
+      "filename": "tenant_1_123.mp3",
+      "size": "45K",
+      "lastModified": "Jan 15 10:30",
+      "fullPath": "/var/lib/asterisk/sounds/custom/tenant_1_123.mp3"
+    }
+  ]
+}
+Get Asterisk Playback Path
+httpGET /api/recordings/{id}/asterisk-path
+
+Response:
+{
+  "asteriskPath": "custom/tenant_1_123",
+  "fullPath": "/var/lib/asterisk/sounds/custom/tenant_1_123.mp3",
+  "deployedAt": "2024-01-15T10:30:00Z",
+  "status": "deployed"
+}
+
+4. Bulk Operations
+Bulk Actions
+httpPOST /api/recordings/bulk/{action}
+
+Actions: deploy-to-asterisk, generate-audio, delete
+
+Example Body:
+{
+  "recordingIds": [123, 124, 125],
+  "options": {
+    "force": false  // for delete action
+  }
+}
+
+Response:
+{
+  "action": "generate-audio",
+  "totalRecordings": 3,
+  "successful": 2,
+  "failed": 1,
+  "results": [...],
+  "errors": [...]
+}
+
+5. Recording Templates
+List Templates
+httpGET /api/recording-templates?category={category}&isActive={boolean}
+
+Response:
+{
+  "templates": [...],
+  "totalCount": 10,
+  "currentPage": 1,
+  "totalPages": 1
+}
+Create Template
+httpPOST /api/recording-templates
+
+Example Body:
+{
+  "name": "Customer Greeting Template",
+  "description": "Personalized greeting",
+  "textTemplate": "Hello {{name}}, welcome to {{company}}. Your account number is {{accountNumber}}.",
+  "variables": ["name", "company", "accountNumber"],
+  "category": "greetings",
+  "defaultVoiceId": "21m00Tcm4TlvDq8ikWAM"
+}
+Generate from Template
+httpPOST /api/recording-templates/{id}/generate
+
+Example Body:
+{
+  "name": "John Doe Greeting",
+  "variables": {
+    "name": "John Doe",
+    "company": "ABC Corp",
+    "accountNumber": "12345"
+  },
+  "voiceId": "21m00Tcm4TlvDq8ikWAM"
+}
+
+6. Eleven Labs Configuration
+Get Configuration
+httpGET /api/recordings/config/elevenlabs
+
+Response:
+{
+  "tenantId": "tenant_1",
+  "apiKey": "***HIDDEN***",
+  "defaultVoiceId": "21m00Tcm4TlvDq8ikWAM",
+  "monthlyCharacterLimit": 10000,
+  "charactersUsedThisMonth": 2500,
+  "voiceSettings": {
+    "stability": 0.5,
+    "similarity_boost": 0.8
+  }
+}
+Update Configuration
+httpPUT /api/recordings/config/elevenlabs
+
+Example Body:
+{
+  "apiKey": "your-eleven-labs-api-key",
+  "defaultVoiceId": "21m00Tcm4TlvDq8ikWAM",
+  "monthlyCharacterLimit": 50000,
+  "voiceSettings": {
+    "stability": 0.7,
+    "similarity_boost": 0.9
+  }
+}
+Test API Connection
+httpPOST /api/recordings/config/elevenlabs/test-connection
+
+Response:
+{
+  "success": true,
+  "message": "Eleven Labs API connection successful",
+  "apiKeyValid": true,
+  "subscriptionActive": true,
+  "characterQuota": {
+    "remaining": 7500,
+    "total": 10000
+  },
+  "voicesAvailable": 25,
+  "responseTime": 245
+}
+Get Available Voices
+httpGET /api/recordings/config/elevenlabs/voices
+
+Response:
+{
+  "voices": [
+    {
+      "voice_id": "21m00Tcm4TlvDq8ikWAM",
+      "name": "Rachel",
+      "category": "premade",
+      "description": "American female voice",
+      "preview_url": "https://...",
+      "labels": {...}
+    }
+  ],
+  "totalCount": 25,
+  "defaultVoiceId": "21m00Tcm4TlvDq8ikWAM"
+}
+Test Voice
+httpPOST /api/recordings/config/elevenlabs/test-voice
+
+Example Body:
+{
+  "voiceId": "21m00Tcm4TlvDq8ikWAM",
+  "text": "Hello, this is a test of this voice."
+}
+
+Response:
+{
+  "success": true,
+  "audioUrl": "/api/recordings/preview/cache/{cacheKey}",
+  "voiceId": "21m00Tcm4TlvDq8ikWAM",
+  "text": "Hello, this is a test of this voice.",
+  "charactersUsed": 38,
+  "message": "Voice test successful"
+}
+Get Usage Analytics
+httpGET /api/recordings/config/elevenlabs/usage?period={today|week|month}
+
+Response:
+{
+  "period": "month",
+  "charactersUsed": 2500,
+  "charactersLimit": 10000,
+  "charactersRemaining": 7500,
+  "usagePercentage": 25.0,
+  "resetDate": "2024-02-01",
+  "daysUntilReset": 17,
+  "dailyAverage": 147.06,
+  "projectedMonthlyUsage": 4412,
+  "willExceedLimit": false,
+  "usage": [
+    {
+      "date": "2024-01-15",
+      "characters": 350,
+      "recordings": 5
+    }
+  ]
+}
+
+7. Analytics & Usage Tracking
+Get Recording Analytics
+httpGET /api/recordings/{id}/analytics?startDate={date}&endDate={date}
+
+Response:
+{
+  "recordingId": 123,
+  "period": {
+    "startDate": "2024-01-01",
+    "endDate": "2024-01-31"
+  },
+  "analytics": [...]
+}
+Track Usage
+httpPOST /api/recordings/{id}/track-usage
+
+Example Body:
+{
+  "context": "ivr_playback",
+  "callId": "call_123",
+  "leadId": 456,
+  "duration": 30,
+  "completed": true,
+  "metadata": {
+    "keyPressed": "1"
+  }
+}
+
+Error Responses
+All endpoints may return error responses in this format:
+json{
+  "error": "Error message description"
+}
+Common HTTP status codes:
+
+400 - Bad Request (validation errors, missing data)
+401 - Unauthorized (authentication required)
+403 - Forbidden (insufficient permissions)
+404 - Not Found (resource doesn't exist)
+500 - Internal Server Error
+
+
+
+
+This should help you understand and test all the available endpoints in your recording service!RetryClaude can make mistakes. Please double-check responses.

@@ -40,6 +40,7 @@ export async function GET() {
           voice_id: 'MF3mGyEYCl7XYWbV9V6O',
           name: 'Elli',
           category: 'premade',
+          
           description: 'A youthful, energetic voice.',
           preview_url: 'https://storage.googleapis.com/eleven-public-prod/premade/voices/MF3mGyEYCl7XYWbV9V6O/69c48e85-4c4c-4c2c-8c9c-9c9c9c9c9c9c.mp3'
         }

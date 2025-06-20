@@ -90,7 +90,7 @@ export default function WebhooksPage() {
   };
 
   const handleEdit = (id: number) => {
-    router.push(`/webhooks/edit/${id}`);
+    router.push(`/webhooks/${id}/review`);
   };
 
   const handleView = (id: number) => {

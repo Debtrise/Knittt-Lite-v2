@@ -1,5 +1,5 @@
 import * as React from "react";
-import { cn } from "@/app/utils/cn";
+import { cn } from "@/app/lib/utils";
 
 const Card = React.forwardRef<
   HTMLDivElement,
@@ -35,7 +35,7 @@ const CardTitle = React.forwardRef<
   <h3
     ref={ref}
     className={cn(
-      "text-lg font-semibold leading-none tracking-tight",
+      "text-2xl font-semibold leading-none tracking-tight",
       className
     )}
     {...props}

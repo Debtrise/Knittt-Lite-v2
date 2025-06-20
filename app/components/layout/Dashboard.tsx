@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/app/store/authStore';
-import { Phone, Users, BarChart, Layers, Settings, FileText, User, LogOut, Menu, X, GitBranch, MessageSquare, Route, Link2, Mic } from 'lucide-react';
+import { Phone, Users, BarChart, Layers, Settings, FileText, User, LogOut, Menu, X, GitBranch, MessageSquare, Route, Link2, Mic, Music, Search } from 'lucide-react';
 import NotificationBar from '@/app/components/ui/NotificationBar';
 import '@/app/services/webhookNotificationService';
 
@@ -28,7 +28,9 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
     { name: 'DIDs', href: '/dids', icon: <Layers className="w-6 h-6" /> },
     { name: 'Transfer Groups', href: '/settings/transfer-groups', icon: <GitBranch className="w-6 h-6" /> },
     { name: 'Templates', href: '/templates', icon: <FileText className="w-6 h-6" /> },
+    { name: 'Recordings', href: '/recordings', icon: <Music className="w-6 h-6" /> },
     { name: 'Webhooks', href: '/webhooks', icon: <Link2 className="w-6 h-6" /> },
+    { name: 'TracersAPI', href: '/tracers', icon: <Search className="w-6 h-6" /> },
     { name: 'Reports', href: '/reports', icon: <FileText className="w-6 h-6" /> },
     { name: 'Config', href: '/config', icon: <Settings className="w-6 h-6" /> },
     { name: 'Settings', href: '/settings', icon: <Settings className="w-6 h-6" />, adminOnly: true },

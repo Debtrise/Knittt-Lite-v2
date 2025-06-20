@@ -10,6 +10,7 @@ import { Badge } from '@/app/components/ui/badge';
 import { getLeadDetails, deleteLead } from '@/app/utils/api';
 import { useAuthStore } from '@/app/store/authStore';
 import Link from 'next/link';
+import LeadEnrichmentCard from '@/app/(app)/leads/components/LeadEnrichmentCard';
 
 type LeadDetail = {
   id: number;
@@ -227,6 +228,18 @@ export default function LeadDetailPage() {
           </div>
         ) : (
           <div className="space-y-6">
+            {/* Lead Enrichment Card */}
+            <LeadEnrichmentCard 
+              leadId={leadDetails.lead.id}
+              leadPhone={leadDetails.lead.phone}
+              leadName={leadDetails.lead.name}
+              onEnrichmentComplete={(enrichmentData) => {
+                // Refresh lead details to show updated information
+                console.log('Lead enriched:', enrichmentData);
+                fetchLeadDetails();
+              }}
+            />
+
             {/* Lead Information Card */}
             <div className="bg-white shadow rounded-lg p-6 w-full">
               <h2 className="text-lg font-semibold mb-4">Lead Overview</h2>

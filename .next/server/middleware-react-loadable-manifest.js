@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{\"app/(app)/templates/new/page.tsx -> react-email-editor\":{\"id\":\"app/(app)/templates/new/page.tsx -> react-email-editor\",\"files\":[\"static/chunks/_app-pages-browser_node_modules_react-email-editor_dist_index_js.js\"]}}"
+self.__REACT_LOADABLE_MANIFEST='{"app/(app)/templates/new/page.tsx -> react-email-editor":{"id":54360,"files":["static/chunks/4360.b2b1c5c14f7b8c1f.js"]}}';

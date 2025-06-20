@@ -307,7 +307,7 @@ export const getAgentStatus = async (params: {
     console.log('Sending to backend with params:', backendParams);
 
     // Make the API call
-    const response = await api.get('/agent-status', { params: backendParams });
+    const response = await api.get('api/agent-status', { params: backendParams });
     console.log('getAgentStatus response:', response.data);
     
     // Extract the data array from the response
@@ -328,6 +328,61 @@ export const getAgentStatus = async (params: {
       console.error('Response status:', error.response.status);
       console.error('Response data:', error.response.data);
       
+      if (error.response.status === 401) {
+        throw new Error('Authentication failed. Please check your credentials.');
+      } else if (error.response.status === 404) {
+        throw new Error('Agent status endpoint not found. Please check your URL configuration.');
+      } else if (error.response.status >= 500) {
+        throw new Error('Server error occurred. Please try again later.');
+      } else if (error.response.status === 400) {
+        throw new Error('Invalid request parameters. Please check your configuration.');
+      }
+    } else if (error.request) {
+      throw new Error('Network error. Please check your connection and URL configuration.');
+    }
+    
+    throw error;
+  }
+};
+
+export const getAgentStatusReport = async (params: {
+  url: string;
+  ingroup: string;
+  user: string;
+  pass: string;
+}): Promise<AgentStatus[]> => {
+  console.log('getAgentStatusReport params:', params);
+  try {
+    // Transform parameters to match backend expectations
+    const transformedParams = {
+      ...params,
+      ingroups: params.ingroup // Transform ingroup to ingroups for backend
+    };
+    console.log('Transformed params:', transformedParams);
+
+    const response = await axios.get(`${params.url}/system/agent-status`, {
+      params: transformedParams,
+      timeout: 15000,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('getAgentStatusReport response:', response.data);
+
+    if (response.data && Array.isArray(response.data)) {
+      return response.data;
+    } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+      return response.data.data;
+    } else {
+      console.warn('Unexpected response format:', response.data);
+      return [];
+    }
+  } catch (error: any) {
+    console.error('Error in getAgentStatusReport:', error);
+    
+    // Provide more specific error messages
+    if (error.response) {
       if (error.response.status === 401) {
         throw new Error('Authentication failed. Please check your credentials.');
       } else if (error.response.status === 404) {
@@ -838,58 +893,7 @@ export const getHourlyBreakdown = async () => {
   }
 };
 
-// Utility APIs
-export const getAgentStatusReport = async (params: {
-  url: string;
-  ingroup: string;
-  user: string;
-  pass: string;
-}): Promise<AgentStatus[]> => {
-  try {
-    console.log('getAgentStatusReport called with params:', params);
-    
-    // Transform the parameters to match backend expectations
-    const backendParams = {
-      url: params.url,
-      user: params.user,
-      pass: params.pass,
-      ingroups: params.ingroup  // Backend expects 'ingroups' not 'ingroup'
-    };
 
-    const response = await api.get('/agent-status', { params: backendParams });
-    console.log('getAgentStatusReport response:', response.data);
-    
-    // Extract the data array from the response
-    const responseData = response.data;
-    if (responseData && Array.isArray(responseData.data)) {
-      return responseData.data;
-    } else if (Array.isArray(responseData)) {
-      return responseData;
-    } else {
-      console.warn('Unexpected response format:', responseData);
-      return [];
-    }
-  } catch (error: any) {
-    console.error('Error fetching agent status:', error);
-    
-    // Provide more specific error messages
-    if (error.response) {
-      if (error.response.status === 401) {
-        throw new Error('Authentication failed. Please check your credentials.');
-      } else if (error.response.status === 404) {
-        throw new Error('Agent status endpoint not found. Please check your URL configuration.');
-      } else if (error.response.status >= 500) {
-        throw new Error('Server error occurred. Please try again later.');
-      } else if (error.response.status === 400) {
-        throw new Error('Invalid request parameters. Please check your configuration.');
-      }
-    } else if (error.request) {
-      throw new Error('Network error. Please check your connection and URL configuration.');
-    }
-    
-    throw error;
-  }
-};
 
 // System Status APIs
 export const getDialPlanCapabilities = async () => {

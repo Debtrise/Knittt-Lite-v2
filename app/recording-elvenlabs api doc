@@ -1,0 +1,1002 @@
+# 🎤 Eleven Labs Integration - Complete API Documentation
+
+## Authentication
+All endpoints require JWT authentication via `Authorization: Bearer <token>` header.
+
+**Base URL:** `https://app.knittt.com/api`
+
+---
+
+## ⚙️ Configuration Management
+
+### Get Eleven Labs Configuration
+```http
+GET /recordings/config/elevenlabs
+```
+
+**Response:**
+```json
+{
+  "tenantId": "tenant_123",
+  "apiKey": "***HIDDEN***",
+  "defaultVoiceId": "21m00Tcm4TlvDq8ikWAM",
+  "monthlyCharacterLimit": 10000,
+  "charactersUsedThisMonth": 2450,
+  "lastResetDate": "2024-12-01",
+  "voiceSettings": {
+    "stability": 0.5,
+    "similarity_boost": 0.8
+  },
+  "isActive": true,
+  "createdAt": "2024-12-01T09:00:00Z",
+  "updatedAt": "2024-12-15T10:30:00Z"
+}
+```
+
+### Update Eleven Labs Configuration
+```http
+PUT /recordings/config/elevenlabs
+```
+
+**Request Body:**
+```json
+{
+  "apiKey": "your_eleven_labs_api_key_here",
+  "defaultVoiceId": "21m00Tcm4TlvDq8ikWAM",
+  "monthlyCharacterLimit": 15000,
+  "voiceSettings": {
+    "stability": 0.6,
+    "similarity_boost": 0.9
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "tenantId": "tenant_123",
+  "apiKey": "***HIDDEN***",
+  "defaultVoiceId": "21m00Tcm4TlvDq8ikWAM",
+  "monthlyCharacterLimit": 15000,
+  "charactersUsedThisMonth": 2450,
+  "voiceSettings": {
+    "stability": 0.6,
+    "similarity_boost": 0.9
+  },
+  "isActive": true,
+  "message": "Configuration updated successfully"
+}
+```
+
+---
+
+## 🎵 Audio Generation
+
+### Generate Audio for Recording
+```http
+POST /recordings/:id/generate
+```
+
+**Uses the configured Eleven Labs settings to generate audio**
+
+**Response:**
+```json
+{
+  "id": 1,
+  "fileName": "tenant_123_1_1734261600.mp3",
+  "fileUrl": "/recordings/tenant_123_1_1734261600.mp3",
+  "fileSize": 245760,
+  "generatedAt": "2024-12-15T11:00:00Z",
+  "charactersUsed": 45,
+  "voiceId": "21m00Tcm4TlvDq8ikWAM",
+  "message": "Audio generated successfully"
+}
+```
+
+### Generate Audio Preview
+```http
+POST /recordings/preview
+```
+
+**Request Body:**
+```json
+{
+  "text": "This is a preview of the selected voice",
+  "voiceId": "21m00Tcm4TlvDq8ikWAM"
+}
+```
+
+**Response:**
+```json
+{
+  "audioUrl": "/api/recordings/preview/cache/abc123def456",
+  "cacheKey": "abc123def456",
+  "cached": false,
+  "expiresAt": "2024-12-15T12:00:00Z",
+  "charactersUsed": 38,
+  "voiceId": "21m00Tcm4TlvDq8ikWAM"
+}
+```
+
+### Stream Recording Audio (Real-time)
+```http
+GET /recordings/:id/stream
+```
+
+**Response:** Real-time audio stream from Eleven Labs API
+
+---
+
+## 🎙️ Voice Management
+
+### Test Voice with Sample Text
+```http
+POST /recordings/config/elevenlabs/test-voice
+```
+
+**Request Body:**
+```json
+{
+  "voiceId": "21m00Tcm4TlvDq8ikWAM",
+  "text": "Hello, this is a test of this voice."
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "audioUrl": "/api/recordings/preview/cache/test_voice_abc123",
+  "voiceId": "21m00Tcm4TlvDq8ikWAM",
+  "charactersUsed": 34,
+  "message": "Voice test successful"
+}
+```
+
+### Get Available Voices
+```http
+GET /recordings/config/elevenlabs/voices
+```
+
+**Response:**
+```json
+{
+  "voices": [
+    {
+      "voice_id": "21m00Tcm4TlvDq8ikWAM",
+      "name": "Rachel",
+      "category": "premade",
+      "description": "Young, energetic American female voice",
+      "preview_url": "https://storage.googleapis.com/eleven-public-prod/..."
+    },
+    {
+      "voice_id": "AZnzlk1XvdvUeBnXmlld", 
+      "name": "Domi",
+      "category": "premade",
+      "description": "Strong, confident American female voice",
+      "preview_url": "https://storage.googleapis.com/eleven-public-prod/..."
+    },
+    {
+      "voice_id": "EXAVITQu4vr4xnSDxMaL",
+      "name": "Bella",
+      "category": "premade", 
+      "description": "Gentle, soothing American female voice",
+      "preview_url": "https://storage.googleapis.com/eleven-public-prod/..."
+    }
+  ],
+  "totalCount": 25,
+  "defaultVoiceId": "21m00Tcm4TlvDq8ikWAM"
+}
+```
+
+### Get Voice Details
+```http
+GET /recordings/config/elevenlabs/voices/:voiceId
+```
+
+**Response:**
+```json
+{
+  "voice_id": "21m00Tcm4TlvDq8ikWAM",
+  "name": "Rachel",
+  "category": "premade",
+  "description": "Young, energetic American female voice",
+  "settings": {
+    "stability": 0.5,
+    "similarity_boost": 0.8,
+    "style": 0.0,
+    "use_speaker_boost": true
+  },
+  "preview_url": "https://storage.googleapis.com/eleven-public-prod/...",
+  "labels": {
+    "accent": "american",
+    "description": "young adult female",
+    "age": "young adult",
+    "gender": "female"
+  }
+}
+```
+
+---
+
+## 📊 Usage Tracking & Analytics
+
+### Get Character Usage Stats
+```http
+GET /recordings/config/elevenlabs/usage
+```
+
+**Query Parameters:**
+- `period` - Period (`today`, `week`, `month`, `all`)
+
+**Response:**
+```json
+{
+  "period": "month",
+  "charactersUsed": 2450,
+  "charactersLimit": 10000,
+  "charactersRemaining": 7550,
+  "usagePercentage": 24.5,
+  "resetDate": "2025-01-01",
+  "daysUntilReset": 17,
+  "dailyAverage": 81.7,
+  "projectedMonthlyUsage": 8517,
+  "willExceedLimit": false,
+  "usage": [
+    {
+      "date": "2024-12-15",
+      "characters": 156,
+      "recordings": 3,
+      "previews": 8
+    },
+    {
+      "date": "2024-12-14", 
+      "characters": 234,
+      "recordings": 5,
+      "previews": 12
+    }
+  ]
+}
+```
+
+### Get Recent Generation History
+```http
+GET /recordings/config/elevenlabs/history
+```
+
+**Query Parameters:**
+- `limit` - Number of records (default: 50)
+- `page` - Page number
+
+**Response:**
+```json
+{
+  "history": [
+    {
+      "id": 1,
+      "recordingId": 15,
+      "recordingName": "Welcome Message",
+      "text": "Welcome to our company!",
+      "voiceId": "21m00Tcm4TlvDq8ikWAM",
+      "voiceName": "Rachel",
+      "charactersUsed": 24,
+      "generatedAt": "2024-12-15T11:00:00Z",
+      "type": "recording"
+    },
+    {
+      "id": 2,
+      "text": "This is a preview test",
+      "voiceId": "AZnzlk1XvdvUeBnXmlld",
+      "voiceName": "Domi", 
+      "charactersUsed": 22,
+      "generatedAt": "2024-12-15T10:45:00Z",
+      "type": "preview"
+    }
+  ],
+  "totalCount": 145,
+  "currentPage": 1,
+  "totalPages": 3
+}
+```
+
+---
+
+## 🧪 Testing & Validation
+
+### Test API Connection
+```http
+POST /recordings/config/elevenlabs/test-connection
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Eleven Labs API connection successful",
+  "apiKeyValid": true,
+  "subscriptionActive": true,
+  "characterQuota": {
+    "remaining": 7550,
+    "total": 10000
+  },
+  "voicesAvailable": 25,
+  "responseTime": 245
+}
+```
+
+### Validate Voice ID
+```http
+POST /recordings/config/elevenlabs/validate-voice
+```
+
+**Request Body:**
+```json
+{
+  "voiceId": "21m00Tcm4TlvDq8ikWAM"
+}
+```
+
+**Response:**
+```json
+{
+  "valid": true,
+  "voice": {
+    "voice_id": "21m00Tcm4TlvDq8ikWAM",
+    "name": "Rachel",
+    "category": "premade"
+  },
+  "message": "Voice ID is valid"
+}
+```
+
+---
+
+## 🎛️ Voice Settings Configuration
+
+### Update Default Voice Settings
+```http
+PUT /recordings/config/elevenlabs/voice-settings
+```
+
+**Request Body:**
+```json
+{
+  "stability": 0.6,
+  "similarity_boost": 0.9,
+  "style": 0.2,
+  "use_speaker_boost": true
+}
+```
+
+**Response:**
+```json
+{
+  "voiceSettings": {
+    "stability": 0.6,
+    "similarity_boost": 0.9,
+    "style": 0.2,
+    "use_speaker_boost": true
+  },
+  "message": "Voice settings updated successfully"
+}
+```
+
+### Get Voice Settings Info
+```http
+GET /recordings/config/elevenlabs/voice-settings/info
+```
+
+**Response:**
+```json
+{
+  "settings": {
+    "stability": {
+      "description": "Controls how consistent the voice sounds",
+      "range": [0.0, 1.0],
+      "default": 0.5,
+      "current": 0.6
+    },
+    "similarity_boost": {
+      "description": "Controls how closely the AI follows the original voice",
+      "range": [0.0, 1.0], 
+      "default": 0.8,
+      "current": 0.9
+    },
+    "style": {
+      "description": "Controls the expressiveness and style of the voice",
+      "range": [0.0, 1.0],
+      "default": 0.0,
+      "current": 0.2
+    },
+    "use_speaker_boost": {
+      "description": "Enhances the clarity and quality of the voice",
+      "type": "boolean",
+      "default": true,
+      "current": true
+    }
+  }
+}
+```
+
+---
+
+## 🔄 Batch Operations
+
+### Generate Multiple Recordings
+```http
+POST /recordings/config/elevenlabs/batch-generate
+```
+
+**Request Body:**
+```json
+{
+  "recordings": [
+    {
+      "recordingId": 1,
+      "voiceId": "21m00Tcm4TlvDq8ikWAM"
+    },
+    {
+      "recordingId": 2,
+      "voiceId": "AZnzlk1XvdvUeBnXmlld"
+    },
+    {
+      "recordingId": 3,
+      "voiceId": "21m00Tcm4TlvDq8ikWAM"
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "batchId": "batch_abc123",
+  "totalRecordings": 3,
+  "estimatedCharacters": 156,
+  "estimatedCost": "$0.04",
+  "status": "processing",
+  "results": [
+    {
+      "recordingId": 1,
+      "status": "completed",
+      "charactersUsed": 45
+    },
+    {
+      "recordingId": 2,
+      "status": "completed", 
+      "charactersUsed": 67
+    },
+    {
+      "recordingId": 3,
+      "status": "processing"
+    }
+  ]
+}
+```
+
+---
+
+## 💡 Quick Setup Examples
+
+### Initial Eleven Labs Setup
+```bash
+# 1. Configure API key
+curl -X PUT https://app.knittt.com/api/recordings/config/elevenlabs \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "apiKey": "your_eleven_labs_api_key",
+    "defaultVoiceId": "21m00Tcm4TlvDq8ikWAM",
+    "monthlyCharacterLimit": 10000
+  }'
+
+# 2. Test connection
+curl -X POST https://app.knittt.com/api/recordings/config/elevenlabs/test-connection \
+  -H "Authorization: Bearer YOUR_JWT"
+
+# 3. Get available voices
+curl -X GET https://app.knittt.com/api/recordings/config/elevenlabs/voices \
+  -H "Authorization: Bearer YOUR_JWT"
+```
+
+### Test a Voice
+```bash
+# Test voice with sample text
+curl -X POST https://app.knittt.com/api/recordings/config/elevenlabs/test-voice \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "voiceId": "21m00Tcm4TlvDq8ikWAM",
+    "text": "Hello, this is a test of Rachel voice."
+  }'
+```
+
+### Check Usage
+```bash
+# Check character usage
+curl -X GET https://app.knittt.com/api/recordings/config/elevenlabs/usage \
+  -H "Authorization: Bearer YOUR_JWT"
+```
+
+---
+
+## 🎯 Voice Selection Guide
+
+### Popular Voices:
+- **Rachel (21m00Tcm4TlvDq8ikWAM)** - Young, energetic female
+- **Domi (AZnzlk1XvdvUeBnXmlld)** - Strong, confident female  
+- **Bella (EXAVITQu4vr4xnSDxMaL)** - Gentle, soothing female
+- **Adam (pNInz6obpgDQGcFmaJgB)** - Deep, authoritative male
+- **Antoni (ErXwobaYiN019PkySvjV)** - Warm, friendly male
+
+### Voice Settings Guide:
+- **Stability (0.0-1.0):** Lower = more expressive, Higher = more consistent
+- **Similarity Boost (0.0-1.0):** How closely it matches the original voice
+- **Style (0.0-1.0):** How much personality/emotion to add
+- **Speaker Boost:** Improves clarity and quality
+
+---
+
+## 🔧 Error Handling
+
+**Common Error Responses:**
+```json
+{
+  "error": "Eleven Labs API key not configured for tenant"
+}
+```
+
+```json
+{
+  "error": "Monthly character limit exceeded"
+}
+```
+
+```json
+{
+  "error": "Invalid voice ID format"
+}
+```
+
+**HTTP Status Codes:**
+- `400` - Bad Request (invalid parameters)
+- `401` - Unauthorized (invalid API key)
+- `429` - Too Many Requests (rate limited)
+- `402` - Payment Required (quota exceeded)
+
+Your Eleven Labs integration is now complete with full configuration, testing, and usage tracking capabilities! 🎤
+
+
+
+# 🎵 Audio File Upload - Complete API Documentation
+
+## Authentication
+All endpoints require JWT authentication via `Authorization: Bearer <token>` header.
+
+**Base URL:** `https://app.knittt.com/api`
+
+---
+
+## 📁 File Upload Support
+
+### Supported Audio Formats
+- **MP3** (`.mp3`) - Most common
+- **WAV** (`.wav`) - High quality
+- **OGG** (`.ogg`) - Open source format
+- **M4A** (`.m4a`) - Apple format
+- **FLAC** (`.flac`) - Lossless compression
+- **WEBM** (`.webm`) - Web optimized
+
+### File Limits
+- **Maximum file size:** 10MB
+- **MIME types accepted:** `audio/mpeg`, `audio/wav`, `audio/ogg`, `audio/x-m4a`, `audio/flac`, etc.
+
+---
+
+## 📤 Upload Audio File to Existing Recording
+
+### Upload Audio File
+```http
+POST /recordings/:id/upload
+Content-Type: multipart/form-data
+```
+
+**Form Data:**
+- `audio` (required) - Audio file
+
+**Example using curl:**
+```bash
+curl -X POST https://app.knittt.com/api/recordings/5/upload \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -F "audio=@/path/to/your/audiofile.mp3"
+```
+
+**Example using JavaScript:**
+```javascript
+const formData = new FormData();
+formData.append('audio', audioFile); // audioFile is a File object
+
+fetch('/api/recordings/5/upload', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_JWT_TOKEN'
+  },
+  body: formData
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "File uploaded successfully",
+  "recording": {
+    "id": 5,
+    "fileName": "tenant_123_upload_1734264532.mp3",
+    "fileSize": 512000,
+    "generatedAt": "2024-12-15T11:45:00Z"
+  }
+}
+```
+
+---
+
+## 🆕 Create Recording with File Upload
+
+### Method 1: Create Then Upload
+```bash
+# 1. Create recording first
+curl -X POST https://app.knittt.com/api/recordings \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Custom Audio File",
+    "description": "Uploaded audio recording",
+    "type": "upload"
+  }'
+
+# 2. Upload file to the created recording
+curl -X POST https://app.knittt.com/api/recordings/5/upload \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -F "audio=@/path/to/audiofile.mp3"
+```
+
+### Method 2: Create Recording with Upload (Enhanced API)
+```http
+POST /recordings/create-with-upload
+Content-Type: multipart/form-data
+```
+
+**Form Data:**
+- `audio` (required) - Audio file
+- `name` (required) - Recording name
+- `description` (optional) - Recording description
+- `tags` (optional) - JSON array of tags
+
+**Example:**
+```bash
+curl -X POST https://app.knittt.com/api/recordings/create-with-upload \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -F "audio=@/path/to/audiofile.mp3" \
+  -F "name=My Custom Recording" \
+  -F "description=Uploaded from external source" \
+  -F "tags=[\"custom\", \"upload\"]"
+```
+
+**Response:**
+```json
+{
+  "id": 6,
+  "name": "My Custom Recording",
+  "description": "Uploaded from external source",
+  "type": "upload",
+  "fileName": "tenant_123_upload_1734264600.mp3",
+  "fileUrl": "/recordings/tenant_123_upload_1734264600.mp3",
+  "fileSize": 512000,
+  "generatedAt": "2024-12-15T11:50:00Z",
+  "asteriskStatus": "not_deployed",
+  "tags": ["custom", "upload"],
+  "isActive": true,
+  "createdAt": "2024-12-15T11:50:00Z"
+}
+```
+
+---
+
+## 🎧 Serve & Download Audio Files
+
+### Get Audio File
+```http
+GET /recordings/:id/audio
+```
+
+**Response:** Audio file stream with appropriate headers
+
+**Example:**
+```bash
+# Stream/download audio file
+curl -X GET https://app.knittt.com/api/recordings/5/audio \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -o downloaded_audio.mp3
+```
+
+### Direct File Access
+```http
+GET /recordings/{filename}
+```
+
+**Example:**
+```bash
+# Direct file access (if filename is known)
+curl https://app.knittt.com/recordings/tenant_123_upload_1734264600.mp3
+```
+
+---
+
+## 🔄 Complete Upload Workflow
+
+### Upload → Deploy → Use
+
+```bash
+# 1. Create recording
+curl -X POST https://app.knittt.com/api/recordings \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Professional Greeting",
+    "description": "Custom recorded greeting",
+    "type": "upload"
+  }'
+
+# 2. Upload your audio file
+curl -X POST https://app.knittt.com/api/recordings/7/upload \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -F "audio=@professional_greeting.mp3"
+
+# 3. Deploy to Asterisk
+curl -X POST https://app.knittt.com/api/recordings/7/deploy-to-asterisk \
+  -H "Authorization: Bearer YOUR_JWT"
+
+# 4. Use in dialplan
+# Playback(custom/tenant_123_7)
+```
+
+---
+
+## 🔍 File Validation & Processing
+
+### File Validation Rules
+- **File size:** Maximum 10MB
+- **Format validation:** Checks file extension AND MIME type
+- **Audio verification:** Validates it's actually an audio file
+- **Naming:** Auto-generates unique filenames with tenant isolation
+
+### Auto-Processing
+When you upload a file:
+1. ✅ **File validation** - Format and size checks
+2. ✅ **Unique naming** - `tenant_{tenantId}_upload_{timestamp}.{ext}`
+3. ✅ **Database update** - Records file info in database
+4. ✅ **Ready for deployment** - Can immediately deploy to Asterisk
+
+---
+
+## 📊 File Information & Metadata
+
+### Get Recording with File Info
+```http
+GET /recordings/:id
+```
+
+**Response includes file details:**
+```json
+{
+  "id": 5,
+  "name": "Custom Audio File",
+  "type": "upload",
+  "fileName": "tenant_123_upload_1734264532.mp3",
+  "fileUrl": "/recordings/tenant_123_upload_1734264532.mp3",
+  "fileSize": 512000,
+  "generatedAt": "2024-12-15T11:45:00Z",
+  "asteriskStatus": "not_deployed",
+  "asteriskPath": null,
+  "usageCount": 0,
+  "lastUsed": null,
+  "metadata": {
+    "originalFileName": "professional_greeting.mp3",
+    "uploadedBy": "user_123",
+    "uploadSource": "api"
+  }
+}
+```
+
+---
+
+## 🔄 Bulk File Operations
+
+### Upload Multiple Files
+```bash
+# Upload multiple recordings
+for file in *.mp3; do
+  # Create recording
+  RECORDING_ID=$(curl -X POST https://app.knittt.com/api/recordings \
+    -H "Authorization: Bearer YOUR_JWT" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\": \"${file%.*}\", \"type\": \"upload\"}" \
+    | jq -r '.id')
+  
+  # Upload file
+  curl -X POST "https://app.knittt.com/api/recordings/${RECORDING_ID}/upload" \
+    -H "Authorization: Bearer YOUR_JWT" \
+    -F "audio=@${file}"
+    
+  echo "Uploaded: $file as Recording ID: $RECORDING_ID"
+done
+```
+
+### Bulk Deploy Uploaded Files
+```bash
+# Deploy multiple uploaded recordings to Asterisk
+curl -X POST https://app.knittt.com/api/recordings/bulk/deploy-to-asterisk \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"recordingIds": [5, 6, 7, 8, 9]}'
+```
+
+---
+
+## 🎛️ Advanced Upload Features
+
+### Replace Existing Audio
+```http
+POST /recordings/:id/upload?replace=true
+```
+
+**Replaces the existing audio file for a recording**
+
+### Upload with Custom Metadata
+```http
+POST /recordings/:id/upload
+Content-Type: multipart/form-data
+```
+
+**Form Data:**
+- `audio` - Audio file
+- `metadata` - JSON string with custom metadata
+
+**Example:**
+```bash
+curl -X POST https://app.knittt.com/api/recordings/5/upload \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -F "audio=@greeting.mp3" \
+  -F "metadata={\"originalSource\": \"studio_recording\", \"recordedBy\": \"John Doe\", \"version\": \"2.0\"}"
+```
+
+---
+
+## ⚠️ Error Handling
+
+### Common Upload Errors
+
+**File too large:**
+```json
+{
+  "error": "File size exceeds 10MB limit"
+}
+```
+
+**Invalid file type:**
+```json
+{
+  "error": "Invalid file type. Extension: .txt, MIME: text/plain. Allowed: .mp3, .wav, .ogg, .m4a, .flac"
+}
+```
+
+**No file provided:**
+```json
+{
+  "error": "No audio file provided"
+}
+```
+
+**Recording not found:**
+```json
+{
+  "error": "Recording not found"
+}
+```
+
+---
+
+## 🎯 Frontend Integration Examples
+
+### HTML Form Upload
+```html
+<form id="uploadForm" enctype="multipart/form-data">
+  <input type="file" name="audio" accept="audio/*" required>
+  <button type="submit">Upload Audio</button>
+</form>
+
+<script>
+document.getElementById('uploadForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const formData = new FormData(e.target);
+  
+  const response = await fetch('/api/recordings/5/upload', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + localStorage.getItem('jwt')
+    },
+    body: formData
+  });
+  
+  const result = await response.json();
+  console.log('Upload result:', result);
+};
+</script>
+```
+
+### React Upload Component
+```jsx
+function AudioUpload({ recordingId, onUploadComplete }) {
+  const [uploading, setUploading] = useState(false);
+  
+  const handleUpload = async (file) => {
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('audio', file);
+    
+    try {
+      const response = await fetch(`/api/recordings/${recordingId}/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${getToken()}`
+        },
+        body: formData
+      });
+      
+      const result = await response.json();
+      onUploadComplete(result);
+    } catch (error) {
+      console.error('Upload failed:', error);
+    } finally {
+      setUploading(false);
+    }
+  };
+  
+  return (
+    <div>
+      <input 
+        type="file" 
+        accept="audio/*"
+        onChange={(e) => handleUpload(e.target.files[0])}
+        disabled={uploading}
+      />
+      {uploading && <p>Uploading...</p>}
+    </div>
+  );
+}
+```
+
+---
+
+## 🎵 Audio File Best Practices
+
+### Recommended Formats
+1. **MP3** - Best compatibility, small file size
+2. **WAV** - High quality, larger file size  
+3. **OGG** - Good compression, open source
+
+### Audio Quality Tips
+- **Sample Rate:** 8kHz-48kHz (8kHz sufficient for voice)
+- **Bitrate:** 64-320 kbps (128 kbps good for voice)
+- **Channels:** Mono sufficient for most PBX applications
+- **Length:** Keep recordings concise for better user experience
+
+### File Naming
+- Use descriptive names: `welcome_greeting.mp3`
+- Avoid special characters: Use `_` instead of spaces
+- Include version if applicable: `welcome_v2.mp3`
+
+Your audio upload system is fully functional and ready for production use! 🎵

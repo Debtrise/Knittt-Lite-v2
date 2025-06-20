@@ -19,6 +19,8 @@ import { createWebhook, updateWebhook, getWebhookDetails } from '@/app/utils/api
 import api from '@/app/lib/api';
 import { WebhookEndpoint, CreateWebhookParams, UpdateWebhookParams } from '@/app/types/webhook';
 import { toast } from 'react-hot-toast';
+import { X, Play, Pause, Square } from 'lucide-react';
+import { Textarea } from '@/app/components/ui/textarea';
 
 type WebhookFormProps = {
   webhookId?: number;
@@ -37,11 +39,13 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
   const router = useRouter();
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
   const [availableJourneys, setAvailableJourneys] = useState<Journey[]>([]);
   const [availableWebhookFields, setAvailableWebhookFields] = useState<string[]>([]);
   const [formData, setFormData] = useState<CreateWebhookParams>({
     name: '',
     description: '',
+    webhookType: 'go',
     brand: '',
     source: '',
     fieldMapping: {
@@ -63,6 +67,60 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
         tag: 'web-lead',
       },
     ],
+    pauseResumeConfig: {
+      enabled: false,
+      resumeConditions: {
+        timerResume: {
+          enabled: false,
+          delayMinutes: 0,
+          delayHours: 0,
+          delayDays: 0
+        },
+        statusResume: {
+          enabled: false,
+          targetStatuses: [],
+          checkInterval: 30
+        },
+        tagResume: {
+          enabled: false,
+          requiredTags: [],
+          forbiddenTags: [],
+          checkInterval: 30
+        },
+        externalResume: {
+          enabled: false
+        }
+      },
+      pauseActions: {
+        pauseJourneys: true,
+        addPauseTag: true,
+        pauseTagName: 'paused',
+        sendNotification: false
+      },
+      resumeActions: {
+        resumeJourneys: true,
+        removePauseTag: true,
+        addResumeTag: false,
+        resumeTagName: 'resumed',
+        sendNotification: false
+      }
+    },
+    stopConfig: {
+      enabled: false,
+      stopActions: {
+        exitJourneys: true,
+        addStopTag: true,
+        stopTagName: 'stopped',
+        markAsDNC: false,
+        markAsSold: false,
+        preventFutureEnrollment: true
+      },
+      stopMetadata: {
+        trackStopReason: true,
+        trackStopSource: true,
+        trackStopTimestamp: true
+      }
+    }
   });
 
   // Additional state for fields that need custom handling
@@ -220,6 +278,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
       setFormData({
         name: webhook.name || '',
         description: webhook.description || '',
+        webhookType: webhook.webhookType || 'go',
         brand: webhook.brand || '',
         source: webhook.source || '',
         fieldMapping: webhook.fieldMapping || {
@@ -241,6 +300,60 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
             tag: 'web-lead',
           },
         ],
+        pauseResumeConfig: webhook.pauseResumeConfig || {
+          enabled: false,
+          resumeConditions: {
+            timerResume: {
+              enabled: false,
+              delayMinutes: 0,
+              delayHours: 0,
+              delayDays: 0
+            },
+            statusResume: {
+              enabled: false,
+              targetStatuses: [],
+              checkInterval: 30
+            },
+            tagResume: {
+              enabled: false,
+              requiredTags: [],
+              forbiddenTags: [],
+              checkInterval: 30
+            },
+            externalResume: {
+              enabled: false
+            }
+          },
+          pauseActions: {
+            pauseJourneys: true,
+            addPauseTag: true,
+            pauseTagName: 'paused',
+            sendNotification: false
+          },
+          resumeActions: {
+            resumeJourneys: true,
+            removePauseTag: true,
+            addResumeTag: false,
+            resumeTagName: 'resumed',
+            sendNotification: false
+          }
+        },
+        stopConfig: webhook.stopConfig || {
+          enabled: false,
+          stopActions: {
+            exitJourneys: true,
+            addStopTag: true,
+            stopTagName: 'stopped',
+            markAsDNC: false,
+            markAsSold: false,
+            preventFutureEnrollment: true
+          },
+          stopMetadata: {
+            trackStopReason: true,
+            trackStopSource: true,
+            trackStopTimestamp: true
+          }
+        },
         requiredHeaders: webhook.requiredHeaders || {},
         autoEnrollJourneyId: webhook.autoEnrollJourneyId || undefined,
       });
@@ -262,6 +375,9 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
         { key: 'email', value: 'email_address' },
       ]);
       setCustomFieldMappings(customMappings);
+      
+      console.log('Standard field mappings:', standardMappings);
+      console.log('Custom field mappings:', customMappings);
       
       // Update auto tag rules
       if (webhook.autoTagRules && webhook.autoTagRules.length > 0) {
@@ -310,6 +426,14 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
     } else {
       // If not in edit mode, set loading to false
       setLoading(false);
+      
+      // Initialize custom field mappings from the default formData
+      const standardKeys = ['phone', 'name', 'email'];
+      const customMappings = Object.entries(formData.fieldMapping)
+        .filter(([key]) => !standardKeys.includes(key))
+        .map(([key, value]) => ({ key, value: value as string }));
+      
+      setCustomFieldMappings(customMappings);
     }
   }, [isEdit, webhookId]);
 
@@ -357,60 +481,78 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
         ...customMappingObject,
       },
     }));
+    
+    console.log("Updated field mapping:", {
+      ...mappingObject,
+      ...customMappingObject,
+    });
+  };
+
+  const handleCustomFieldMappingChange = (index: number, field: 'key' | 'value', value: string) => {
+    const newCustomMappings = [...customFieldMappings];
+    const oldKey = newCustomMappings[index].key;
+    
+    if (field === 'key') {
+      newCustomMappings[index].key = value;
+    } else {
+      newCustomMappings[index].value = value;
+    }
+    
+    setCustomFieldMappings(newCustomMappings);
+    
+    // Update the main form data
+    const newFieldMapping = { ...formData.fieldMapping };
+    
+    if (field === 'key') {
+      // Remove old key and add new one with the same value
+      const oldValue = newFieldMapping[oldKey];
+      delete newFieldMapping[oldKey];
+      newFieldMapping[value] = oldValue;
+    } else {
+      // Just update the value for the existing key
+      newFieldMapping[oldKey] = value;
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      fieldMapping: newFieldMapping
+    }));
+    
+    console.log("Updated custom field mapping:", field === 'key' ? `${oldKey} -> ${value}` : `${oldKey} = ${value}`);
   };
 
   const addCustomFieldMapping = () => {
-    setCustomFieldMappings([...customFieldMappings, { key: '', value: '' }]);
-  };
-
-  const handleCustomFieldMappingChange = (index: number, key: string, value: string) => {
-    const newMappings = [...customFieldMappings];
-    newMappings[index] = { key, value };
-    setCustomFieldMappings(newMappings);
+    const newKey = `custom_field_${customFieldMappings.length + 1}`;
+    const newMapping = { key: newKey, value: '' };
+    setCustomFieldMappings([...customFieldMappings, newMapping]);
     
     // Update the main form data
-    const mappingObject = fieldMappings.reduce((acc, { key, value }) => {
-      if (key) acc[key] = value;
-      return acc;
-    }, {} as Record<string, string>);
-    
-    const customMappingObject = newMappings.reduce((acc, { key, value }) => {
-      if (key) acc[key] = value;
-      return acc;
-    }, {} as Record<string, string>);
-    
     setFormData(prev => ({
       ...prev,
       fieldMapping: {
-        ...mappingObject,
-        ...customMappingObject,
-      },
+        ...prev.fieldMapping,
+        [newKey]: ''
+      }
     }));
+    
+    console.log("Added custom field mapping:", newKey);
   };
 
   const removeCustomFieldMapping = (index: number) => {
-    const newMappings = [...customFieldMappings];
-    newMappings.splice(index, 1);
-    setCustomFieldMappings(newMappings);
+    const keyToRemove = customFieldMappings[index].key;
+    const newCustomMappings = customFieldMappings.filter((_, i) => i !== index);
+    setCustomFieldMappings(newCustomMappings);
     
     // Update the main form data
-    const mappingObject = fieldMappings.reduce((acc, { key, value }) => {
-      if (key) acc[key] = value;
-      return acc;
-    }, {} as Record<string, string>);
-    
-    const customMappingObject = newMappings.reduce((acc, { key, value }) => {
-      if (key) acc[key] = value;
-      return acc;
-    }, {} as Record<string, string>);
+    const newFieldMapping = { ...formData.fieldMapping };
+    delete newFieldMapping[keyToRemove];
     
     setFormData(prev => ({
       ...prev,
-      fieldMapping: {
-        ...mappingObject,
-        ...customMappingObject,
-      },
+      fieldMapping: newFieldMapping
     }));
+    
+    console.log("Removed custom field mapping:", keyToRemove);
   };
 
   const handleAutoTagRuleChange = (index: number, field: string, value: any) => {
@@ -464,15 +606,21 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
       ...prev,
       requiredHeaders: headersObject,
     }));
+    
+    console.log("Updated required headers:", headersObject);
   };
 
   const addRequiredHeader = () => {
-    setRequiredHeaders([...requiredHeaders, { key: '', value: '' }]);
+    const newHeaders = [...requiredHeaders, { key: '', value: '' }];
+    setRequiredHeaders(newHeaders);
+    
+    // No need to update formData yet since the new header has empty key/value
+    console.log("Added new required header");
   };
 
   const removeRequiredHeader = (index: number) => {
-    const newHeaders = [...requiredHeaders];
-    newHeaders.splice(index, 1);
+    const headerToRemove = requiredHeaders[index];
+    const newHeaders = requiredHeaders.filter((_, i) => i !== index);
     setRequiredHeaders(newHeaders);
     
     // Update the main form data
@@ -485,83 +633,128 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
       ...prev,
       requiredHeaders: headersObject,
     }));
+    
+    console.log("Removed required header:", headerToRemove);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
     
     try {
       setSaving(true);
       
-      // Prepare the webhook data
-      const webhookData = {
-        ...formData,
-        fieldMapping: buildFieldMapping(),
-        requiredHeaders: buildRequiredHeaders(),
-        autoTagRules: autoTagRules.length > 0 ? autoTagRules : [],
+      // Ensure all field mappings are included
+      const fieldMappingData = buildFieldMapping();
+      
+      // Ensure headers are included
+      const requiredHeadersData = buildRequiredHeaders();
+
+      const payload: CreateWebhookParams = {
+        name: formData.name,
+        description: formData.description,
+        webhookType: formData.webhookType,
+        brand: formData.brand,
+        source: formData.source,
+        fieldMapping: fieldMappingData,
+        validationRules: formData.validationRules,
+        autoTagRules: formData.autoTagRules,
+        requiredHeaders: requiredHeadersData,
+        autoEnrollJourneyId: formData.autoEnrollJourneyId,
+        conditionalRules: conditionalRules.enabled ? conditionalRules : undefined,
+        pauseResumeConfig: formData.webhookType === 'pause' ? formData.pauseResumeConfig : undefined,
+        stopConfig: formData.webhookType === 'stop' ? formData.stopConfig : undefined
       };
-      
-      // Add conditional rules if enabled
-      if (conditionalRules.enabled && conditionalRules.conditionSets.length > 0) {
-        // @ts-ignore - add conditionalRules to the data
-        webhookData.conditionalRules = {
-          logicOperator: conditionalRules.logicOperator,
-          conditionSets: conditionalRules.conditionSets
-        };
-      }
-      
-      let response;
+
+      console.log('Submitting webhook with payload:', payload);
+
       if (isEdit && webhookId) {
-        // Update existing webhook
-        response = await updateWebhook(webhookId, webhookData);
+        await updateWebhook(webhookId, payload);
         toast.success('Webhook updated successfully');
       } else {
-        // Create new webhook
-        response = await createWebhook(webhookData);
+        const response = await createWebhook(payload);
+        console.log('Webhook created successfully:', response);
         toast.success('Webhook created successfully');
-      }
-      
-      // Call onSuccess if provided
-      if (onSuccess && response.data) {
-        onSuccess(response.data);
-      } else if (!isEdit) {
-        // Redirect to webhooks list or details page
+        if (onSuccess) {
+          onSuccess(response);
+        } else {
         router.push('/webhooks');
       }
-    } catch (error: any) {
+      }
+    } catch (error) {
       console.error('Error saving webhook:', error);
-      const message = error.response?.data?.message || error.message || 'Failed to save webhook';
-      toast.error(message);
+      toast.error('Failed to save webhook');
     } finally {
       setSaving(false);
     }
   };
 
   const validateForm = () => {
-    // Implement form validation logic here
-    return true; // Placeholder return, actual implementation needed
+    // Basic validation
+    if (!formData.name) {
+      toast.error('Name is required');
+      setCurrentStep(1);
+      return false;
+    }
+    
+    if (!formData.brand) {
+      toast.error('Brand is required');
+      setCurrentStep(1);
+      return false;
+    }
+    
+    if (!formData.source) {
+      toast.error('Source is required');
+      setCurrentStep(1);
+      return false;
+    }
+    
+    // Validate field mappings
+    if (formData.validationRules.requirePhone && !formData.fieldMapping.phone) {
+      toast.error('Phone field mapping is required');
+      setCurrentStep(3);
+      return false;
+    }
+    
+    if (formData.validationRules.requireName && !formData.fieldMapping.name) {
+      toast.error('Name field mapping is required');
+      setCurrentStep(3);
+      return false;
+    }
+    
+    if (formData.validationRules.requireEmail && !formData.fieldMapping.email) {
+      toast.error('Email field mapping is required');
+      setCurrentStep(3);
+      return false;
+    }
+    
+    return true;
   };
 
   // Conditional rules handlers
   const addConditionSet = () => {
-    setConditionalRules(prev => ({
-      ...prev,
-      conditionSets: [
-        ...prev.conditionSets,
-        {
-          name: `Condition Set ${prev.conditionSets.length + 1}`,
+    console.log("Adding new condition set");
+    
+    // Create a new condition set with default values
+    const newConditionSet = {
+      name: `Condition Set ${conditionalRules.conditionSets.length + 1}`,
           conditions: [{
             field: '',
             operator: 'equals',
             value: '',
             dataType: 'string'
           }],
-          actions: []
-        }
+      actions: [{
+        type: 'create_lead',
+        config: {}
+      }]
+    };
+    
+    setConditionalRules(prev => ({
+      ...prev,
+      conditionSets: [
+        ...prev.conditionSets,
+        newConditionSet
       ]
     }));
   };
@@ -688,95 +881,175 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
     }));
   };
 
-  const getActionConfigFields = (actionType: string) => {
+  const getActionConfigFields = (actionType: string, setIndex: number, actionIndex: number) => {
+    const action = conditionalRules?.conditionSets[setIndex]?.actions[actionIndex];
+    const config = action?.config || {};
+    
+    const updateActionConfig = (key: string, value: any) => {
+      const newConfig = { ...config, [key]: value };
+      updateAction(setIndex, actionIndex, 'config', newConfig);
+    };
+    
     switch (actionType) {
       case 'create_lead':
-        return [
-          { key: 'brand', label: 'Brand', type: 'text', placeholder: 'Override brand' },
-          { key: 'source', label: 'Source', type: 'text', placeholder: 'Override source' },
-        ];
+        return (
+          <div className="space-y-2">
+            <Label>Lead Data</Label>
+            <Textarea
+              value={config.leadData || ''}
+              onChange={(e) => updateActionConfig('leadData', e.target.value)}
+              placeholder="Enter lead data in JSON format"
+              className="h-20"
+            />
+          </div>
+        );
       case 'update_lead':
-        return [
-          { key: 'searchField', label: 'Search Field', type: 'select', options: [
-            { value: 'phone', label: 'Phone Number' },
-            { value: 'email', label: 'Email Address' },
-            { value: 'id', label: 'Lead ID' }
-          ]},
-          { key: 'searchValue', label: 'Search Value', type: 'text', placeholder: 'Use {{field}} for dynamic values' },
-          { key: 'updateFields', label: 'Update Fields', type: 'textarea', placeholder: '{"status": "updated", "notes": "Updated via webhook"}' },
-        ];
-      case 'delete_lead':
-        return [
-          { key: 'searchField', label: 'Search Field', type: 'select', options: [
-            { value: 'phone', label: 'Phone Number' },
-            { value: 'email', label: 'Email Address' },
-            { value: 'id', label: 'Lead ID' },
-            { value: 'brand', label: 'Brand' },
-            { value: 'source', label: 'Source' }
-          ]},
-          { key: 'searchValue', label: 'Search Value', type: 'text', placeholder: 'Use {{field}} for dynamic values from webhook' },
-          { key: 'confirmationRequired', label: 'Require Confirmation', type: 'select', options: [
-            { value: 'false', label: 'Delete Immediately' },
-            { value: 'true', label: 'Mark for Deletion (Requires Manual Confirmation)' }
-          ]},
-          { key: 'reason', label: 'Deletion Reason', type: 'text', placeholder: 'Unsubscribed via webhook' },
-        ];
-      case 'enroll_journey':
-        return [
-          { key: 'journeyId', label: 'Journey', type: 'select', options: availableJourneys.map(j => ({ value: j.id, label: j.name })) },
-          { key: 'priority', label: 'Priority', type: 'select', options: [
-            { value: 'low', label: 'Low' },
-            { value: 'normal', label: 'Normal' },
-            { value: 'high', label: 'High' },
-            { value: 'immediate', label: 'Immediate' }
-          ]},
-        ];
+        return (
+          <div className="space-y-2">
+            <Label>Update Data</Label>
+            <Textarea
+              value={config.updateData || ''}
+              onChange={(e) => updateActionConfig('updateData', e.target.value)}
+              placeholder="Enter update data in JSON format"
+              className="h-20"
+            />
+          </div>
+        );
       case 'send_notification':
-        return [
-          { key: 'recipients', label: 'Recipients', type: 'text', placeholder: 'email1@example.com,email2@example.com' },
-          { key: 'subject', label: 'Subject', type: 'text', placeholder: 'New lead: {{name}}' },
-          { key: 'message', label: 'Message', type: 'textarea', placeholder: 'New lead received: {{name}} ({{phone}})' },
-          { key: 'type', label: 'Type', type: 'select', options: [
-            { value: 'email', label: 'Email' },
-            { value: 'sms', label: 'SMS' }
-          ]},
-        ];
-      case 'set_tags':
-        return [
-          { key: 'operation', label: 'Operation', type: 'select', options: [
-            { value: 'add', label: 'Add Tags' },
-            { value: 'remove', label: 'Remove Tags' }
-          ]},
-          { key: 'tags', label: 'Tags', type: 'text', placeholder: 'tag1,tag2,tag3' },
-        ];
+        return (
+          <div className="space-y-2">
+            <Label>Notification Template</Label>
+            <Select
+              value={config.template || "email"}
+              onValueChange={(value) => updateActionConfig('template', value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select template" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="email">Email Template</SelectItem>
+                <SelectItem value="sms">SMS Template</SelectItem>
+                <SelectItem value="webhook">Webhook Notification</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        );
+      case 'enroll_journey':
+        return (
+          <div className="space-y-2">
+            <Label>Journey</Label>
+            <Select
+              value={config.journeyId?.toString() || "none"}
+              onValueChange={(value) => updateActionConfig('journeyId', value === "none" ? null : parseInt(value))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select journey" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {availableJourneys.map((journey) => (
+                  <SelectItem key={journey.id} value={journey.id.toString()}>
+                    {journey.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        );
       case 'call_webhook':
-        return [
-          { key: 'url', label: 'Webhook URL', type: 'text', placeholder: 'https://api.example.com/webhook' },
-          { key: 'method', label: 'Method', type: 'select', options: [
-            { value: 'POST', label: 'POST' },
-            { value: 'PUT', label: 'PUT' },
-            { value: 'PATCH', label: 'PATCH' }
-          ]},
-          { key: 'headers', label: 'Headers', type: 'textarea', placeholder: '{"Authorization": "Bearer token"}' },
-        ];
+        return (
+          <div className="space-y-2">
+            <Label>Webhook URL</Label>
+            <Input 
+              value={config.url || ''}
+              onChange={(e) => updateActionConfig('url', e.target.value)}
+              placeholder="Enter webhook URL" 
+            />
+            <Label>Method</Label>
+            <Select
+              value={config.method || "POST"}
+              onValueChange={(value) => updateActionConfig('method', value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select method" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="POST">POST</SelectItem>
+                <SelectItem value="PUT">PUT</SelectItem>
+                <SelectItem value="PATCH">PATCH</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        );
+      case 'set_tags':
+        return (
+          <div className="space-y-2">
+            <Label>Tags</Label>
+            <Input 
+              value={config.tags || ''}
+              onChange={(e) => updateActionConfig('tags', e.target.value)}
+              placeholder="Enter tags (comma-separated)" 
+            />
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id={`addTags-${setIndex}-${actionIndex}`}
+                checked={config.operation === 'add'}
+                onCheckedChange={(checked) => {
+                  if (checked) updateActionConfig('operation', 'add');
+                }}
+              />
+              <Label htmlFor={`addTags-${setIndex}-${actionIndex}`}>Add Tags</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id={`removeTags-${setIndex}-${actionIndex}`}
+                checked={config.operation === 'remove'}
+                onCheckedChange={(checked) => {
+                  if (checked) updateActionConfig('operation', 'remove');
+                }}
+              />
+              <Label htmlFor={`removeTags-${setIndex}-${actionIndex}`}>Remove Tags</Label>
+            </div>
+          </div>
+        );
       case 'create_task':
-        return [
-          { key: 'title', label: 'Task Title', type: 'text', placeholder: 'Follow up with {{name}}' },
-          { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Contact lead about {{subject}}' },
-          { key: 'dueDate', label: 'Due Date', type: 'text', placeholder: '+1d (1 day from now)' },
-          { key: 'assignee', label: 'Assignee', type: 'text', placeholder: 'user@example.com' },
-        ];
-      case 'set_dialer_assignment':
-        return [
-          { name: 'dialerAssignment', label: 'Dialer Assignment', type: 'select', options: [
-            { value: 'auto_dialer', label: 'Auto Dialer' },
-            { value: 'journey_only', label: 'Journey Only' },
-            { value: 'both', label: 'Both' },
-            { value: 'none', label: 'None' },
-          ], required: true },
-        ];
+        return (
+          <div className="space-y-2">
+            <Label>Task Type</Label>
+            <Select
+              value={config.taskType || "call"}
+              onValueChange={(value) => updateActionConfig('taskType', value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select task type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="call">Call</SelectItem>
+                <SelectItem value="email">Email</SelectItem>
+                <SelectItem value="sms">SMS</SelectItem>
+                <SelectItem value="meeting">Meeting</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+            <Label>Priority</Label>
+            <Select
+              value={config.priority || "medium"}
+              onValueChange={(value) => updateActionConfig('priority', value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="urgent">Urgent</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        );
       default:
-        return [];
+        return null;
     }
   };
 
@@ -804,16 +1077,203 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
     }, {} as Record<string, string>);
   };
 
-  if (loading) {
+  const handleWebhookTypeChange = (type: WebhookType) => {
+    console.log("Changing webhook type to:", type);
+    
+    setFormData(prev => ({
+      ...prev,
+      webhookType: type,
+      // Initialize type-specific configs with minimal defaults
+      pauseResumeConfig: type === 'pause' ? {
+        enabled: true,
+        resumeConditions: {
+          timerResume: {
+            enabled: false,
+            delayMinutes: 0,
+            delayHours: 0,
+            delayDays: 0
+          },
+          statusResume: {
+            enabled: false,
+            targetStatuses: [],
+            checkInterval: 30
+          },
+          tagResume: {
+            enabled: false,
+            requiredTags: [],
+            forbiddenTags: [],
+            checkInterval: 30
+          },
+          externalResume: {
+            enabled: false
+          }
+        },
+        pauseActions: {
+          pauseJourneys: true,
+          addPauseTag: true,
+          pauseTagName: 'paused',
+          sendNotification: false,
+          notificationTemplate: null
+        },
+        resumeActions: {
+          resumeJourneys: true,
+          removePauseTag: true,
+          addResumeTag: false,
+          resumeTagName: 'resumed',
+          sendNotification: false,
+          notificationTemplate: null
+        }
+      } : prev.pauseResumeConfig,
+      stopConfig: type === 'stop' ? {
+        enabled: true,
+        stopActions: {
+          exitJourneys: true,
+          addStopTag: true,
+          stopTagName: 'stopped',
+          markAsDNC: false,
+          dncReason: '',
+          markAsSold: false,
+          soldReason: '',
+          preventFutureEnrollment: true
+        },
+        stopMetadata: {
+          trackStopReason: true,
+          trackStopSource: true,
+          trackStopTimestamp: true
+        }
+      } : prev.stopConfig
+    }));
+  };
+
+  const handlePauseResumeConfigChange = (field: string, value: any) => {
+    console.log("Updating pauseResumeConfig:", field, value);
+    
+    // Handle nested fields using a recursive function
+    const updateNestedField = (obj: any, path: string[], value: any): any => {
+      const [current, ...rest] = path;
+      if (rest.length === 0) {
+        return { ...obj, [current]: value };
+      }
+      return {
+        ...obj,
+        [current]: updateNestedField(obj[current] || {}, rest, value)
+      };
+    };
+    
+    const fieldPath = field.split('.');
+    
+    setFormData(prev => ({
+      ...prev,
+      pauseResumeConfig: updateNestedField(prev.pauseResumeConfig || {}, fieldPath, value)
+    }));
+  };
+
+  const handleStopConfigChange = (field: string, value: any) => {
+    console.log("Updating stopConfig:", field, value);
+    
+    // Handle nested fields using a recursive function
+    const updateNestedField = (obj: any, path: string[], value: any): any => {
+      const [current, ...rest] = path;
+      if (rest.length === 0) {
+        return { ...obj, [current]: value };
+      }
+      return {
+        ...obj,
+        [current]: updateNestedField(obj[current] || {}, rest, value)
+      };
+    };
+    
+    const fieldPath = field.split('.');
+    
+    setFormData(prev => ({
+      ...prev,
+      stopConfig: updateNestedField(prev.stopConfig || {}, fieldPath, value)
+    }));
+  };
+
+  const steps = [
+    {
+      id: 1,
+      title: 'Basic Information',
+      description: 'Configure the basic details of your webhook',
+      icon: 'settings'
+    },
+    {
+      id: 2,
+      title: 'Webhook Type',
+      description: 'Choose the type of webhook and its behavior',
+      icon: 'type'
+    },
+    {
+      id: 3,
+      title: 'Field Mapping',
+      description: 'Map incoming webhook fields to your system',
+      icon: 'fields'
+    },
+    {
+      id: 4,
+      title: 'Validation Rules',
+      description: 'Set up validation rules for incoming data',
+      icon: 'validation'
+    },
+    {
+      id: 5,
+      title: 'Auto-Tagging',
+      description: 'Configure automatic tagging rules',
+      icon: 'tags'
+    },
+    {
+      id: 6,
+      title: 'Advanced Settings',
+      description: 'Configure additional webhook settings',
+      icon: 'advanced'
+    }
+  ];
+
+  const renderStepIndicator = () => {
     return (
-      <div className="text-center py-8">
-        <p>Loading webhook data...</p>
+      <div className="mb-12">
+        <div className="flex items-center justify-between">
+          {steps.map((step, index) => (
+            <div key={step.id} className="flex items-center flex-1">
+              <div
+                className={`flex items-center justify-center w-12 h-12 rounded-full text-lg font-medium transition-all ${
+                  currentStep >= step.id
+                    ? 'bg-primary text-primary-foreground scale-110'
+                    : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                {step.id}
+              </div>
+              {index < steps.length - 1 && (
+                <div
+                  className={`flex-1 h-1 mx-4 transition-all ${
+                    currentStep > step.id ? 'bg-primary' : 'bg-muted'
+                  }`}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-between mt-4">
+          {steps.map((step) => (
+            <div
+              key={step.id}
+              className={`text-sm text-center w-32 transition-colors ${
+                currentStep === step.id
+                  ? 'text-primary font-medium'
+                  : 'text-muted-foreground'
+              }`}
+            >
+              {step.title}
+            </div>
+          ))}
+        </div>
       </div>
     );
-  }
+  };
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+  const renderBasicInfoStep = () => (
       <Card>
         <CardHeader>
           <CardTitle>Basic Information</CardTitle>
@@ -874,77 +1334,747 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
           </div>
         </CardContent>
       </Card>
-      
+  );
+
+  const renderWebhookTypeStep = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Webhook Type</CardTitle>
+        <CardDescription>
+          Choose the type of webhook you want to create.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div
+            className={`p-6 rounded-lg border-2 cursor-pointer transition-all ${
+              formData.webhookType === 'go'
+                ? 'border-primary bg-primary/5'
+                : 'border-border hover:border-primary/50'
+            }`}
+            onClick={() => handleWebhookTypeChange('go')}
+          >
+            <div className="flex items-center space-x-2 mb-2">
+              <Play className="h-5 w-5 text-primary" />
+              <h3 className="font-medium">Go</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Create new leads and process them through journeys
+            </p>
+          </div>
+
+          <div
+            className={`p-6 rounded-lg border-2 cursor-pointer transition-all ${
+              formData.webhookType === 'pause'
+                ? 'border-primary bg-primary/5'
+                : 'border-border hover:border-primary/50'
+            }`}
+            onClick={() => handleWebhookTypeChange('pause')}
+          >
+            <div className="flex items-center space-x-2 mb-2">
+              <Pause className="h-5 w-5 text-primary" />
+              <h3 className="font-medium">Pause</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Pause existing leads and their journeys
+            </p>
+          </div>
+
+          <div
+            className={`p-6 rounded-lg border-2 cursor-pointer transition-all ${
+              formData.webhookType === 'stop'
+                ? 'border-primary bg-primary/5'
+                : 'border-border hover:border-primary/50'
+            }`}
+            onClick={() => handleWebhookTypeChange('stop')}
+          >
+            <div className="flex items-center space-x-2 mb-2">
+              <Square className="h-5 w-5 text-primary" />
+              <h3 className="font-medium">Stop</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Stop leads and exit them from all journeys
+            </p>
+          </div>
+        </div>
+
+        {formData.webhookType === 'pause' && (
+          <div className="mt-6 space-y-6">
+            <div className="space-y-4">
+              <h3 className="font-medium">Resume Conditions</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Timer Resume</Label>
+                  <div className="flex items-center space-x-2">
+                    <Input
+                      type="number"
+                      value={formData.pauseResumeConfig?.resumeConditions?.timerResume?.delayMinutes || 0}
+                      onChange={(e) =>
+                        handlePauseResumeConfigChange('resumeConditions.timerResume.delayMinutes', parseInt(e.target.value))
+                      }
+                      placeholder="Minutes"
+                      className="w-24"
+                    />
+                    <Input
+                      type="number"
+                      value={formData.pauseResumeConfig?.resumeConditions?.timerResume?.delayHours || 0}
+                      onChange={(e) =>
+                        handlePauseResumeConfigChange('resumeConditions.timerResume.delayHours', parseInt(e.target.value))
+                      }
+                      placeholder="Hours"
+                      className="w-24"
+                    />
+                    <Input
+                      type="number"
+                      value={formData.pauseResumeConfig?.resumeConditions?.timerResume?.delayDays || 0}
+                      onChange={(e) =>
+                        handlePauseResumeConfigChange('resumeConditions.timerResume.delayDays', parseInt(e.target.value))
+                      }
+                      placeholder="Days"
+                      className="w-24"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Status Resume</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="statusResumeEnabled"
+                        checked={formData.pauseResumeConfig?.resumeConditions?.statusResume?.enabled || false}
+                        onCheckedChange={(checked) =>
+                          handlePauseResumeConfigChange('resumeConditions.statusResume.enabled', checked)
+                        }
+                      />
+                      <Label htmlFor="statusResumeEnabled">Enable Status-based Resume</Label>
+                    </div>
+                    {formData.pauseResumeConfig?.resumeConditions?.statusResume?.enabled && (
+                      <>
+                        <Input
+                          value={formData.pauseResumeConfig?.resumeConditions?.statusResume?.targetStatuses?.join(', ') || ''}
+                          onChange={(e) =>
+                            handlePauseResumeConfigChange('resumeConditions.statusResume.targetStatuses', e.target.value.split(',').map(s => s.trim()))
+                          }
+                          placeholder="Comma-separated statuses"
+                        />
+                        <Input
+                          type="number"
+                          value={formData.pauseResumeConfig?.resumeConditions?.statusResume?.checkInterval || 30}
+                          onChange={(e) =>
+                            handlePauseResumeConfigChange('resumeConditions.statusResume.checkInterval', parseInt(e.target.value))
+                          }
+                          placeholder="Check interval (minutes)"
+                        />
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tag Resume</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="tagResumeEnabled"
+                        checked={formData.pauseResumeConfig?.resumeConditions?.tagResume?.enabled || false}
+                        onCheckedChange={(checked) =>
+                          handlePauseResumeConfigChange('resumeConditions.tagResume.enabled', checked)
+                        }
+                      />
+                      <Label htmlFor="tagResumeEnabled">Enable Tag-based Resume</Label>
+                    </div>
+                    {formData.pauseResumeConfig?.resumeConditions?.tagResume?.enabled && (
+                      <>
+                        <Input
+                          value={formData.pauseResumeConfig?.resumeConditions?.tagResume?.requiredTags?.join(', ') || ''}
+                          onChange={(e) =>
+                            handlePauseResumeConfigChange('resumeConditions.tagResume.requiredTags', e.target.value.split(',').map(s => s.trim()))
+                          }
+                          placeholder="Required tags (comma-separated)"
+                        />
+                        <Input
+                          value={formData.pauseResumeConfig?.resumeConditions?.tagResume?.forbiddenTags?.join(', ') || ''}
+                          onChange={(e) =>
+                            handlePauseResumeConfigChange('resumeConditions.tagResume.forbiddenTags', e.target.value.split(',').map(s => s.trim()))
+                          }
+                          placeholder="Forbidden tags (comma-separated)"
+                        />
+                        <Input
+                          type="number"
+                          value={formData.pauseResumeConfig?.resumeConditions?.tagResume?.checkInterval || 30}
+                          onChange={(e) =>
+                            handlePauseResumeConfigChange('resumeConditions.tagResume.checkInterval', parseInt(e.target.value))
+                          }
+                          placeholder="Check interval (minutes)"
+                        />
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>External Resume</Label>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="externalResumeEnabled"
+                      checked={formData.pauseResumeConfig?.resumeConditions?.externalResume?.enabled || false}
+                      onCheckedChange={(checked) =>
+                        handlePauseResumeConfigChange('resumeConditions.externalResume.enabled', checked)
+                      }
+                    />
+                    <Label htmlFor="externalResumeEnabled">Enable Manual Resume</Label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="font-medium">Pause Actions</h3>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="pauseJourneys"
+                    checked={formData.pauseResumeConfig?.pauseActions?.pauseJourneys || false}
+                    onCheckedChange={(checked) =>
+                      handlePauseResumeConfigChange('pauseActions.pauseJourneys', checked)
+                    }
+                  />
+                  <Label htmlFor="pauseJourneys">Pause Journeys</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="addPauseTag"
+                    checked={formData.pauseResumeConfig?.pauseActions?.addPauseTag || false}
+                    onCheckedChange={(checked) =>
+                      handlePauseResumeConfigChange('pauseActions.addPauseTag', checked)
+                    }
+                  />
+                  <Label htmlFor="addPauseTag">Add Pause Tag</Label>
+                </div>
+                {formData.pauseResumeConfig?.pauseActions?.addPauseTag && (
+                  <Input
+                    value={formData.pauseResumeConfig?.pauseActions?.pauseTagName || ''}
+                    onChange={(e) =>
+                      handlePauseResumeConfigChange('pauseActions.pauseTagName', e.target.value)
+                    }
+                    placeholder="Pause tag name"
+                  />
+                )}
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="sendPauseNotification"
+                    checked={formData.pauseResumeConfig?.pauseActions?.sendNotification || false}
+                    onCheckedChange={(checked) =>
+                      handlePauseResumeConfigChange('pauseActions.sendNotification', checked)
+                    }
+                  />
+                  <Label htmlFor="sendPauseNotification">Send Notification</Label>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="font-medium">Resume Actions</h3>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="resumeJourneys"
+                    checked={formData.pauseResumeConfig?.resumeActions?.resumeJourneys || false}
+                    onCheckedChange={(checked) =>
+                      handlePauseResumeConfigChange('resumeActions.resumeJourneys', checked)
+                    }
+                  />
+                  <Label htmlFor="resumeJourneys">Resume Journeys</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="removePauseTag"
+                    checked={formData.pauseResumeConfig?.resumeActions?.removePauseTag || false}
+                    onCheckedChange={(checked) =>
+                      handlePauseResumeConfigChange('resumeActions.removePauseTag', checked)
+                    }
+                  />
+                  <Label htmlFor="removePauseTag">Remove Pause Tag</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="addResumeTag"
+                    checked={formData.pauseResumeConfig?.resumeActions?.addResumeTag || false}
+                    onCheckedChange={(checked) =>
+                      handlePauseResumeConfigChange('resumeActions.addResumeTag', checked)
+                    }
+                  />
+                  <Label htmlFor="addResumeTag">Add Resume Tag</Label>
+                </div>
+                {formData.pauseResumeConfig?.resumeActions?.addResumeTag && (
+                  <Input
+                    value={formData.pauseResumeConfig?.resumeActions?.resumeTagName || ''}
+                    onChange={(e) =>
+                      handlePauseResumeConfigChange('resumeActions.resumeTagName', e.target.value)
+                    }
+                    placeholder="Resume tag name"
+                  />
+                )}
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="sendResumeNotification"
+                    checked={formData.pauseResumeConfig?.resumeActions?.sendNotification || false}
+                    onCheckedChange={(checked) =>
+                      handlePauseResumeConfigChange('resumeActions.sendNotification', checked)
+                    }
+                  />
+                  <Label htmlFor="sendResumeNotification">Send Notification</Label>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {formData.webhookType === 'stop' && (
+          <div className="mt-6 space-y-6">
+            <div className="space-y-4">
+              <h3 className="font-medium">Stop Actions</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* DNC Option Card */}
+                <div className="border rounded-lg p-4 space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="markAsDNC"
+                      checked={formData.stopConfig?.stopActions?.markAsDNC || false}
+                      onCheckedChange={(checked) =>
+                        handleStopConfigChange('stopActions.markAsDNC', checked)
+                      }
+                    />
+                    <Label htmlFor="markAsDNC" className="font-medium">Mark as DNC (Do Not Contact)</Label>
+                  </div>
+                  
+                  {formData.stopConfig?.stopActions?.markAsDNC && (
+                    <div className="space-y-3 pl-6">
+                      <div className="space-y-2">
+                        <Label>DNC Reason</Label>
+                        <Select
+                          value={formData.stopConfig?.stopActions?.dncReason || "not_interested"}
+                          onValueChange={(value) =>
+                            handleStopConfigChange('stopActions.dncReason', value)
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select reason" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="not_interested">Not Interested</SelectItem>
+                            <SelectItem value="wrong_number">Wrong Number</SelectItem>
+                            <SelectItem value="requested_removal">Requested Removal</SelectItem>
+                            <SelectItem value="complaint">Complaint</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="trackStopReason"
+                          checked={formData.stopConfig?.stopMetadata?.trackStopReason || false}
+                          onCheckedChange={(checked) =>
+                            handleStopConfigChange('stopMetadata.trackStopReason', checked)
+                          }
+                        />
+                        <Label htmlFor="trackStopReason">Track Stop Reason</Label>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Sold Option Card */}
+                <div className="border rounded-lg p-4 space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="markAsSold"
+                      checked={formData.stopConfig?.stopActions?.markAsSold || false}
+                      onCheckedChange={(checked) =>
+                        handleStopConfigChange('stopActions.markAsSold', checked)
+                      }
+                    />
+                    <Label htmlFor="markAsSold" className="font-medium">Mark as Sold</Label>
+                  </div>
+                  
+                  {formData.stopConfig?.stopActions?.markAsSold && (
+                    <div className="space-y-3 pl-6">
+                      <div className="space-y-2">
+                        <Label>Sale Type</Label>
+                        <Select
+                          value={formData.stopConfig?.stopActions?.soldReason || "completed_sale"}
+                          onValueChange={(value) =>
+                            handleStopConfigChange('stopActions.soldReason', value)
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select sale type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="completed_sale">Completed Sale</SelectItem>
+                            <SelectItem value="partial_sale">Partial Sale</SelectItem>
+                            <SelectItem value="upsell">Upsell</SelectItem>
+                            <SelectItem value="renewal">Renewal</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="addStopTag"
+                          checked={formData.stopConfig?.stopActions?.addStopTag || false}
+                          onCheckedChange={(checked) =>
+                            handleStopConfigChange('stopActions.addStopTag', checked)
+                          }
+                        />
+                        <Label htmlFor="addStopTag">Add Sale Tag</Label>
+                      </div>
+                      
+                      {formData.stopConfig?.stopActions?.addStopTag && (
+                        <div className="space-y-2">
+                          <Input
+                            value={formData.stopConfig?.stopActions?.stopTagName || ''}
+                            onChange={(e) =>
+                              handleStopConfigChange('stopActions.stopTagName', e.target.value)
+                            }
+                            placeholder="Sale tag name (e.g. sold)"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="pt-4 space-y-3">
+                <h4 className="font-medium">Additional Options</h4>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="exitJourneys"
+                      checked={formData.stopConfig?.stopActions?.exitJourneys || false}
+                      onCheckedChange={(checked) =>
+                        handleStopConfigChange('stopActions.exitJourneys', checked)
+                      }
+                    />
+                    <Label htmlFor="exitJourneys">Exit from All Journeys</Label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="preventFutureEnrollment"
+                      checked={formData.stopConfig?.stopActions?.preventFutureEnrollment || false}
+                      onCheckedChange={(checked) =>
+                        handleStopConfigChange('stopActions.preventFutureEnrollment', checked)
+                      }
+                    />
+                    <Label htmlFor="preventFutureEnrollment">Prevent Future Enrollment</Label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  const renderFieldMappingStep = () => (
       <Card>
         <CardHeader>
           <CardTitle>Field Mapping</CardTitle>
           <CardDescription>
-            Map fields from the incoming webhook data to lead fields.
+          Map incoming webhook fields to your system fields.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
           <div className="space-y-4">
-            <p className="text-sm text-gray-500">
-              Use dot notation for nested fields (e.g., contact.phoneNumber)
-            </p>
-            
-            {/* Required field mappings */}
-            {fieldMappings.map((mapping, index) => (
-              <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                <div className="md:col-span-1">
-                  <Label>{mapping.key} *</Label>
-                </div>
-                <div className="md:col-span-2">
+          <h3 className="font-medium">Standard Fields</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Phone Number</Label>
+              <div className="space-y-1">
+                <Input
+                  value={formData.fieldMapping.phone || ''}
+                  onChange={(e) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      fieldMapping: {
+                        ...prev.fieldMapping,
+                        phone: e.target.value
+                      }
+                    }));
+                  }}
+                  placeholder="phone"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Will listen for: phone, phone_number, mobile, cell, contact_number
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Full Name</Label>
+              <div className="space-y-1">
+                <Input
+                  value={formData.fieldMapping.name || ''}
+                  onChange={(e) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      fieldMapping: {
+                        ...prev.fieldMapping,
+                        name: e.target.value
+                      }
+                    }));
+                  }}
+                  placeholder="full_name"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Will listen for: name, full_name, customer_name, contact_name
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Email Address</Label>
+              <div className="space-y-1">
+                <Input
+                  value={formData.fieldMapping.email || ''}
+                  onChange={(e) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      fieldMapping: {
+                        ...prev.fieldMapping,
+                        email: e.target.value
+                      }
+                    }));
+                  }}
+                  placeholder="email_address"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Will listen for: email, email_address, contact_email, customer_email
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {formData.webhookType === 'pause' && (
+          <div className="space-y-4">
+            <h3 className="font-medium">Pause/Resume Fields</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Lead Identifier Field</Label>
+                <div className="space-y-1">
                   <Input
-                    value={mapping.value}
-                    onChange={(e) => handleFieldMappingChange(index, mapping.key, e.target.value)}
-                    placeholder={`Path to ${mapping.key} field in webhook data`}
-                    required
+                    value={formData.fieldMapping.pauseLeadId || ''}
+                    onChange={(e) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        fieldMapping: {
+                          ...prev.fieldMapping,
+                          pauseLeadId: e.target.value
+                        }
+                      }))
+                    }
+                    placeholder="lead_id"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Field that identifies which lead to pause (e.g., lead_id, phone, email)
+                  </p>
                 </div>
               </div>
-            ))}
-            
-            {/* Custom field mappings */}
-            {customFieldMappings.map((mapping, index) => (
-              <div key={`custom-${index}`} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                <div className="md:col-span-1">
+              <div className="space-y-2">
+                <Label>Pause Duration Field</Label>
+                <div className="space-y-1">
                   <Input
-                    value={mapping.key}
-                    onChange={(e) => handleCustomFieldMappingChange(index, e.target.value, mapping.value)}
-                    placeholder="Custom field name"
+                    value={formData.fieldMapping.pauseDuration || ''}
+                    onChange={(e) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        fieldMapping: {
+                          ...prev.fieldMapping,
+                          pauseDuration: e.target.value
+                        }
+                      }))
+                    }
+                    placeholder="pause_duration"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Field that specifies pause duration in minutes/hours/days
+                  </p>
                 </div>
-                <div className="md:col-span-2 flex gap-2">
+              </div>
+              <div className="space-y-2">
+                <Label>Pause Reason Field</Label>
+                <div className="space-y-1">
                   <Input
-                    value={mapping.value}
-                    onChange={(e) => handleCustomFieldMappingChange(index, mapping.key, e.target.value)}
-                    placeholder="Path to field in webhook data"
+                    value={formData.fieldMapping.pauseReason || ''}
+                    onChange={(e) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        fieldMapping: {
+                          ...prev.fieldMapping,
+                          pauseReason: e.target.value
+                        }
+                      }))
+                    }
+                    placeholder="pause_reason"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Field that provides the reason for pausing
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {formData.webhookType === 'stop' && (
+          <div className="space-y-4">
+            <h3 className="font-medium">Stop Fields</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Lead Identifier Field</Label>
+                <div className="space-y-1">
+                  <Input
+                    value={formData.fieldMapping.stopLeadId || ''}
+                    onChange={(e) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        fieldMapping: {
+                          ...prev.fieldMapping,
+                          stopLeadId: e.target.value
+                        }
+                      }))
+                    }
+                    placeholder="lead_id"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Field that identifies which lead to stop (e.g., lead_id, phone, email)
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Stop Reason Field</Label>
+                <div className="space-y-1">
+                  <Input
+                    value={formData.fieldMapping.stopReason || ''}
+                    onChange={(e) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        fieldMapping: {
+                          ...prev.fieldMapping,
+                          stopReason: e.target.value
+                        }
+                      }))
+                    }
+                    placeholder="stop_reason"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Field that provides the reason for stopping
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>DNC Field</Label>
+                <div className="space-y-1">
+                  <Input
+                    value={formData.fieldMapping.dncFlag || ''}
+                    onChange={(e) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        fieldMapping: {
+                          ...prev.fieldMapping,
+                          dncFlag: e.target.value
+                        }
+                      }))
+                    }
+                    placeholder="dnc"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Field that indicates if lead should be marked as DNC
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Sold Field</Label>
+                <div className="space-y-1">
+                  <Input
+                    value={formData.fieldMapping.soldFlag || ''}
+                    onChange={(e) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        fieldMapping: {
+                          ...prev.fieldMapping,
+                          soldFlag: e.target.value
+                        }
+                      }))
+                    }
+                    placeholder="sold"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Field that indicates if lead should be marked as sold
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium">Custom Fields</h3>
                   <Button
                     type="button"
-                    variant="ghost"
+              variant="outline"
                     size="sm"
-                    onClick={() => removeCustomFieldMapping(index)}
+              onClick={addCustomFieldMapping}
                   >
-                    &times;
+              Add Field
                   </Button>
                 </div>
+          <div className="space-y-4">
+            {customFieldMappings.map((mapping, index) => (
+              <div key={index} className="flex items-center space-x-2">
+                <div className="flex-1 grid grid-cols-2 gap-2">
+                  <div className="space-y-2">
+                    <Label>Field Name</Label>
+                    <Input
+                      value={mapping.key}
+                      onChange={(e) =>
+                        handleCustomFieldMappingChange(index, 'key', e.target.value)
+                      }
+                      placeholder="Field name"
+                    />
               </div>
-            ))}
-            
+                  <div className="space-y-2">
+                    <Label>Webhook Field</Label>
+                    <Input
+                      value={mapping.value}
+                      onChange={(e) =>
+                        handleCustomFieldMappingChange(index, 'value', e.target.value)
+                      }
+                      placeholder="Webhook field"
+                    />
+                  </div>
+                </div>
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              onClick={addCustomFieldMapping}
-            >
-              + Add Custom Field
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeCustomFieldMapping(index)}
+                  className="mt-6"
+                >
+                  <X className="h-4 w-4" />
             </Button>
+              </div>
+            ))}
+          </div>
           </div>
         </CardContent>
       </Card>
+  );
       
+  const renderValidationRulesStep = () => (
       <Card>
         <CardHeader>
           <CardTitle>Validation Rules</CardTitle>
@@ -953,250 +2083,255 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
+        <div className="space-y-4">
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="requirePhone"
                 checked={formData.validationRules.requirePhone}
                 onCheckedChange={(checked) => 
-                  handleValidationRuleChange('requirePhone', checked as boolean)
+                handleValidationRuleChange('requirePhone', checked)
                 }
               />
-              <Label htmlFor="requirePhone">Require phone number</Label>
+            <Label htmlFor="requirePhone">Require Phone Number</Label>
             </div>
-            
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="requireName"
                 checked={formData.validationRules.requireName}
                 onCheckedChange={(checked) => 
-                  handleValidationRuleChange('requireName', checked as boolean)
+                handleValidationRuleChange('requireName', checked)
                 }
               />
-              <Label htmlFor="requireName">Require name</Label>
+            <Label htmlFor="requireName">Require Full Name</Label>
             </div>
-            
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="requireEmail"
                 checked={formData.validationRules.requireEmail}
                 onCheckedChange={(checked) => 
-                  handleValidationRuleChange('requireEmail', checked as boolean)
+                handleValidationRuleChange('requireEmail', checked)
                 }
               />
-              <Label htmlFor="requireEmail">Require email</Label>
+            <Label htmlFor="requireEmail">Require Email Address</Label>
             </div>
-            
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="allowDuplicatePhone"
                 checked={formData.validationRules.allowDuplicatePhone}
                 onCheckedChange={(checked) => 
-                  handleValidationRuleChange('allowDuplicatePhone', checked as boolean)
+                handleValidationRuleChange('allowDuplicatePhone', checked)
                 }
               />
-              <Label htmlFor="allowDuplicatePhone">Allow duplicate phone numbers</Label>
+            <Label htmlFor="allowDuplicatePhone">Allow Duplicate Phone Numbers</Label>
             </div>
           </div>
         </CardContent>
       </Card>
+  );
       
+  const renderAutoTagStep = () => (
       <Card>
         <CardHeader>
-          <CardTitle>Auto-Tag Rules</CardTitle>
+        <CardTitle>Auto-Tagging Rules</CardTitle>
           <CardDescription>
-            Automatically add tags to leads based on webhook data.
+          Configure automatic tagging rules for incoming leads.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {autoTagRules.map((rule, index) => (
-            <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-              <div className="space-y-2 md:col-span-1">
+      <CardContent className="space-y-6">
+        <div className="space-y-4">
+          {formData.autoTagRules?.map((rule, index) => (
+            <div key={index} className="flex items-start space-x-2">
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-2">
+                <div className="space-y-2">
                 <Label>Field</Label>
                 <Input
                   value={rule.field}
-                  onChange={(e) => handleAutoTagRuleChange(index, 'field', e.target.value)}
+                    onChange={(e) =>
+                      handleAutoTagRuleChange(index, 'field', e.target.value)
+                    }
                   placeholder="source"
                 />
               </div>
-              
-              <div className="space-y-2 md:col-span-1">
+                <div className="space-y-2">
                 <Label>Operator</Label>
-                <select
+                  <Select
                   value={rule.operator}
-                  onChange={(e) => handleAutoTagRuleChange(index, 'operator', e.target.value)}
-                  className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-gray-900"
-                >
-                  <option value="equals">equals</option>
-                  <option value="contains">contains</option>
-                  <option value="exists">exists</option>
-                </select>
+                    onValueChange={(value) =>
+                      handleAutoTagRuleChange(index, 'operator', value)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select operator" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="equals">Equals</SelectItem>
+                      <SelectItem value="contains">Contains</SelectItem>
+                      <SelectItem value="exists">Exists</SelectItem>
+                    </SelectContent>
+                  </Select>
               </div>
-              
-              {rule.operator !== 'exists' && (
-                <div className="space-y-2 md:col-span-1">
+                <div className="space-y-2">
                   <Label>Value</Label>
                   <Input
-                    value={rule.value || ''}
-                    onChange={(e) => handleAutoTagRuleChange(index, 'value', e.target.value)}
+                    value={rule.value}
+                    onChange={(e) =>
+                      handleAutoTagRuleChange(index, 'value', e.target.value)
+                    }
                     placeholder="website"
                   />
                 </div>
-              )}
-              
-              <div className="space-y-2 md:col-span-1">
+                <div className="space-y-2">
                 <Label>Tag</Label>
                 <Input
                   value={rule.tag}
-                  onChange={(e) => handleAutoTagRuleChange(index, 'tag', e.target.value)}
+                    onChange={(e) =>
+                      handleAutoTagRuleChange(index, 'tag', e.target.value)
+                    }
                   placeholder="web-lead"
                 />
               </div>
-              
-              <div className="flex items-end md:col-span-1">
+              </div>
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
+                size="icon"
                   onClick={() => removeAutoTagRule(index)}
                 >
-                  &times;
+                <X className="h-4 w-4" />
                 </Button>
-              </div>
             </div>
           ))}
-          
+        </div>
           <Button
             type="button"
             variant="outline"
-            size="sm"
             onClick={addAutoTagRule}
           >
-            + Add Tag Rule
+          Add Tag Rule
           </Button>
         </CardContent>
       </Card>
+  );
       
+  const renderAdvancedSettingsStep = () => {
+    console.log("Rendering advanced settings step with conditionalRules:", conditionalRules);
+    
+    return (
       <Card>
         <CardHeader>
           <CardTitle>Advanced Settings</CardTitle>
           <CardDescription>
-            Configure security and additional options for your webhook.
+            Configure additional settings for your webhook.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="autoEnrollJourneyId">Auto-Enroll Journey</Label>
-            <Select
-              value={formData.autoEnrollJourneyId ? formData.autoEnrollJourneyId.toString() : 'none'}
-              onValueChange={(value) => {
-                setFormData(prev => ({
-                  ...prev,
-                  autoEnrollJourneyId: value === 'none' ? null : parseInt(value, 10)
-                }));
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a journey (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None - No auto-enrollment</SelectItem>
-                {availableJourneys.map((journey) => (
-                  <SelectItem key={journey.id} value={journey.id.toString()}>
-                    {journey.name} {!journey.isActive && '(Inactive)'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-gray-500">
-              If selected, leads created from this webhook will be automatically enrolled in the specified journey.
-            </p>
-          </div>
-          
-          <div className="space-y-2 pt-4">
-            <div className="flex justify-between items-center">
-              <Label>Required Headers</Label>
+        <CardContent className="space-y-6">
+          <div className="space-y-4">
+            <h3 className="font-medium">Required Headers</h3>
+            <div className="space-y-4">
+            {requiredHeaders.map((header, index) => (
+                <div key={index} className="flex items-center space-x-2">
+                  <div className="flex-1 grid grid-cols-2 gap-2">
+                    <div className="space-y-2">
+                      <Label>Header Name</Label>
+                  <Input
+                    value={header.key}
+                        onChange={(e) =>
+                          handleRequiredHeaderChange(index, e.target.value, header.value)
+                        }
+                        placeholder="Header name"
+                  />
+                </div>
+                    <div className="space-y-2">
+                      <Label>Header Value</Label>
+                  <Input
+                    value={header.value}
+                        onChange={(e) =>
+                          handleRequiredHeaderChange(index, header.key, e.target.value)
+                        }
+                        placeholder="Header value"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeRequiredHeader(index)}
+                    className="mt-6"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={addRequiredHeader}
               >
-                + Add Header
+                Add Header
               </Button>
-            </div>
-            
-            {requiredHeaders.map((header, index) => (
-              <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                <div className="md:col-span-1">
-                  <Input
-                    value={header.key}
-                    onChange={(e) => handleRequiredHeaderChange(index, e.target.value, header.value)}
-                    placeholder="Header name (e.g., X-API-Version)"
-                  />
-                </div>
-                <div className="md:col-span-2 flex gap-2">
-                  <Input
-                    value={header.value}
-                    onChange={(e) => handleRequiredHeaderChange(index, header.key, e.target.value)}
-                    placeholder="Required value"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeRequiredHeader(index)}
-                  >
-                    &times;
-                  </Button>
-                </div>
               </div>
-            ))}
           </div>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>Conditional Rules & Actions</CardTitle>
-          <CardDescription>
-            Set up advanced conditional logic to automatically execute actions when specific conditions are met.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center space-x-3">
+
+          <div className="space-y-4">
+            <h3 className="font-medium">Auto-Enroll in Journey</h3>
+            <Select
+              value={formData.autoEnrollJourneyId?.toString() || "none"}
+              onValueChange={(value) =>
+                setFormData(prev => ({
+                  ...prev,
+                  autoEnrollJourneyId: value === "none" ? null : parseInt(value)
+                }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a journey" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {availableJourneys.map((journey) => (
+                  <SelectItem key={journey.id} value={journey.id.toString()}>
+                    {journey.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="font-medium">Conditional Rules</h3>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
             <Checkbox
               id="enableConditionalRules"
               checked={conditionalRules.enabled}
-              onCheckedChange={(checked) => 
-                setConditionalRules(prev => ({ ...prev, enabled: checked as boolean }))
-              }
-            />
-            <div>
-              <Label htmlFor="enableConditionalRules" className="text-base font-medium">
-                Enable Conditional Processing
-              </Label>
-              <p className="text-sm text-gray-500">
-                When enabled, webhook data will be processed through conditional rules before creating leads
-              </p>
+                  onCheckedChange={(checked) => {
+                    console.log("Setting conditionalRules.enabled to:", checked);
+                    setConditionalRules(prev => ({
+                      ...prev,
+                      enabled: !!checked
+                    }));
+                  }}
+                />
+                <Label htmlFor="enableConditionalRules">Enable Conditional Rules</Label>
             </div>
-          </div>
-
           {conditionalRules.enabled && (
-            <div className="space-y-6 border-t pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-sm font-medium">Logic Operator</h4>
-                  <p className="text-xs text-gray-500">How condition sets should be evaluated</p>
-                </div>
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Label>Logic Operator</Label>
                 <Select
                   value={conditionalRules.logicOperator}
-                  onValueChange={(value: 'AND' | 'OR') => 
-                    setConditionalRules(prev => ({ ...prev, logicOperator: value }))
-                  }
+                      onValueChange={(value) => {
+                        console.log("Setting logicOperator to:", value);
+                        setConditionalRules(prev => ({
+                          ...prev,
+                          logicOperator: value as 'AND' | 'OR'
+                        }));
+                      }}
                 >
                   <SelectTrigger className="w-32">
-                    <SelectValue />
+                        <SelectValue placeholder="Select operator" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="AND">AND</SelectItem>
@@ -1205,133 +2340,96 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                 </Select>
               </div>
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-medium">Condition Sets</h4>
+                  {conditionalRules.conditionSets.length === 0 ? (
+                    <div className="p-8 text-center border rounded-lg">
+                      <p className="text-muted-foreground mb-4">No condition sets defined yet</p>
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
                     onClick={addConditionSet}
                   >
-                    + Add Condition Set
+                        Add Your First Condition Set
                   </Button>
                 </div>
-
-                {conditionalRules.conditionSets.map((conditionSet, setIndex) => (
-                  <Card key={setIndex} className="border-2 border-dashed">
-                    <CardHeader className="pb-3">
+                  ) : (
+                    <div className="space-y-4">
+                      {conditionalRules.conditionSets.map((set, setIndex) => (
+                        <div key={setIndex} className="space-y-4 p-4 border rounded-lg">
                       <div className="flex items-center justify-between">
-                        <Input
-                          value={conditionSet.name}
-                          onChange={(e) => updateConditionSet(setIndex, 'name', e.target.value)}
-                          placeholder="Condition Set Name"
-                          className="max-w-md"
-                        />
+                            <h4 className="font-medium">Condition Set {setIndex + 1}</h4>
                         <Button
                           type="button"
                           variant="ghost"
-                          size="sm"
+                              size="icon"
                           onClick={() => removeConditionSet(setIndex)}
                         >
-                          Remove Set
+                              <X className="h-4 w-4" />
                         </Button>
                       </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {/* Conditions */}
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center space-x-2">
-                            <h5 className="text-sm font-medium">Conditions</h5>
-                            {availableWebhookFields.length > 0 && (
-                              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                                {availableWebhookFields.length} fields available
-                              </span>
-                            )}
-                            {isEdit && webhookId && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={fetchWebhookFields}
-                                className="text-xs px-2 py-1 h-6"
-                                title="Refresh available fields from recent webhook events"
-                              >
-                                ↻
-                              </Button>
-                            )}
-                          </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => addCondition(setIndex)}
-                          >
-                            + Add Condition
-                          </Button>
-                        </div>
-
-                        {availableWebhookFields.length > 0 && (
-                          <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                            <p className="text-xs text-blue-700">
-                              💡 Field names are populated from recent webhook data. Select from dropdown or enter custom field names.
-                            </p>
-                          </div>
-                        )}
-
-                        {conditionSet.conditions.map((condition, conditionIndex) => (
-                          <div key={conditionIndex} className="grid grid-cols-12 gap-2 items-center mb-2 p-3 bg-gray-50 rounded-lg">
-                            <div className="col-span-3">
-                              {availableWebhookFields.length > 0 ? (
-                                <div className="space-y-1">
-                                  <Select
-                                    value={availableWebhookFields.includes(condition.field) ? condition.field : '__manual__'}
-                                    onValueChange={(value) => {
-                                      if (value === '__manual__') {
-                                        updateCondition(setIndex, conditionIndex, 'field', '');
-                                      } else {
-                                        updateCondition(setIndex, conditionIndex, 'field', value);
+                          <div className="space-y-4">
+                            {set.conditions.map((condition, conditionIndex) => (
+                              <div key={conditionIndex} className="space-y-2">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                                  <div className="space-y-2">
+                                    <Label>Field</Label>
+                                    <Input
+                                      value={condition.field}
+                                      onChange={(e) =>
+                                        updateCondition(setIndex, conditionIndex, 'field', e.target.value)
                                       }
-                                    }}
+                                      placeholder="Field name"
+                                    />
+                          </div>
+                                  <div className="space-y-2">
+                                    <Label>Operator</Label>
+                                  <Select
+                                      value={condition.operator || "equals"}
+                                      onValueChange={(value) =>
+                                        updateCondition(setIndex, conditionIndex, 'operator', value)
+                                      }
                                   >
                                     <SelectTrigger>
-                                      <SelectValue placeholder="Select field from webhook data" />
+                                        <SelectValue placeholder="Select operator" />
                                     </SelectTrigger>
-                                    <SelectContent className="max-h-48 overflow-y-auto">
-                                      <SelectItem value="__manual__">
-                                        <span className="text-gray-500">Manual entry...</span>
-                                      </SelectItem>
-                                      {availableWebhookFields.map(field => (
-                                        <SelectItem key={field} value={field}>
-                                          <code className="text-xs bg-gray-100 px-1 rounded">{field}</code>
-                                        </SelectItem>
-                                      ))}
+                                      <SelectContent>
+                                        <SelectItem value="equals">Equals</SelectItem>
+                                        <SelectItem value="not_equals">Not Equals</SelectItem>
+                                        <SelectItem value="contains">Contains</SelectItem>
+                                        <SelectItem value="not_contains">Not Contains</SelectItem>
+                                        <SelectItem value="starts_with">Starts With</SelectItem>
+                                        <SelectItem value="ends_with">Ends With</SelectItem>
+                                        <SelectItem value="greater_than">Greater Than</SelectItem>
+                                        <SelectItem value="less_than">Less Than</SelectItem>
+                                        <SelectItem value="greater_than_or_equal">Greater Than or Equal</SelectItem>
+                                        <SelectItem value="less_than_or_equal">Less Than or Equal</SelectItem>
+                                        <SelectItem value="exists">Exists</SelectItem>
+                                        <SelectItem value="not_exists">Not Exists</SelectItem>
+                                        <SelectItem value="is_empty">Is Empty</SelectItem>
+                                        <SelectItem value="is_not_empty">Is Not Empty</SelectItem>
+                                        <SelectItem value="regex_match">Regex Match</SelectItem>
                                     </SelectContent>
                                   </Select>
-                                  {!availableWebhookFields.includes(condition.field) && (
-                                    <Input
-                                      placeholder="Enter custom field name"
-                                      value={condition.field}
-                                      onChange={(e) => updateCondition(setIndex, conditionIndex, 'field', e.target.value)}
-                                    />
-                                  )}
                                 </div>
-                              ) : (
+                                  <div className="space-y-2">
+                                    <Label>Value</Label>
                                 <Input
-                                  placeholder="Field (e.g., budget)"
-                                  value={condition.field}
-                                  onChange={(e) => updateCondition(setIndex, conditionIndex, 'field', e.target.value)}
-                                />
-                              )}
+                                      value={condition.value || ''}
+                                      onChange={(e) =>
+                                        updateCondition(setIndex, conditionIndex, 'value', e.target.value)
+                                      }
+                                      placeholder="Value"
+                                    />
                             </div>
-                            <div className="col-span-2">
+                                  <div className="space-y-2">
+                                    <Label>Data Type</Label>
                               <Select
-                                value={condition.dataType}
-                                onValueChange={(value) => updateCondition(setIndex, conditionIndex, 'dataType', value)}
+                                      value={condition.dataType || "string"}
+                                      onValueChange={(value) =>
+                                        updateCondition(setIndex, conditionIndex, 'dataType', value)
+                                      }
                               >
                                 <SelectTrigger>
-                                  <SelectValue />
+                                        <SelectValue placeholder="Select type" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="string">String</SelectItem>
@@ -1342,94 +2440,60 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                                 </SelectContent>
                               </Select>
                             </div>
-                            <div className="col-span-2">
-                              <Select
-                                value={condition.operator}
-                                onValueChange={(value) => updateCondition(setIndex, conditionIndex, 'operator', value)}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {conditionOperators
-                                    .filter(op => op.dataTypes.includes(condition.dataType))
-                                    .map(op => (
-                                      <SelectItem key={op.value} value={op.value}>
-                                        {op.label}
-                                      </SelectItem>
-                                    ))}
-                                </SelectContent>
-                              </Select>
                             </div>
-                            <div className="col-span-4">
-                              {['exists', 'not_exists', 'is_empty', 'is_not_empty'].includes(condition.operator) ? (
-                                <div className="text-sm text-gray-500 italic">No value required</div>
-                              ) : (
-                                <Input
-                                  placeholder="Value"
-                                  value={condition.value}
-                                  onChange={(e) => {
-                                    let value = e.target.value;
-                                    if (condition.dataType === 'number') {
-                                      value = value === '' ? '' : Number(value);
-                                    } else if (condition.dataType === 'boolean') {
-                                      value = value === 'true';
-                                    }
-                                    updateCondition(setIndex, conditionIndex, 'value', value);
-                                  }}
-                                />
-                              )}
-                            </div>
-                            <div className="col-span-1">
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => removeCondition(setIndex, conditionIndex)}
                               >
-                                ×
+                                  Remove Condition
                               </Button>
-                            </div>
                           </div>
                         ))}
-                      </div>
-
-                      {/* Actions */}
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <h5 className="text-sm font-medium">Actions</h5>
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            onClick={() => addAction(setIndex)}
+                              onClick={() => addCondition(setIndex)}
                           >
-                            + Add Action
+                              Add Condition
                           </Button>
                         </div>
 
-                        {conditionSet.actions.map((action, actionIndex) => (
-                          <div key={actionIndex} className={`border rounded-lg p-4 space-y-3 ${
-                            action.type === 'delete_lead' 
-                              ? 'bg-red-50 border-red-200' 
-                              : 'bg-blue-50'
-                          }`}>
-                            <div className="flex items-center justify-between">
+                          <div className="space-y-4 mt-6">
+                            <h4 className="font-medium">Actions</h4>
+                            {set.actions && set.actions.map((action, actionIndex) => (
+                              <div key={actionIndex} className="space-y-2 border-t pt-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <Label>Action Type</Label>
                               <Select
-                                value={action.type}
-                                onValueChange={(value) => updateAction(setIndex, actionIndex, 'type', value)}
-                              >
-                                <SelectTrigger className="max-w-xs">
-                                  <SelectValue />
+                                      value={action.type || "create_lead"}
+                                      onValueChange={(value) =>
+                                        updateAction(setIndex, actionIndex, 'type', value)
+                                      }
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select action" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {actionTypes.map(type => (
-                                    <SelectItem key={type.value} value={type.value}>
-                                      {type.label}
-                                    </SelectItem>
-                                  ))}
+                                        <SelectItem value="create_lead">Create Lead</SelectItem>
+                                        <SelectItem value="update_lead">Update Lead</SelectItem>
+                                        <SelectItem value="delete_lead">Delete Lead</SelectItem>
+                                        <SelectItem value="send_notification">Send Notification</SelectItem>
+                                        <SelectItem value="enroll_journey">Enroll in Journey</SelectItem>
+                                        <SelectItem value="call_webhook">Call Webhook</SelectItem>
+                                        <SelectItem value="set_tags">Set Tags</SelectItem>
+                                        <SelectItem value="create_task">Create Task</SelectItem>
                                 </SelectContent>
                               </Select>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>Action Configuration</Label>
+                                    {getActionConfigFields(action.type, setIndex, actionIndex)}
+                                  </div>
+                                </div>
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -1439,103 +2503,98 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                                 Remove Action
                               </Button>
                             </div>
-
-                            {action.type === 'delete_lead' && (
-                              <div className="flex items-center space-x-2 p-2 bg-red-100 border border-red-300 rounded">
-                                <span className="text-red-600 font-bold">⚠️</span>
-                                <span className="text-xs text-red-700 font-medium">
-                                  WARNING: This action will permanently delete leads from your system. Use with caution.
-                                </span>
-                              </div>
-                            )}
-
-                            <div className={`text-xs ${
-                              action.type === 'delete_lead' ? 'text-red-600' : 'text-gray-600'
-                            }`}>
-                              {actionTypes.find(t => t.value === action.type)?.description}
-                            </div>
-
-                            {/* Action Configuration */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {getActionConfigFields(action.type).map(field => (
-                                <div key={field.name} className="space-y-1">
-                                  <Label className="text-xs">{field.label}</Label>
-                                  {field.type === 'select' ? (
-                                    <Select
-                                      value={action.config[field.key] || ''}
-                                      onValueChange={(value) => {
-                                        const newConfig = { ...action.config, [field.key]: value };
-                                        updateAction(setIndex, actionIndex, 'config', newConfig);
-                                      }}
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue placeholder={`Select ${field.label}`} />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {field.options?.map(option => (
-                                          <SelectItem key={option.value} value={option.value.toString()}>
-                                            {option.label}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  ) : field.type === 'textarea' ? (
-                                    <textarea
-                                      className="w-full p-2 text-xs border rounded resize-none"
-                                      rows={2}
-                                      placeholder={field.placeholder}
-                                      value={action.config[field.key] || ''}
-                                      onChange={(e) => {
-                                        const newConfig = { ...action.config, [field.key]: e.target.value };
-                                        updateAction(setIndex, actionIndex, 'config', newConfig);
-                                      }}
-                                    />
-                                  ) : (
-                                    <Input
-                                      className="text-xs"
-                                      placeholder={field.placeholder}
-                                      value={action.config[field.key] || ''}
-                                      onChange={(e) => {
-                                        const newConfig = { ...action.config, [field.key]: e.target.value };
-                                        updateAction(setIndex, actionIndex, 'config', newConfig);
-                                      }}
-                                    />
-                                  )}
-                                </div>
-                              ))}
+                            ))}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => addAction(setIndex)}
+                            >
+                              Add Action
+                            </Button>
                             </div>
                           </div>
                         ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addConditionSet}
+                      >
+                        Add Condition Set
+                      </Button>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-
-                {conditionalRules.conditionSets.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <p>No condition sets configured</p>
-                    <p className="text-sm">Add a condition set to start creating conditional rules</p>
+                  )}
                   </div>
                 )}
               </div>
             </div>
-          )}
         </CardContent>
       </Card>
-      
-      <div className="flex justify-end gap-4">
+    );
+  };
+
+  const renderCurrentStep = () => {
+    console.log(`Rendering step ${currentStep} of ${steps.length}`);
+    
+    switch (currentStep) {
+      case 1:
+        return renderBasicInfoStep();
+      case 2:
+        return renderWebhookTypeStep();
+      case 3:
+        return renderFieldMappingStep();
+      case 4:
+        return renderValidationRulesStep();
+      case 5:
+        return renderAutoTagStep();
+      case 6:
+        return renderAdvancedSettingsStep();
+      default:
+        console.error(`Invalid step: ${currentStep}`);
+        return renderBasicInfoStep();
+    }
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      {renderStepIndicator()}
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {renderCurrentStep()}
+        
+        <div className="flex justify-between gap-4">
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.push('/webhooks')}
-          disabled={saving}
-        >
-          Cancel
+            onClick={() => {
+              if (currentStep > 1) {
+                console.log(`Moving to previous step: ${currentStep - 1}`);
+                setCurrentStep(currentStep - 1);
+              } else {
+                router.push('/webhooks');
+              }
+            }}
+          >
+            {currentStep === 1 ? 'Cancel' : 'Previous'}
         </Button>
+          
+          {currentStep < steps.length ? (
+            <Button
+              type="button"
+              onClick={() => {
+                console.log(`Moving to next step: ${currentStep + 1}`);
+                setCurrentStep(currentStep + 1);
+              }}
+            >
+              Next
+            </Button>
+          ) : (
         <Button type="submit" disabled={saving}>
           {saving ? 'Saving...' : isEdit ? 'Update Webhook' : 'Create Webhook'}
         </Button>
+          )}
       </div>
     </form>
+    </div>
   );
 } 

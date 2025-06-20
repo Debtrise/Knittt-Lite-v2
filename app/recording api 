@@ -1,0 +1,828 @@
+# Recording Management API Documentation
+
+## Overview
+The Recording Management API provides comprehensive functionality for managing audio recordings, including Eleven Labs text-to-speech integration, SSH Asterisk deployment, usage analytics, and voice management.
+
+All endpoints require authentication via JWT token in the Authorization header: `Authorization: Bearer <token>`
+
+## Base URL
+All endpoints are prefixed with `/api`
+
+---
+
+## Core Recording Management
+
+### List Recordings
+```http
+GET /recordings
+```
+
+**Query Parameters:**
+- `type` (string, optional): Filter by recording type
+- `isActive` (boolean, optional): Filter by active status
+- `page` (integer, optional): Page number (default: 1)
+- `limit` (integer, optional): Records per page (default: 50)
+
+**Response:**
+```json
+{
+  "recordings": [
+    {
+      "id": 1,
+      "name": "Welcome Message",
+      "text": "Welcome to our service",
+      "type": "greeting",
+      "isActive": true,
+      "fileUrl": "/recordings/tenant_1_1_timestamp.mp3",
+      "fileName": "tenant_1_1_timestamp.mp3",
+      "fileSize": 45632,
+      "generatedAt": "2024-01-15T10:30:00Z",
+      "asteriskStatus": "deployed",
+      "usageCount": 12,
+      "elevenLabsVoiceId": "21m00Tcm4TlvDq8ikWAM"
+    }
+  ],
+  "totalCount": 25,
+  "currentPage": 1,
+  "totalPages": 1
+}
+```
+
+### Get Single Recording
+```http
+GET /recordings/{id}
+```
+
+**Response:**
+```json
+{
+  "id": 1,
+  "name": "Welcome Message",
+  "text": "Welcome to our service",
+  "type": "greeting",
+  "isActive": true,
+  "fileUrl": "/recordings/tenant_1_1_timestamp.mp3",
+  "fileName": "tenant_1_1_timestamp.mp3",
+  "fileSize": 45632,
+  "generatedAt": "2024-01-15T10:30:00Z",
+  "asteriskStatus": "deployed",
+  "asteriskPath": "tenant_1_1.mp3",
+  "remoteFilePath": "/var/lib/asterisk/sounds/custom/tenant_1_1.mp3",
+  "usageCount": 12,
+  "elevenLabsVoiceId": "21m00Tcm4TlvDq8ikWAM"
+}
+```
+
+### Create Recording
+```http
+POST /recordings
+```
+
+**Request Body:**
+```json
+{
+  "name": "New Recording",
+  "text": "This is the text to convert to speech",
+  "type": "announcement",
+  "elevenLabsVoiceId": "21m00Tcm4TlvDq8ikWAM",
+  "description": "Optional description",
+  "isActive": true
+}
+```
+
+**Response:**
+```json
+{
+  "id": 2,
+  "name": "New Recording",
+  "text": "This is the text to convert to speech",
+  "type": "announcement",
+  "asteriskStatus": "not_deployed",
+  "remoteDeployStatus": "pending",
+  "createdAt": "2024-01-15T10:30:00Z"
+}
+```
+
+### Update Recording
+```http
+PUT /recordings/{id}
+```
+
+**Request Body:**
+```json
+{
+  "name": "Updated Recording Name",
+  "text": "Updated text content",
+  "elevenLabsVoiceId": "new_voice_id",
+  "isActive": false
+}
+```
+
+### Delete Recording
+```http
+DELETE /recordings/{id}
+```
+
+**Response:**
+```json
+{
+  "message": "Recording deleted successfully",
+  "deletedFromAsterisk": true,
+  "deletedFile": "/recordings/tenant_1_1_timestamp.mp3"
+}
+```
+
+---
+
+## Bulk Operations
+
+### Bulk Actions
+```http
+POST /recordings/bulk/{action}
+```
+
+**Actions:** `deploy-to-asterisk`, `generate-audio`, `delete`
+
+**Request Body:**
+```json
+{
+  "recordingIds": [1, 2, 3],
+  "options": {
+    "force": true
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "action": "generate-audio",
+  "totalRecordings": 3,
+  "successful": 2,
+  "failed": 1,
+  "results": [
+    {
+      "recordingId": 1,
+      "success": true,
+      "result": {
+        "fileName": "tenant_1_1_timestamp.mp3",
+        "fileSize": 45632
+      }
+    }
+  ],
+  "errors": [
+    {
+      "recordingId": 3,
+      "error": "No text provided for audio generation"
+    }
+  ]
+}
+```
+
+---
+
+## Audio Generation & File Management
+
+### Generate Audio
+```http
+POST /recordings/{id}/generate
+```
+
+**Response:**
+```json
+{
+  "id": 1,
+  "fileName": "tenant_1_1_timestamp.mp3",
+  "fileUrl": "/recordings/tenant_1_1_timestamp.mp3",
+  "fileSize": 45632,
+  "generatedAt": "2024-01-15T10:30:00Z",
+  "message": "Audio generated successfully"
+}
+```
+
+### Upload Audio File
+```http
+POST /recordings/{id}/upload
+```
+
+**Request:** Multipart form data with `audio` file field
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "File uploaded successfully",
+  "recording": {
+    "id": 1,
+    "fileName": "uploaded_file.mp3",
+    "fileSize": 45632,
+    "generatedAt": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+### Serve Audio File
+```http
+GET /recordings/{id}/audio
+```
+
+**Response:** Audio file stream with appropriate headers
+
+### Stream Audio (Real-time from Eleven Labs)
+```http
+GET /recordings/{id}/stream
+```
+
+**Response:** Audio stream directly from Eleven Labs API
+
+---
+
+## Preview & Testing
+
+### Generate Preview
+```http
+POST /recordings/preview
+```
+
+**Request Body:**
+```json
+{
+  "text": "This is a preview test",
+  "voiceId": "21m00Tcm4TlvDq8ikWAM"
+}
+```
+
+**Response:**
+```json
+{
+  "audioUrl": "/api/recordings/preview/cache/abc123hash",
+  "cacheKey": "abc123hash",
+  "cached": false,
+  "expiresAt": "2024-01-15T11:30:00Z",
+  "charactersUsed": 22
+}
+```
+
+### Serve Cached Preview
+```http
+GET /recordings/preview/cache/{cacheKey}
+```
+
+**Response:** Cached audio file
+
+---
+
+## SSH/Asterisk Integration
+
+### Deploy to Asterisk
+```http
+POST /recordings/{id}/deploy-to-asterisk
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "asteriskPath": "tenant_1_1.mp3",
+  "remoteFilePath": "/var/lib/asterisk/sounds/custom/tenant_1_1.mp3",
+  "deployedAt": "2024-01-15T10:30:00Z",
+  "fileInfo": "SUCCESS: -rw-r--r-- 1 asterisk asterisk 45K Jan 15 10:30 tenant_1_1.mp3",
+  "message": "Recording deployed to remote Asterisk server successfully"
+}
+```
+
+### Test SSH Connection
+```http
+POST /recordings/test-asterisk-ssh
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "SSH connection successful",
+  "host": "34.29.105.211",
+  "output": "SSH connection test successful"
+}
+```
+
+### List Remote Recordings
+```http
+GET /recordings/asterisk/list
+```
+
+**Response:**
+```json
+{
+  "recordings": [
+    {
+      "filename": "tenant_1_1.mp3",
+      "size": "45K",
+      "lastModified": "Jan 15 10:30",
+      "fullPath": "/var/lib/asterisk/sounds/custom/tenant_1_1.mp3"
+    }
+  ]
+}
+```
+
+### Setup Remote Server
+```http
+POST /recordings/asterisk/setup
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Remote server setup completed",
+  "output": "Setup complete:\ndrwxr-xr-x 2 asterisk asterisk 4096 Jan 15 10:30 custom"
+}
+```
+
+### Get Asterisk Playback Path
+```http
+GET /recordings/{id}/asterisk-path
+```
+
+**Response:**
+```json
+{
+  "asteriskPath": "custom/tenant_1_1",
+  "fullPath": "/var/lib/asterisk/sounds/custom/tenant_1_1.mp3",
+  "deployedAt": "2024-01-15T10:30:00Z",
+  "status": "deployed"
+}
+```
+
+---
+
+## Analytics & Usage Tracking
+
+### Get Recording Analytics
+```http
+GET /recordings/{id}/analytics?startDate=2024-01-01&endDate=2024-01-31
+```
+
+**Response:**
+```json
+{
+  "recordingId": 1,
+  "period": {
+    "startDate": "2024-01-01",
+    "endDate": "2024-01-31"
+  },
+  "analytics": [
+    {
+      "date": "2024-01-15",
+      "usageCount": 5,
+      "totalDuration": 120
+    }
+  ]
+}
+```
+
+### Get Usage History
+```http
+GET /recordings/{id}/usage?page=1&limit=50
+```
+
+**Response:**
+```json
+{
+  "usage": [
+    {
+      "id": 1,
+      "usedAt": "2024-01-15T10:30:00Z",
+      "context": "audio_download",
+      "userAgent": "Mozilla/5.0...",
+      "ip": "192.168.1.1"
+    }
+  ],
+  "totalCount": 25,
+  "currentPage": 1,
+  "totalPages": 1
+}
+```
+
+### Track Usage
+```http
+POST /recordings/{id}/track-usage
+```
+
+**Request Body:**
+```json
+{
+  "context": "dialplan_playback",
+  "metadata": {
+    "callId": "call_123",
+    "extension": "1001"
+  }
+}
+```
+
+---
+
+## Recording Templates
+
+### List Templates
+```http
+GET /recording-templates?category=greeting&isActive=true&page=1&limit=50
+```
+
+**Response:**
+```json
+{
+  "templates": [
+    {
+      "id": 1,
+      "name": "Welcome Template",
+      "category": "greeting",
+      "textTemplate": "Welcome {{customerName}} to {{companyName}}",
+      "defaultVoiceId": "21m00Tcm4TlvDq8ikWAM",
+      "isActive": true
+    }
+  ],
+  "totalCount": 5,
+  "currentPage": 1,
+  "totalPages": 1
+}
+```
+
+### Get Template
+```http
+GET /recording-templates/{id}
+```
+
+### Create Template
+```http
+POST /recording-templates
+```
+
+**Request Body:**
+```json
+{
+  "name": "New Template",
+  "category": "announcement",
+  "textTemplate": "Hello {{name}}, your appointment is on {{date}}",
+  "defaultVoiceId": "21m00Tcm4TlvDq8ikWAM",
+  "description": "Appointment reminder template",
+  "isActive": true
+}
+```
+
+### Update Template
+```http
+PUT /recording-templates/{id}
+```
+
+### Delete Template
+```http
+DELETE /recording-templates/{id}
+```
+
+### Generate from Template
+```http
+POST /recording-templates/{id}/generate
+```
+
+**Request Body:**
+```json
+{
+  "name": "John's Appointment Reminder",
+  "variables": {
+    "name": "John Doe",
+    "date": "January 20th at 2 PM"
+  },
+  "voiceId": "21m00Tcm4TlvDq8ikWAM"
+}
+```
+
+---
+
+## Eleven Labs Configuration
+
+### Get Configuration
+```http
+GET /recordings/config/elevenlabs
+```
+
+**Response:**
+```json
+{
+  "id": 1,
+  "tenantId": "tenant_1",
+  "apiKey": "***HIDDEN***",
+  "defaultVoiceId": "21m00Tcm4TlvDq8ikWAM",
+  "monthlyCharacterLimit": 10000,
+  "charactersUsedThisMonth": 2500,
+  "voiceSettings": {
+    "stability": 0.5,
+    "similarity_boost": 0.8
+  }
+}
+```
+
+### Update Configuration
+```http
+PUT /recordings/config/elevenlabs
+```
+
+**Request Body:**
+```json
+{
+  "apiKey": "your_eleven_labs_api_key",
+  "defaultVoiceId": "21m00Tcm4TlvDq8ikWAM",
+  "monthlyCharacterLimit": 20000,
+  "voiceSettings": {
+    "stability": 0.6,
+    "similarity_boost": 0.9
+  }
+}
+```
+
+---
+
+## Enhanced Eleven Labs Features
+
+### Test API Connection
+```http
+POST /recordings/config/elevenlabs/test-connection
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Eleven Labs API connection successful",
+  "apiKeyValid": true,
+  "subscriptionActive": true,
+  "characterQuota": {
+    "remaining": 7500,
+    "total": 10000
+  },
+  "voicesAvailable": 29,
+  "responseTime": 245
+}
+```
+
+### Get Available Voices
+```http
+GET /recordings/config/elevenlabs/voices
+```
+
+**Response:**
+```json
+{
+  "voices": [
+    {
+      "voice_id": "21m00Tcm4TlvDq8ikWAM",
+      "name": "Rachel",
+      "category": "premade",
+      "description": "Young American female voice",
+      "preview_url": "https://...",
+      "labels": {
+        "accent": "american",
+        "age": "young",
+        "gender": "female"
+      }
+    }
+  ],
+  "totalCount": 29,
+  "defaultVoiceId": "21m00Tcm4TlvDq8ikWAM"
+}
+```
+
+### Get Voice Details
+```http
+GET /recordings/config/elevenlabs/voices/{voiceId}
+```
+
+**Response:**
+```json
+{
+  "voice_id": "21m00Tcm4TlvDq8ikWAM",
+  "name": "Rachel",
+  "category": "premade",
+  "labels": {
+    "accent": "american",
+    "age": "young",
+    "gender": "female",
+    "description": "Calm, confident American female voice"
+  },
+  "preview_url": "https://...",
+  "available_for_tiers": ["free", "starter", "growing"]
+}
+```
+
+### Test Voice
+```http
+POST /recordings/config/elevenlabs/test-voice
+```
+
+**Request Body:**
+```json
+{
+  "voiceId": "21m00Tcm4TlvDq8ikWAM",
+  "text": "Hello, this is a test of this voice."
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "audioUrl": "/api/recordings/preview/cache/test_abc123",
+  "voiceId": "21m00Tcm4TlvDq8ikWAM",
+  "text": "Hello, this is a test of this voice.",
+  "charactersUsed": 37,
+  "message": "Voice test successful"
+}
+```
+
+### Get Usage Analytics
+```http
+GET /recordings/config/elevenlabs/usage?period=month
+```
+
+**Query Parameters:**
+- `period`: `today`, `week`, `month` (default: month)
+
+**Response:**
+```json
+{
+  "period": "month",
+  "charactersUsed": 2500,
+  "charactersLimit": 10000,
+  "charactersRemaining": 7500,
+  "usagePercentage": 25.0,
+  "resetDate": "2024-02-01",
+  "daysUntilReset": 16,
+  "dailyAverage": 83.33,
+  "projectedMonthlyUsage": 2500,
+  "willExceedLimit": false,
+  "usage": [
+    {
+      "date": "2024-01-15",
+      "characters": 150,
+      "recordings": 3
+    }
+  ]
+}
+```
+
+### Get Generation History
+```http
+GET /recordings/config/elevenlabs/history?limit=50&page=1
+```
+
+**Response:**
+```json
+{
+  "history": [
+    {
+      "id": 1,
+      "recordingId": 1,
+      "recordingName": "Welcome Message",
+      "text": "Welcome to our service...",
+      "voiceId": "21m00Tcm4TlvDq8ikWAM",
+      "voiceName": "Rachel",
+      "charactersUsed": 25,
+      "generatedAt": "2024-01-15T10:30:00Z",
+      "type": "recording"
+    }
+  ],
+  "totalCount": 15,
+  "currentPage": 1,
+  "totalPages": 1
+}
+```
+
+### Batch Generate
+```http
+POST /recordings/config/elevenlabs/batch-generate
+```
+
+**Request Body:**
+```json
+{
+  "recordings": [
+    {
+      "recordingId": 1,
+      "voiceId": "21m00Tcm4TlvDq8ikWAM"
+    },
+    {
+      "recordingId": 2,
+      "voiceId": "voice_id_2"
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "batchId": "batch_1642250400_a1b2c3d4",
+  "totalRecordings": 2,
+  "successful": 2,
+  "failed": 0,
+  "estimatedCharacters": 150,
+  "actualCharacters": 147,
+  "status": "completed",
+  "results": [
+    {
+      "recordingId": 1,
+      "status": "completed",
+      "charactersUsed": 75,
+      "fileName": "tenant_1_1_timestamp.mp3",
+      "generatedAt": "2024-01-15T10:30:00Z"
+    }
+  ]
+}
+```
+
+### Validate Voice ID
+```http
+POST /recordings/config/elevenlabs/validate-voice
+```
+
+**Request Body:**
+```json
+{
+  "voiceId": "21m00Tcm4TlvDq8ikWAM"
+}
+```
+
+**Response:**
+```json
+{
+  "valid": true,
+  "voice": {
+    "voice_id": "21m00Tcm4TlvDq8ikWAM",
+    "name": "Rachel",
+    "category": "premade"
+  },
+  "message": "Voice ID is valid"
+}
+```
+
+---
+
+## Error Responses
+
+All endpoints may return these common error formats:
+
+### 400 Bad Request
+```json
+{
+  "error": "Invalid voice ID format"
+}
+```
+
+### 401 Unauthorized
+```json
+{
+  "error": "Access denied"
+}
+```
+
+### 404 Not Found
+```json
+{
+  "error": "Recording not found"
+}
+```
+
+### 500 Internal Server Error
+```json
+{
+  "error": "Internal server error",
+  "details": "Specific error details"
+}
+```
+
+---
+
+## Rate Limits
+
+- Preview generation: 100 requests per hour per tenant
+- Voice testing: 50 requests per hour per tenant
+- Batch operations: 10 batches per hour per tenant
+- Character usage: Based on Eleven Labs subscription limits
+
+## File Formats
+
+**Supported upload formats:**
+- MP3, WAV, OGG, M4A, MP4, WebM, FLAC
+- Maximum file size: 10MB
+
+**Generated audio format:**
+- MP3 format from Eleven Labs
+- Asterisk deployment: MP3 converted as needed
+
+## Security Notes
+
+- All API keys are hidden in responses (shown as `***HIDDEN***`)
+- JWT authentication required for all endpoints
+- Tenant isolation enforced on all operations
+- File uploads validated for type and size
+- SSH operations use secure connection methods

@@ -1,0 +1,449 @@
+/api/tracers/search/phone
+Request Body:
+json{
+  "phone": "5303061234",
+  "leadId": 123,  // Optional: Associate with existing lead
+  "skipCache": false  // Optional: Force fresh API call
+}
+Response:
+json{
+  "success": true,
+  "data": {
+    "results": [
+      {
+        "PersonId": "abc123",
+        "FirstName": "John",
+        "MiddleName": "Michael",
+        "LastName": "Doe",
+        "Age": 35,
+        "DOB": "1989-01-15",
+        "Phones": [
+          {
+            "Phone": "5303061234",
+            "Type": "Mobile",
+            "Carrier": "Verizon",
+            "LineType": "Wireless"
+          }
+        ],
+        "Emails": [
+          {
+            "Email": "john.doe@email.com",
+            "Type": "Personal"
+          }
+        ],
+        "Addresses": [
+          {
+            "Address": "123 Main St",
+            "City": "Sacramento",
+            "State": "CA",
+            "Zip": "95814",
+            "County": "Sacramento",
+            "Type": "Current",
+            "DateFirstSeen": "2020-01-01",
+            "DateLastSeen": "2024-01-01"
+          }
+        ],
+        "Relatives": [
+          {
+            "Name": "Jane Doe",
+            "Relationship": "Spouse"
+          }
+        ],
+        "Associates": []
+      }
+    ],
+    "totalResults": 1
+  }
+}
+2. Comprehensive Search
+Search using multiple criteria including name, email, address, etc.
+Endpoint: POST /api/tracers/search
+Request Body:
+json{
+  "searchCriteria": {
+    "FirstName": "John",
+    "LastName": "Doe",
+    "Phone": "5303061234",
+    "Email": "john.doe@email.com",
+    "Addresses": [
+      {
+        "AddressLine1": "123 Main St",
+        "AddressLine2": "Apt 4"
+      }
+    ],
+    "Page": 1,
+    "ResultsPerPage": 10
+  },
+  "leadId": 123,
+  "skipCache": false
+}
+Response: Same format as phone search
+
+Lead Enrichment Endpoints
+3. Enrich Single Lead
+Enrich an existing lead with TracersAPI data.
+Endpoint: POST /api/tracers/enrich-lead/:leadId
+Request Body:
+json{
+  "forceRefresh": false  // Optional: Re-enrich even if recently done
+}
+Response:
+json{
+  "success": true,
+  "enrichment": {
+    "leadId": 123,
+    "tenantId": "tenant_123",
+    "status": "enriched",
+    "confidence": 0.85,
+    "enrichedFields": {
+      "name": true,
+      "age": true,
+      "emails": true,
+      "phones": true,
+      "addresses": true,
+      "relatives": true,
+      "associates": false
+    },
+    "enrichmentData": {
+      "firstName": "John",
+      "middleName": "Michael",
+      "lastName": "Doe",
+      "age": 35,
+      "dateOfBirth": "1989-01-15",
+      "emails": [
+        {
+          "email": "john.doe@email.com",
+          "type": "Personal"
+        }
+      ],
+      "phones": [
+        {
+          "phone": "5303061234",
+          "type": "Mobile",
+          "carrier": "Verizon",
+          "lineType": "Wireless"
+        }
+      ],
+      "addresses": [
+        {
+          "address": "123 Main St",
+          "city": "Sacramento",
+          "state": "CA",
+          "zip": "95814",
+          "county": "Sacramento",
+          "type": "Current"
+        }
+      ],
+      "relatives": [
+        {
+          "name": "Jane Doe",
+          "relationship": "Spouse"
+        }
+      ],
+      "tracersPersonId": "abc123",
+      "lastUpdated": "2024-01-20T10:30:00Z"
+    },
+    "lastEnrichedAt": "2024-01-20T10:30:00Z",
+    "nextEnrichmentDate": "2024-04-20T10:30:00Z"
+  }
+}
+4. Bulk Enrich Leads
+Enrich multiple leads at once (max 50).
+Endpoint: POST /api/tracers/bulk-enrich
+Request Body:
+json{
+  "leadIds": [123, 124, 125]
+}
+Response:
+json{
+  "success": true,
+  "summary": {
+    "total": 3,
+    "successful": 2,
+    "failed": 1
+  },
+  "results": [
+    {
+      "leadId": 123,
+      "status": "success",
+      "enrichment": { /* enrichment data */ }
+    },
+    {
+      "leadId": 124,
+      "status": "success",
+      "enrichment": { /* enrichment data */ }
+    },
+    {
+      "leadId": 125,
+      "status": "error",
+      "error": "Lead has no phone number for enrichment"
+    }
+  ]
+}
+5. Get Lead Enrichment Status
+Check if a lead has been enriched.
+Endpoint: GET /api/tracers/enrichment/:leadId
+Response:
+json{
+  "enriched": true,
+  "enrichment": {
+    "leadId": 123,
+    "status": "enriched",
+    "confidence": 0.85,
+    "lastEnrichedAt": "2024-01-20T10:30:00Z",
+    "enrichmentData": { /* data */ },
+    "tracersSearch": {
+      "id": "uuid-here",
+      "searchType": "phone",
+      "status": "success",
+      "createdAt": "2024-01-20T10:30:00Z"
+    }
+  }
+}
+
+History & Usage Endpoints
+6. Get Search History
+View past searches for your tenant.
+Endpoint: GET /api/tracers/search-history
+Query Parameters:
+
+page (default: 1)
+limit (default: 50)
+leadId - Filter by lead
+status - Filter by status (success, no_results, error)
+startDate - Start date (YYYY-MM-DD)
+endDate - End date (YYYY-MM-DD)
+
+Response:
+json{
+  "searches": [
+    {
+      "id": "uuid-here",
+      "searchType": "phone",
+      "searchPhone": "5303061234",
+      "status": "success",
+      "resultCount": 1,
+      "cost": 0.25,
+      "cacheHit": false,
+      "apiCallDuration": 245,
+      "createdAt": "2024-01-20T10:30:00Z",
+      "lead": {
+        "id": 123,
+        "name": "John Doe",
+        "phone": "+15303061234",
+        "email": "john@example.com"
+      }
+    }
+  ],
+  "totalCount": 150,
+  "currentPage": 1,
+  "totalPages": 3
+}
+7. Get Usage Statistics
+View usage statistics and limits.
+Endpoint: GET /api/tracers/usage
+Query Parameters:
+
+startDate - Start date (YYYY-MM-DD)
+endDate - End date (YYYY-MM-DD)
+
+Response:
+json{
+  "usage": [
+    {
+      "date": "2024-01-20",
+      "searchCount": 25,
+      "successfulSearches": 20,
+      "failedSearches": 2,
+      "noResultSearches": 3,
+      "cacheHits": 5,
+      "totalCost": 5.00,
+      "searchTypes": {
+        "phone": 20,
+        "comprehensive": 5
+      },
+      "peakHour": 14,
+      "uniquePhones": 18
+    }
+  ],
+  "totals": {
+    "searchCount": 250,
+    "successfulSearches": 200,
+    "failedSearches": 20,
+    "noResultSearches": 30,
+    "cacheHits": 50,
+    "totalCost": 50.00
+  },
+  "limits": {
+    "daily": 100,
+    "monthly": 1000
+  },
+  "remaining": {
+    "daily": 75,
+    "monthly": 750
+  }
+}
+8. Get Service Status
+Check if TracersAPI is enabled for your tenant.
+Endpoint: GET /api/tracers/status
+Response:
+json{
+  "enabled": true,
+  "limits": {
+    "daily": 100,
+    "monthly": 1000
+  },
+  "usage": {
+    "today": 25,
+    "todayRemaining": 75
+  },
+  "costPerSearch": 0.25
+}
+
+Admin Endpoints
+9. Test API Connection
+Test the TracersAPI connection (admin only).
+Endpoint: POST /api/tracers/test-connection
+Response:
+json{
+  "success": true,
+  "message": "TracersAPI connection successful",
+  "apiVersion": "1.0"
+}
+10. Manage Tenant Access
+Enable/disable TracersAPI for a tenant (admin only).
+Endpoint: PUT /api/tracers/access/:tenantId
+Request Body:
+json{
+  "isEnabled": true,
+  "dailyLimit": 100,
+  "monthlyLimit": 1000,
+  "costPerSearch": 0.25
+}
+
+Code Examples
+JavaScript/Node.js Example
+javascript// Search by phone
+const searchByPhone = async (phone) => {
+  const response = await fetch('https://your-domain.com/api/tracers/search/phone', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      phone: phone,
+      skipCache: false
+    })
+  });
+  
+  return await response.json();
+};
+
+// Enrich a lead
+const enrichLead = async (leadId) => {
+  const response = await fetch(`https://your-domain.com/api/tracers/enrich-lead/${leadId}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      forceRefresh: false
+    })
+  });
+  
+  return await response.json();
+};
+
+// Usage
+const phoneData = await searchByPhone('5303061234');
+console.log('Found person:', phoneData.data.results[0].FirstName);
+
+const enrichment = await enrichLead(123);
+console.log('Enrichment confidence:', enrichment.enrichment.confidence);
+React Component Example
+jsximport React, { useState } from 'react';
+import axios from 'axios';
+
+const LeadEnrichment = ({ leadId, token }) => {
+  const [loading, setLoading] = useState(false);
+  const [enrichmentData, setEnrichmentData] = useState(null);
+  
+  const enrichLead = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post(
+        `/api/tracers/enrich-lead/${leadId}`,
+        { forceRefresh: false },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+      
+      setEnrichmentData(response.data.enrichment);
+    } catch (error) {
+      console.error('Enrichment failed:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  return (
+    <div>
+      <button onClick={enrichLead} disabled={loading}>
+        {loading ? 'Enriching...' : 'Enrich Lead'}
+      </button>
+      
+      {enrichmentData && (
+        <div>
+          <h3>Enrichment Results</h3>
+          <p>Confidence: {(enrichmentData.confidence * 100).toFixed(0)}%</p>
+          <p>Age: {enrichmentData.enrichmentData.age}</p>
+          <p>Emails: {enrichmentData.enrichmentData.emails.length}</p>
+          <p>Addresses: {enrichmentData.enrichmentData.addresses.length}</p>
+        </div>
+      )}
+    </div>
+  );
+};
+cURL Examples
+bash# Search by phone
+curl -X POST https://your-domain.com/api/tracers/search/phone \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"phone": "5303061234"}'
+
+# Enrich lead
+curl -X POST https://your-domain.com/api/tracers/enrich-lead/123 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"forceRefresh": false}'
+
+# Get usage stats
+curl -X GET "https://your-domain.com/api/tracers/usage?startDate=2024-01-01" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+Error Responses
+All endpoints may return the following error formats:
+json{
+  "error": "TracersAPI access not enabled for this tenant"
+}
+
+{
+  "error": "Daily search limit of 100 reached"
+}
+
+{
+  "error": "Lead has no phone number for enrichment"
+}
+Status codes:
+
+200 - Success
+400 - Bad request / Validation error
+401 - Unauthorized
+403 - Forbidden (admin endpoints)
+404 - Resource not found
+500 - Server error....)__);

@@ -13,7 +13,13 @@ import {
   Layers,
   Route,
   Link2,
-  Mail
+  Mail,
+  Music,
+  Mic,
+  Volume2,
+  ListMusic,
+  Settings2,
+  History
 } from 'lucide-react';
 
 const navigation = [
@@ -94,6 +100,36 @@ const navigation = [
         name: 'Configuration',
         href: '/email/config',
         icon: Settings,
+      },
+    ],
+  },
+  {
+    name: 'Recordings',
+    items: [
+      {
+        name: 'All Recordings',
+        href: '/recordings',
+        icon: ListMusic,
+      },
+      {
+        name: 'Create New',
+        href: '/recordings/create',
+        icon: Mic,
+      },
+      {
+        name: 'Voice Settings',
+        href: '/recordings/config/voice',
+        icon: Volume2,
+      },
+      {
+        name: 'Usage & History',
+        href: '/recordings/config/usage',
+        icon: History,
+      },
+      {
+        name: 'Configuration',
+        href: '/recordings/config',
+        icon: Settings2,
       },
     ],
   },

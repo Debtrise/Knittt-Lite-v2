@@ -25,19 +25,18 @@ export interface RecordingMetadata {
 
 export interface VoiceSettings {
   stability: number;
-  similarityBoost: number;
+  similarity_boost: number;
   style: number;
-  useSpeakerBoost: boolean;
+  use_speaker_boost: boolean;
 }
 
 export interface PreviewResponse {
-  previewId: string;
-  streamUrl: string;
-  characterCount: number;
-  estimatedCost: number;
-  expiresAt: string;
+  success: boolean;
+  audioUrl: string;
   voiceId: string;
-  voiceSettings: VoiceSettings;
+  text: string;
+  charactersUsed: number;
+  message: string;
 }
 
 export interface BatchPreviewResponse {
@@ -69,36 +68,39 @@ export interface StreamingResponse {
 export interface Recording {
   id: string;
   name: string;
-  description: string;
-  type: 'ivr' | 'voicemail' | 'prompt' | 'announcement';
-  scriptText: string;
-  elevenLabsVoiceId: string;
+  description?: string;
+  type: 'tts' | 'upload' | 'template';
+  text?: string;
+  voiceId?: string;
+  fileName?: string;
+  fileUrl?: string;
+  fileSize?: number;
+  generatedAt?: string;
   status: 'pending' | 'generating' | 'ready' | 'failed';
-  audioUrl?: string;
-  metadata?: RecordingMetadata;
+  tags?: string[];
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  // FreePBX fields
-  freepbxStatus?: 'not_configured' | 'pending' | 'uploaded' | 'failed';
-  freepbxRecordingId?: string;
-  freepbxUploadedAt?: string;
-  freepbxError?: string;
-  freepbxAutoUpload?: boolean;
+  metadata?: {
+    originalFileName?: string;
+    uploadedBy?: string;
+    uploadSource?: string;
+  };
 }
 
 export interface Voice {
-  voiceId: string;
+  voice_id: string;
   name: string;
-  category: string;
-  description?: string;
-  previewUrl?: string;
-  labels?: {
-    age?: string;
+  category: 'premade' | 'professional';
+  description: string;
+  preview_url: string;
+  labels: {
     accent?: string;
+    descriptive?: string;
+    age?: string;
     gender?: string;
     language?: string;
     use_case?: string;
-    descriptive?: string;
   };
 }
 
@@ -117,4 +119,201 @@ export interface ElevenLabsUsage {
   can_use_professional_voice_cloning: boolean;
   currency: string;
   status: string;
+}
+
+export interface ElevenLabsConfig {
+  tenantId: string;
+  apiKey: string;
+  defaultVoiceId: string;
+  monthlyCharacterLimit: number;
+  charactersUsedThisMonth: number;
+  lastResetDate: string;
+  voiceSettings: VoiceSettings;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FreePBXRecording {
+  id: string;
+  name: string;
+  description?: string;
+  filename: string;
+  duration?: number;
+  freepbxId: string;
+  originalName: string;
+}
+
+export interface RecordingAnalytics {
+  totalPlays: number;
+  uniqueLeads: number;
+  averagePlayDuration: number;
+  completionRate: number;
+  usageByDate: Array<{
+    date: string;
+    plays: number;
+    uniqueLeads: number;
+    averageDuration: number;
+    completionRate: number;
+  }>;
+}
+
+export interface RecordingUsage {
+  id: number;
+  recordingId: number;
+  tenantId: string;
+  usedAt: string;
+  context: string;
+  callId?: string;
+  leadId?: number;
+  userId?: number;
+  userAgent?: string;
+  ip?: string;
+  duration?: number;
+  completed: boolean;
+  metadata?: Record<string, any>;
+}
+
+export interface RecordingsListResponse {
+  recordings: Recording[];
+  totalCount: number;
+  currentPage: number;
+  totalPages: number;
+}
+
+export interface RecordingCreateRequest {
+  name: string;
+  description: string;
+  text: string;
+  type: 'tts';
+  elevenLabsVoiceId: string;
+  tags?: string[];
+  metadata?: Record<string, any>;
+}
+
+export interface RecordingUpdateRequest {
+  name?: string;
+  description?: string;
+  text?: string;
+  elevenLabsVoiceId?: string;
+  tags?: string[];
+  isActive?: boolean;
+}
+
+export interface FreePBXStatus {
+  online: boolean;
+  serverUrl: string;
+  serverIp: string;
+  lastChecked: string;
+  responseTime: number;
+}
+
+export interface VoiceSettingsInfo {
+  settings: {
+    stability: {
+      description: string;
+      range: [number, number];
+      default: number;
+      current: number;
+    };
+    similarity_boost: {
+      description: string;
+      range: [number, number];
+      default: number;
+      current: number;
+    };
+    style: {
+      description: string;
+      range: [number, number];
+      default: number;
+      current: number;
+    };
+    use_speaker_boost: {
+      description: string;
+      type: 'boolean';
+      default: boolean;
+      current: boolean;
+    };
+  };
+}
+
+export interface VoicePreviewResponse {
+  success: boolean;
+  streamUrl: string;
+  voiceId: string;
+  charactersUsed: number;
+  message: string;
+}
+
+export interface VoiceTestResponse {
+  success: boolean;
+  message: string;
+  apiKeyValid: boolean;
+  subscriptionActive: boolean;
+  characterQuota: {
+    remaining: number;
+    total: number;
+  };
+  voicesAvailable: number;
+  responseTime: number;
+}
+
+export interface VoiceUsageStats {
+  period: string;
+  charactersUsed: number;
+  charactersLimit: number;
+  charactersRemaining: number;
+  usagePercentage: number;
+  resetDate: string;
+  daysUntilReset: number;
+  dailyAverage: number;
+  projectedMonthlyUsage: number;
+  willExceedLimit: boolean;
+  usage: Array<{
+    date: string;
+    characters: number;
+    recordings: number;
+    previews: number;
+  }>;
+}
+
+export interface GenerationHistory {
+  history: Array<{
+    id: number;
+    recordingId?: number;
+    recordingName?: string;
+    text: string;
+    voiceId: string;
+    voiceName: string;
+    charactersUsed: number;
+    generatedAt: string;
+    type: 'recording' | 'preview';
+  }>;
+  totalCount: number;
+  currentPage: number;
+  totalPages: number;
+}
+
+export interface AsteriskRecording {
+  filename: string;
+  size: string;
+  lastModified: string;
+  fullPath: string;
+}
+
+export interface BulkActionResult {
+  action: 'deploy-to-asterisk' | 'generate-audio' | 'delete';
+  totalRecordings: number;
+  successful: number;
+  failed: number;
+  results: Array<{
+    recordingId: string;
+    success: boolean;
+    message: string;
+    error?: string;
+  }>;
+  errors: Array<{
+    recordingId: string;
+    error: string;
+  }>;
 } 
