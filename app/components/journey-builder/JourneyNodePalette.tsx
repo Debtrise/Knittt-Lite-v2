@@ -28,20 +28,6 @@ const stepTypes: StepType[] = [
     category: 'communication'
   },
   {
-    id: 'sms_twilio',
-    name: 'SMS (Twilio)',
-    description: 'Send SMS via Twilio provider',
-    actionType: 'sms_twilio',
-    category: 'communication'
-  },
-  {
-    id: 'sms_meera',
-    name: 'SMS (Meera)',
-    description: 'Send SMS via Meera provider',
-    actionType: 'sms_meera',
-    category: 'communication'
-  },
-  {
     id: 'email',
     name: 'Email',
     description: 'Send automated emails',
@@ -68,41 +54,6 @@ const stepTypes: StepType[] = [
     description: 'Call external API endpoints',
     actionType: 'webhook',
     category: 'integration'
-  },
-  {
-    id: 'wait_for_event',
-    name: 'Wait for Event',
-    description: 'Pause until a specific event occurs',
-    actionType: 'wait_for_event',
-    category: 'flow'
-  },
-  {
-    id: 'conditional_branch',
-    name: 'Conditional Branch',
-    description: 'Split flow based on conditions',
-    actionType: 'conditional_branch',
-    category: 'flow'
-  },
-  {
-    id: 'lead_assignment',
-    name: 'Lead Assignment',
-    description: 'Assign leads to team members',
-    actionType: 'lead_assignment',
-    category: 'management'
-  },
-  {
-    id: 'data_update',
-    name: 'Data Update',
-    description: 'Update lead data fields',
-    actionType: 'data_update',
-    category: 'data'
-  },
-  {
-    id: 'journey_transfer',
-    name: 'Journey Transfer',
-    description: 'Move lead to another journey',
-    actionType: 'journey_transfer',
-    category: 'flow'
   },
   {
     id: 'delay',
@@ -134,8 +85,6 @@ const getStepIcon = (actionType: string) => {
     case 'call':
       return <Phone className="h-4 w-4" />;
     case 'sms':
-    case 'sms_twilio':
-    case 'sms_meera':
       return <MessageSquare className="h-4 w-4" />;
     case 'email':
       return <Mail className="h-4 w-4" />;
@@ -145,16 +94,6 @@ const getStepIcon = (actionType: string) => {
       return <Tag className="h-4 w-4" />;
     case 'webhook':
       return <ExternalLink className="h-4 w-4" />;
-    case 'wait_for_event':
-      return <Clock className="h-4 w-4" />;
-    case 'conditional_branch':
-      return <ArrowRightCircle className="h-4 w-4" />;
-    case 'lead_assignment':
-      return <Users className="h-4 w-4" />;
-    case 'data_update':
-      return <Database className="h-4 w-4" />;
-    case 'journey_transfer':
-      return <RefreshCw className="h-4 w-4" />;
     case 'delay':
       return <Clock className="h-4 w-4" />;
     default:

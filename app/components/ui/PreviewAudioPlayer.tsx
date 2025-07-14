@@ -36,8 +36,22 @@ export function PreviewAudioPlayer({ url, autoPlay = false }: PreviewAudioPlayer
 
     const handleError = (e: any) => {
       console.error('Audio error:', e);
+      console.error('Audio error code:', audio.error?.code);
+      console.error('Audio error message:', audio.error?.message);
+      
       setIsLoading(false);
-      setError('Failed to load audio. Please try again.');
+      
+      // Provide more specific error messages based on the error code
+      if (audio.error?.code === MediaError.MEDIA_ERR_NETWORK) {
+        setError('Network error while loading audio. This might be a CORS issue.');
+        console.error('This is likely a CORS issue. Check server headers.');
+      } else if (audio.error?.code === MediaError.MEDIA_ERR_DECODE) {
+        setError('Audio format not supported by your browser.');
+      } else if (audio.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+        setError('Audio source not supported or not found.');
+      } else {
+        setError('Failed to load audio. Please try again.');
+      }
     };
 
     const handlePlay = () => setIsPlaying(true);
@@ -58,10 +72,26 @@ export function PreviewAudioPlayer({ url, autoPlay = false }: PreviewAudioPlayer
       // If the URL starts with /, it's a relative URL from the API server
       let audioUrl = url;
       if (url.startsWith('/')) {
-        audioUrl = `http://34.122.156.88:3001${url}`;
+        // Use our proxy API route to avoid CORS issues
+        // Remove leading slash if present for the proxy path
+        const path = url.startsWith('/') ? url.substring(1) : url;
+        audioUrl = `/api/proxy/${path}`;
       } else if (!url.startsWith('http')) {
         // If it's not absolute and doesn't start with /, assume it's relative to current origin
         audioUrl = `${window.location.origin}${url.startsWith('/') ? '' : '/'}${url}`;
+      } else {
+        // For absolute URLs, also use the proxy
+        try {
+          const urlObj = new URL(url);
+          // Only proxy URLs from our API server
+          const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://34.122.156.88:3001';
+          if (url.startsWith(apiBase)) {
+            const path = url.replace(apiBase, '').replace(/^\//, '');
+            audioUrl = `/api/proxy/${path}`;
+          }
+        } catch (e) {
+          console.error('Invalid URL:', e);
+        }
       }
       
       console.log('Loading audio from:', audioUrl);
@@ -125,15 +155,16 @@ export function PreviewAudioPlayer({ url, autoPlay = false }: PreviewAudioPlayer
 
   if (error) {
     return (
-      <div className="flex items-center justify-center p-4 bg-red-50 rounded-lg">
+      <div className="flex flex-col items-center justify-center p-4 bg-red-50 rounded-lg">
         <p className="text-red-600 text-sm">{error}</p>
+        <p className="text-xs text-gray-500 mt-1">URL: {url}</p>
       </div>
     );
   }
 
   return (
     <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
-      <audio ref={audioRef} crossOrigin="anonymous" />
+      <audio ref={audioRef} />
       
       <Button
         variant="ghost"

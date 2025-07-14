@@ -20,6 +20,14 @@ import { useToast } from '@/app/components/ui/use-toast';
 import type { Call } from '@/app/lib/api';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/app/components/ui/table';
 import { Badge } from '@/app/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/app/components/ui/dialog';
+
+// Extend window type for search timeout
+declare global {
+  interface Window {
+    leadSearchTimeout: NodeJS.Timeout;
+  }
+}
 
 type CallFormData = {
   to: string;
@@ -118,6 +126,29 @@ export default function CallsPage() {
     description: ''
   });
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
+  
+  // Execute Call Modal State
+  const [showExecuteCallModal, setShowExecuteCallModal] = useState(false);
+  const [executeCallForm, setExecuteCallForm] = useState({
+    leadId: '',
+    transferNumber: '',
+    transferGroupId: 'none',
+    ingroup: 'SALES',
+    skipAgentCheck: false,
+    amd: 'enabled',
+    playPosition: 1,
+    skipPositionAnnouncement: false,
+    ivrFile: '',
+    recordingId: 'none'
+  });
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [transferGroups, setTransferGroups] = useState<any[]>([]);
+  const [recordings, setRecordings] = useState<any[]>([]);
+  const [loadingExecuteCall, setLoadingExecuteCall] = useState(false);
+  const [leadSearchQuery, setLeadSearchQuery] = useState('');
+  const [filteredLeads, setFilteredLeads] = useState<Lead[]>([]);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [showLeadDropdown, setShowLeadDropdown] = useState(false);
 
   const {
     register,
@@ -457,6 +488,198 @@ export default function CallsPage() {
     }
   };
 
+  // Execute Call Modal Functions
+  const fetchLeads = async () => {
+    try {
+      const response = await api.leads.list({ limit: 100, status: 'pending' });
+      setLeads(response.leads || []);
+    } catch (error) {
+      console.error('Error fetching leads:', error);
+    }
+  };
+
+  const fetchTransferGroups = async () => {
+    try {
+      const response = await api.transferGroups.list({ isActive: true, limit: 100 });
+      setTransferGroups(response.data.groups || []);
+    } catch (error) {
+      console.error('Error fetching transfer groups:', error);
+    }
+  };
+
+  const fetchRecordings = async () => {
+    try {
+      const response = await api.recordings.list({ isActive: true, limit: 100 });
+      setRecordings(response.data.recordings || []);
+    } catch (error) {
+      console.error('Error fetching recordings:', error);
+    }
+  };
+
+  // Lead search functionality
+  const searchLeads = async (query: string) => {
+    if (!query.trim()) {
+      setFilteredLeads([]);
+      setShowLeadDropdown(false);
+      return;
+    }
+
+    try {
+      const response = await api.leads.list({ 
+        search: query,
+        limit: 50
+        // Removed status filter to search ALL leads
+      });
+      const searchResults = response.leads || [];
+      setFilteredLeads(searchResults);
+      setShowLeadDropdown(searchResults.length > 0);
+    } catch (error) {
+      console.error('Error searching leads:', error);
+      setFilteredLeads([]);
+      setShowLeadDropdown(false);
+    }
+  };
+
+  const handleLeadSearch = (query: string) => {
+    setLeadSearchQuery(query);
+    setSelectedLead(null);
+    setExecuteCallForm(prev => ({ ...prev, leadId: '' }));
+    
+    // Debounce the search
+    clearTimeout(window.leadSearchTimeout);
+    window.leadSearchTimeout = setTimeout(() => {
+      searchLeads(query);
+    }, 300);
+  };
+
+  const selectLead = (lead: Lead) => {
+    setSelectedLead(lead);
+    setLeadSearchQuery(`${lead.name} - ${lead.phone}`);
+    setExecuteCallForm(prev => ({ ...prev, leadId: lead.id.toString() }));
+    setShowLeadDropdown(false);
+    setFilteredLeads([]);
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('[data-lead-search]')) {
+        setShowLeadDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleExecuteCall = async () => {
+    if (!selectedLead || !executeCallForm.leadId) {
+      toast.error('Please search and select a lead');
+      return;
+    }
+
+    try {
+      setLoadingExecuteCall(true);
+
+      // Prepare the dialplan options object
+      const dialplanOptions: any = {};
+      
+      if (executeCallForm.amd !== 'enabled') {
+        dialplanOptions.amd = executeCallForm.amd;
+      }
+      
+      if (executeCallForm.playPosition !== 1) {
+        dialplanOptions.playPosition = executeCallForm.playPosition;
+      }
+      
+      if (executeCallForm.skipPositionAnnouncement) {
+        dialplanOptions.skipPositionAnnouncement = true;
+      }
+      
+      if (executeCallForm.ivrFile) {
+        dialplanOptions.ivrFile = executeCallForm.ivrFile;
+      }
+      
+      if (executeCallForm.recordingId && executeCallForm.recordingId !== 'none') {
+        dialplanOptions.recordingId = executeCallForm.recordingId;
+      }
+
+      // Prepare the request payload
+      const payload: any = {
+        leadId: parseInt(executeCallForm.leadId),
+        ingroup: executeCallForm.ingroup,
+        skipAgentCheck: executeCallForm.skipAgentCheck
+      };
+
+      // Add optional parameters
+      if (executeCallForm.transferNumber) {
+        payload.transferNumber = executeCallForm.transferNumber;
+      }
+      
+      if (executeCallForm.transferGroupId && executeCallForm.transferGroupId !== 'none') {
+        payload.transferGroupId = parseInt(executeCallForm.transferGroupId);
+      }
+
+      if (Object.keys(dialplanOptions).length > 0) {
+        payload.dialplanOptions = dialplanOptions;
+      }
+
+      console.log('Execute call payload:', payload);
+
+      // Make the API call to the test execute-call endpoint
+      const response = await fetch('http://34.122.156.88:3001/api/test/execute-call', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${useAuthStore.getState().token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to execute call');
+      }
+
+      toast.success('Call execution initiated successfully');
+      console.log('Execute call result:', result);
+      
+      // Close modal and refresh calls
+      setShowExecuteCallModal(false);
+      setExecuteCallForm({
+        leadId: '',
+        transferNumber: '',
+        transferGroupId: '',
+        ingroup: 'SALES',
+        skipAgentCheck: false,
+        amd: 'enabled',
+        playPosition: 1,
+        skipPositionAnnouncement: false,
+        ivrFile: '',
+        recordingId: ''
+      });
+      
+      // Refresh the calls list
+      fetchCalls();
+
+    } catch (error: any) {
+      console.error('Error executing call:', error);
+      toast.error(error.message || 'Failed to execute call');
+    } finally {
+      setLoadingExecuteCall(false);
+    }
+  };
+
+  const openExecuteCallModal = () => {
+    setShowExecuteCallModal(true);
+    // Fetch data when modal opens
+    fetchLeads();
+    fetchTransferGroups();
+    fetchRecordings();
+  };
+
   if (!isAuthenticated) {
     return null;
   }
@@ -467,7 +690,7 @@ export default function CallsPage() {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Calls</h1>
           <div className="flex space-x-4">
-            <Button onClick={() => setActiveTab('make-call')}>Make Call</Button>
+            <Button onClick={openExecuteCallModal}>Make Call</Button>
             <Button onClick={() => setActiveTab('dialplan')}>Dialplan</Button>
           </div>
         </div>
@@ -775,6 +998,224 @@ export default function CallsPage() {
             </div>
           </div>
         )}
+
+        {/* Execute Call Modal */}
+        <Dialog open={showExecuteCallModal} onOpenChange={setShowExecuteCallModal}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Execute Call</DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-6">
+              {/* Required Fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="relative" data-lead-search>
+                  <Label htmlFor="leadSearch">Lead * (Required)</Label>
+                  <Input
+                    id="leadSearch"
+                    type="text"
+                    placeholder="Search leads by name, phone, or email..."
+                    value={leadSearchQuery}
+                    onChange={(e) => handleLeadSearch(e.target.value)}
+                    onFocus={() => {
+                      if (filteredLeads.length > 0) {
+                        setShowLeadDropdown(true);
+                      }
+                    }}
+                    className={selectedLead ? 'border-green-500' : ''}
+                  />
+                  
+                  {/* Search dropdown */}
+                  {showLeadDropdown && filteredLeads.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {filteredLeads.map((lead) => (
+                        <div
+                          key={lead.id}
+                          className="px-4 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                          onClick={() => selectLead(lead)}
+                        >
+                          <div className="font-medium text-sm">{lead.name}</div>
+                          <div className="text-xs text-gray-500">
+                            {lead.phone} • {lead.email} • {lead.status}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Selected lead display */}
+                  {selectedLead && (
+                    <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm">
+                      <div className="font-medium text-green-800">Selected: {selectedLead.name}</div>
+                      <div className="text-green-600">{selectedLead.phone} • {selectedLead.email}</div>
+                    </div>
+                  )}
+                  
+                  {/* No results message */}
+                  {leadSearchQuery && !showLeadDropdown && filteredLeads.length === 0 && leadSearchQuery.length > 2 && (
+                    <div className="mt-1 text-sm text-gray-500">
+                      No leads found. Try a different search term.
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <Label htmlFor="ingroup">Ingroup</Label>
+                  <Input
+                    id="ingroup"
+                    value={executeCallForm.ingroup}
+                    onChange={(e) => setExecuteCallForm(prev => ({ ...prev, ingroup: e.target.value }))}
+                    placeholder="Default: SALES"
+                  />
+                </div>
+              </div>
+
+              {/* Optional Transfer Fields */}
+              <div className="border-t pt-4">
+                <h3 className="text-lg font-medium mb-3">Transfer Options (Optional)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="transferNumber">Transfer Number Override</Label>
+                    <Input
+                      id="transferNumber"
+                      value={executeCallForm.transferNumber}
+                      onChange={(e) => setExecuteCallForm(prev => ({ ...prev, transferNumber: e.target.value }))}
+                      placeholder="e.g., +1234567890"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="transferGroupId">Transfer Group</Label>
+                    <Select
+                      value={executeCallForm.transferGroupId}
+                      onValueChange={(value) => setExecuteCallForm(prev => ({ ...prev, transferGroupId: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select transfer group" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {transferGroups.map((group) => (
+                          <SelectItem key={group.id} value={group.id.toString()}>
+                            {group.name} ({group.type})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dialplan Options */}
+              <div className="border-t pt-4">
+                <h3 className="text-lg font-medium mb-3">Dialplan Options</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="skipAgentCheck"
+                      checked={executeCallForm.skipAgentCheck}
+                      onChange={(e) => setExecuteCallForm(prev => ({ ...prev, skipAgentCheck: e.target.checked }))}
+                      className="rounded border-gray-300"
+                    />
+                    <Label htmlFor="skipAgentCheck">Skip Agent Availability Check</Label>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="amd">AMD Detection</Label>
+                      <Select
+                        value={executeCallForm.amd}
+                        onValueChange={(value) => setExecuteCallForm(prev => ({ ...prev, amd: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="enabled">Enabled</SelectItem>
+                          <SelectItem value="disabled">Disabled</SelectItem>
+                          <SelectItem value="detection_only">Detection Only</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="playPosition">Play Position (1-9)</Label>
+                      <Input
+                        id="playPosition"
+                        type="number"
+                        min="1"
+                        max="9"
+                        value={executeCallForm.playPosition}
+                        onChange={(e) => setExecuteCallForm(prev => ({ ...prev, playPosition: parseInt(e.target.value) || 1 }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="skipPositionAnnouncement"
+                      checked={executeCallForm.skipPositionAnnouncement}
+                      onChange={(e) => setExecuteCallForm(prev => ({ ...prev, skipPositionAnnouncement: e.target.checked }))}
+                      className="rounded border-gray-300"
+                    />
+                    <Label htmlFor="skipPositionAnnouncement">Skip Position Announcement</Label>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="ivrFile">Custom IVR File</Label>
+                      <Input
+                        id="ivrFile"
+                        value={executeCallForm.ivrFile}
+                        onChange={(e) => setExecuteCallForm(prev => ({ ...prev, ivrFile: e.target.value }))}
+                        placeholder="Custom IVR file path"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="recordingId">Recording to Play</Label>
+                      <Select
+                        value={executeCallForm.recordingId}
+                        onValueChange={(value) => setExecuteCallForm(prev => ({ ...prev, recordingId: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select recording" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {recordings.map((recording) => (
+                            <SelectItem key={recording.id} value={recording.id.toString()}>
+                              {recording.name} ({recording.type})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-4 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowExecuteCallModal(false)}
+                  disabled={loadingExecuteCall}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleExecuteCall}
+                  disabled={loadingExecuteCall || !executeCallForm.leadId}
+                >
+                  {loadingExecuteCall ? 'Executing...' : 'Execute Call'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

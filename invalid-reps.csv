@@ -1,0 +1,8 @@
+name,email,photoUrl
+John Doe,,https://example.com/photos/john.jpg
+Jane Smith,invalid-email,https://example.com/photos/jane.png
+,mike@company.com,https://example.com/photos/mike.jpeg
+Bob Wilson,bob@company.com,invalid-url
+Alice Brown,alice@company.com,
+Charlie Davis,charlie@company.com,ftp://example.com/charlie.jpg
+John Doe,john@company.com,https://example.com/photos/john2.jpg

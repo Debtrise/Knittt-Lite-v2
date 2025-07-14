@@ -5,8 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Plus, Play, Pause, Edit, Trash2, Users } from 'lucide-react';
-import DashboardLayout from '@/app/components/layout/Dashboard';
+import { 
+  ArrowLeft, Plus, Play, Pause, Edit, Trash2, Users, 
+  Save, Eye, Settings, Layers, History, Maximize2, Minimize2,
+  PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose,
+  Zap, Layout, FileText, Clock, Target, Activity, BarChart3
+} from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
@@ -17,6 +21,13 @@ import { Label } from '@/app/components/ui/label';
 import { Checkbox } from '@/app/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
+import { Separator } from '@/app/components/ui/separator';
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/app/components/ui/tooltip';
 import { useAuthStore } from '@/app/store/authStore';
 import {
   getJourneyDetails,
@@ -51,6 +62,15 @@ export default function JourneyDetailPage({ params }: { params: { id: string } }
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('builder');
   
+  // Enhanced UI State for full-screen layout
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(true); // Default to fullscreen for journey builder
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showJourneySettings, setShowJourneySettings] = useState(false);
+  const [autoSave, setAutoSave] = useState(true);
+  const [lastSave, setLastSave] = useState<Date | null>(null);
+  
   const [showEditJourneyDialog, setShowEditJourneyDialog] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [selectedStep, setSelectedStep] = useState<JourneyStep | null>(null);
@@ -72,7 +92,7 @@ export default function JourneyDetailPage({ params }: { params: { id: string } }
   const [sourceInput, setSourceInput] = useState('');
   const [statusInput, setStatusInput] = useState('');
   const [tagInput, setTagInput] = useState('');
-  const [enrollLimit, setEnrollLimit] = useState(100);
+  const [enrollLimit, setEnrollLimit] = useState(10000); // High default for "unlimited"
   const [restartEnrollment, setRestartEnrollment] = useState(false);
   const [matchingStats, setMatchingStats] = useState<JourneyMatchingStats | null>(null);
   
@@ -124,6 +144,10 @@ export default function JourneyDetailPage({ params }: { params: { id: string } }
       // Fetch leads - API function now handles errors internally
       const leadsData = await getJourneyLeads(journeyId, { limit: 10 });
       setLeads(leadsData.leads || []);
+      
+      if (autoSave) {
+        setLastSave(new Date());
+      }
     } catch (error) {
       console.error('Error fetching journey details:', error);
       toast.error('Failed to load journey details');
@@ -288,7 +312,7 @@ export default function JourneyDetailPage({ params }: { params: { id: string } }
     setSourceInput('');
     setStatusInput('');
     setTagInput('');
-    setEnrollLimit(100);
+    setEnrollLimit(10000);
     setRestartEnrollment(false);
   };
   
@@ -312,11 +336,32 @@ export default function JourneyDetailPage({ params }: { params: { id: string } }
       setIsSubmitting(false);
     }
   };
-  
+
+  // Auto-save functionality
+  const handleSave = async () => {
+    if (!journey) return;
+    
+    try {
+      setIsSubmitting(true);
+      await updateJourney(journeyId, {
+        name: journey.name,
+        description: journey.description,
+        isActive: journey.isActive
+      });
+      setLastSave(new Date());
+      toast.success('Journey saved successfully');
+    } catch (error) {
+      console.error('Error saving journey:', error);
+      toast.error('Failed to save journey');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (!isAuthenticated || !journey) {
     return (
-      <DashboardLayout>
-        <div className="py-6">
+      <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+        <div className="text-center">
           <div className="flex items-center mb-6">
             <Link href="/journeys">
               <Button variant="ghost" className="mr-4">
@@ -333,318 +378,387 @@ export default function JourneyDetailPage({ params }: { params: { id: string } }
             </div>
           )}
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
-  
+
   return (
-    <DashboardLayout>
-      <div className="py-6">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center">
-            <Link href="/journeys">
-              <Button variant="ghost" className="mr-4">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-semibold text-gray-900">
+    <div 
+      className={`h-screen w-full flex flex-col bg-gray-50 ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}
+      style={{ 
+        touchAction: 'manipulation',
+        userSelect: 'none',
+        overflow: 'hidden'
+      }}
+    >
+      {/* Enhanced Top Toolbar */}
+      <div className="bg-white border-b border-gray-200 px-4 py-3 flex-shrink-0">
+        <div className="flex items-center justify-between">
+          {/* Left Section - Journey Info & Controls */}
+          <div className="flex items-center space-x-2 min-w-0">
+            <div className="flex items-center space-x-2 min-w-0">
+              {!isFullscreen && (
+                <Link href="/journeys">
+                  <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                </Link>
+              )}
+              <h1 className="text-lg font-semibold text-gray-900 truncate max-w-[200px]">
                 {journey.name}
               </h1>
-              <p className="text-sm text-gray-500">
-                {journey.description}
-              </p>
+              <Badge variant={journey.isActive ? "default" : "secondary"} className="text-xs flex-shrink-0">
+                {journey.isActive ? 'Active' : 'Paused'}
+              </Badge>
+              {lastSave && (
+                <Badge variant="outline" className="bg-green-50 text-green-700 text-xs flex-shrink-0">
+                  Saved {lastSave.toLocaleTimeString()}
+                </Badge>
+              )}
+            </div>
+            
+            <Separator orientation="vertical" className="h-5 hidden md:block" />
+            
+            {/* Quick Journey Actions */}
+            <div className="flex items-center space-x-1 hidden md:flex">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={handleToggleJourneyStatus}
+                      className="h-9 w-9 p-0"
+                    >
+                      {journey.isActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{journey.isActive ? 'Pause Journey' : 'Activate Journey'}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setShowBulkEnrollDialog(true)}
+                      className="h-9 w-9 p-0"
+                    >
+                      <Users className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Bulk Enroll Leads</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setShowAnalytics(!showAnalytics)}
+                      className="h-9 w-9 p-0"
+                    >
+                      <BarChart3 className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Journey Analytics</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
+          
+          {/* Right Section - Main Actions */}
           <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowBulkEnrollDialog(true)}
-            >
-              <Users className="h-4 w-4 mr-2" />
-              Bulk Enroll
-            </Button>
-            <Button
-              variant={journey.isActive ? "outline" : "default"}
-              onClick={handleToggleJourneyStatus}
-            >
-              {journey.isActive ? (
-                <>
-                  <Pause className="h-4 w-4 mr-2" />
-                  Pause
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4 mr-2" />
-                  Activate
-                </>
-              )}
-            </Button>
-            <Button
-              variant="outline"
+            <Button 
+              variant="outline" 
+              size="sm" 
               onClick={openEditJourneyDialog}
+              className="h-9 hidden md:flex"
             >
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
+              <Edit className="w-4 h-4 mr-1" />
+              <span className="hidden lg:inline">Edit</span>
             </Button>
-            <Button
-              variant="destructive"
-              onClick={() => setShowDeleteConfirmation(true)}
+            
+            <Button 
+              onClick={handleSave} 
+              size="sm" 
+              className={`h-9 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={isSubmitting}
             >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
+              {isSubmitting ? (
+                <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent mr-1" />
+              ) : (
+                <Save className="w-4 h-4 mr-1" />
+              )}
+              <span className="hidden md:inline">Save</span>
+            </Button>
+            
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setIsFullscreen(!isFullscreen)} 
+              className="h-9 w-9 p-0"
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </Button>
           </div>
         </div>
-        
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="builder">Flow Builder</TabsTrigger>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="leads">Leads</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="builder" className="mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <div className="bg-white shadow rounded-lg p-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-4">Journey Flow</h2>
-                  <ReactFlowProvider>
-                  <JourneyFlow 
-                    journey={journey}
-                    onJourneyUpdated={fetchJourneyDetails}
-                    onSelectStep={setSelectedStep}
-                    selectedStep={selectedStep}
-                  />
-                  </ReactFlowProvider>
-                </div>
-              </div>
-              
-              <div>
-                {selectedStep ? (
-                  <StepEditor
-                    step={selectedStep}
-                    journeyId={journeyId}
-                    onStepUpdated={fetchJourneyDetails}
-                    onStepDeleted={() => {
-                      fetchJourneyDetails();
-                      setSelectedStep(null);
-                    }}
-                  />
-                ) : (
+      </div>
+
+      <div className="flex-1 flex overflow-hidden min-h-0 w-full">
+        {/* Enhanced Left Sidebar - Journey Steps & Tools */}
+        <div className={`${leftPanelCollapsed ? 'w-12' : 'w-64'} bg-white border-r border-gray-200 flex flex-col transition-all duration-200 flex-shrink-0`}>
+          <div className="flex items-center justify-between p-3 border-b bg-gray-50">
+            {!leftPanelCollapsed && (
+              <h2 className="font-medium text-gray-900 text-sm">Journey Tools</h2>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
+              className="h-8 w-8 p-0"
+            >
+              {leftPanelCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+            </Button>
+          </div>
+
+          {!leftPanelCollapsed && (
+            <div className="flex-1 flex flex-col min-h-0">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+                <TabsList className="grid w-full grid-cols-3 m-3 mb-0">
+                  <TabsTrigger value="builder" className="text-xs">
+                    <Layout className="w-3 h-3 mr-1" />
+                    Builder
+                  </TabsTrigger>
+                  <TabsTrigger value="overview" className="text-xs">
+                    <Target className="w-3 h-3 mr-1" />
+                    Overview
+                  </TabsTrigger>
+                  <TabsTrigger value="leads" className="text-xs">
+                    <Users className="w-3 h-3 mr-1" />
+                    Leads
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="builder" className="flex-1 p-3 pt-2 overflow-auto">
+                  <div className="space-y-4">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm">Journey Status</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-600">Status:</span>
+                          <Badge variant={journey.isActive ? "default" : "secondary"} className="text-xs">
+                            {journey.isActive ? 'Active' : 'Paused'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-600">Steps:</span>
+                          <span className="text-xs font-medium">{steps.length}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-600">Active Leads:</span>
+                          <span className="text-xs font-medium">{journey.activeLeadsCount || 0}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm">Quick Actions</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full justify-start text-xs"
+                          onClick={handleToggleJourneyStatus}
+                        >
+                          {journey.isActive ? <Pause className="w-3 h-3 mr-2" /> : <Play className="w-3 h-3 mr-2" />}
+                          {journey.isActive ? 'Pause Journey' : 'Activate Journey'}
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full justify-start text-xs"
+                          onClick={() => setShowBulkEnrollDialog(true)}
+                        >
+                          <Users className="w-3 h-3 mr-2" />
+                          Bulk Enroll Leads
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full justify-start text-xs"
+                          onClick={openEditJourneyDialog}
+                        >
+                          <Edit className="w-3 h-3 mr-2" />
+                          Edit Journey
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="overview" className="flex-1 p-3 pt-2 overflow-auto">
+                  <div className="space-y-4">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm">Lead Statistics</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="text-center p-2 bg-blue-50 rounded">
+                            <div className="font-bold text-blue-700">{journey.activeLeadsCount || 0}</div>
+                            <div className="text-blue-600">Active</div>
+                          </div>
+                          <div className="text-center p-2 bg-green-50 rounded">
+                            <div className="font-bold text-green-700">{journey.completedLeadsCount || 0}</div>
+                            <div className="text-green-600">Completed</div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm">Enrollment Criteria</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <div className="text-xs">
+                          <div className="font-medium text-gray-700">Auto-enrollment:</div>
+                          <div className="text-gray-600">
+                            {journey.triggerCriteria.autoEnroll ? 'Enabled' : 'Disabled'}
+                          </div>
+                        </div>
+                        
+                        {journey.triggerCriteria.leadStatus?.length > 0 && (
+                          <div className="text-xs">
+                            <div className="font-medium text-gray-700">Lead Status:</div>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {journey.triggerCriteria.leadStatus.map(status => (
+                                <Badge key={status} variant="outline" className="text-xs">
+                                  {status}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="leads" className="flex-1 p-3 pt-2 overflow-auto">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-medium">Recent Leads</h3>
+                      <Link href={`/journeys/${journeyId}/leads`}>
+                        <Button variant="outline" size="sm" className="text-xs">
+                          View All
+                        </Button>
+                      </Link>
+                    </div>
+                    
+                    {leads.slice(0, 5).map((lead) => (
+                      <Card key={lead.id} className="p-2">
+                        <div className="text-xs">
+                          <div className="font-medium truncate">
+                            {lead.Lead?.name || `Lead #${lead.leadId}`}
+                          </div>
+                          <div className="text-gray-500 truncate">
+                            Step: {lead.JourneyStep?.actionType || 'Unknown'}
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                    
+                    {leads.length === 0 && (
+                      <div className="text-center py-4 text-xs text-gray-500">
+                        No leads enrolled
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
+        </div>
+
+        {/* Main Journey Builder Canvas */}
+        <div className="flex-1 flex flex-col min-h-0 bg-gray-100 w-0 overflow-hidden">
+          <ReactFlowProvider>
+            <JourneyFlow 
+              journey={journey}
+              onJourneyUpdated={fetchJourneyDetails}
+              onSelectStep={setSelectedStep}
+              selectedStep={selectedStep}
+            />
+          </ReactFlowProvider>
+        </div>
+
+        {/* Enhanced Right Sidebar - Step Properties */}
+        <div className={`${rightPanelCollapsed ? 'w-12' : 'w-80'} bg-white border-l border-gray-200 flex flex-col transition-all duration-200 flex-shrink-0`}>
+          <div className="flex items-center justify-between p-3 border-b bg-gray-50">
+            {!rightPanelCollapsed && (
+              <h2 className="font-medium text-gray-900 text-sm">Step Properties</h2>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
+              className="h-8 w-8 p-0"
+            >
+              {rightPanelCollapsed ? <PanelRightOpen className="w-4 h-4" /> : <PanelRightClose className="w-4 h-4" />}
+            </Button>
+          </div>
+
+          {!rightPanelCollapsed && (
+            <div className="flex-1 overflow-auto">
+              {selectedStep ? (
+                <StepEditor
+                  step={selectedStep}
+                  journeyId={journeyId}
+                  onStepUpdated={fetchJourneyDetails}
+                  onStepDeleted={() => {
+                    fetchJourneyDetails();
+                    setSelectedStep(null);
+                  }}
+                />
+              ) : (
+                <div className="p-4">
                   <Card>
                     <CardHeader>
-                      <CardTitle>Step Properties</CardTitle>
-                      <CardDescription>
-                        Select a step in the flow builder to edit its properties
+                      <CardTitle className="text-sm">No Step Selected</CardTitle>
+                      <CardDescription className="text-xs">
+                        Click on a step in the journey flow to edit its properties
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-sm text-gray-500">
-                        Click on any step in the flow to view and edit its properties.
-                        You can also add new steps using the + button in the flow builder.
+                      <p className="text-xs text-gray-500">
+                        Select any step in the flow to view and modify its configuration.
+                        You can also add new steps using the + button in the flow.
                       </p>
                     </CardContent>
                   </Card>
-                )}
-              </div>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="overview" className="mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle>Status</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Badge variant={journey.isActive ? "default" : "secondary"} className="text-sm">
-                    {journey.isActive ? 'Active' : 'Paused'}
-                  </Badge>
-                  <p className="text-sm text-gray-500 mt-2">
-                    Last updated: {new Date(journey.updatedAt).toLocaleString()}
-                  </p>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle>Leads</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex justify-between">
-                    <div>
-                      <p className="text-2xl font-bold">{journey.activeLeadsCount || 0}</p>
-                      <p className="text-sm text-gray-500">Active</p>
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold">{journey.completedLeadsCount || 0}</p>
-                      <p className="text-sm text-gray-500">Completed</p>
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold">{journey.failedLeadsCount || 0}</p>
-                      <p className="text-sm text-gray-500">Failed</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle>Enrollment Criteria</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm font-medium">Auto-enrollment:</p>
-                      <p className="text-sm">
-                        {journey.triggerCriteria.autoEnroll ? 'Enabled' : 'Disabled'}
-                      </p>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm font-medium">Lead Status:</p>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {journey.triggerCriteria.leadStatus?.length ? (
-                          journey.triggerCriteria.leadStatus.map(status => (
-                            <Badge key={status} variant="outline" className="text-xs">
-                              {status}
-                            </Badge>
-                          ))
-                        ) : (
-                          <span className="text-sm text-gray-500">Any</span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm font-medium">Lead Tags:</p>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {journey.triggerCriteria.leadTags?.length ? (
-                          journey.triggerCriteria.leadTags.map(tag => (
-                            <Badge key={tag} variant="outline" className="text-xs">
-                              {tag}
-                            </Badge>
-                          ))
-                        ) : (
-                          <span className="text-sm text-gray-500">Any</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="leads" className="mt-6">
-            <div className="bg-white shadow rounded-lg">
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-medium text-gray-900">Enrolled Leads</h2>
-                  <Link href={`/journeys/${journeyId}/leads`}>
-                    <Button>
-                      <Users className="h-4 w-4 mr-2" />
-                      Manage Leads
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-              
-              {leads.length === 0 ? (
-                <div className="p-6 text-center">
-                  <p className="text-gray-500">
-                    {isLoading ? 'Loading leads...' : 'No leads enrolled in this journey'}
-                  </p>
-                  {!isLoading && (
-                    <Button 
-                      variant="outline" 
-                      className="mt-4"
-                      onClick={fetchJourneyDetails}
-                    >
-                      Retry Loading Leads
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Lead
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Current Step
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Next Execution
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {leads.map((lead) => (
-                        <tr key={lead.id}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="text-sm font-medium text-gray-900">
-                                {lead.Lead ? (
-                                  <Link href={`/leads/${lead.leadId}`} className="hover:underline">
-                                    {lead.Lead.name}
-                                  </Link>
-                                ) : (
-                                  `Lead #${lead.leadId}`
-                                )}
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                {lead.Lead?.phone}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <Badge 
-                              variant={
-                                lead.status === 'active' ? 'default' :
-                                lead.status === 'paused' ? 'secondary' :
-                                lead.status === 'completed' ? 'outline' :
-                                'destructive'
-                              }
-                              className="text-xs"
-                            >
-                              {lead.status}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {lead.currentStep ? lead.currentStep.name : 'N/A'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {lead.nextExecutionTime ? 
-                              new Date(lead.nextExecutionTime).toLocaleString() : 
-                              'Not scheduled'
-                            }
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              
-              {leads.length > 0 && (
-                <div className="px-6 py-4 border-t border-gray-200">
-                  <Link href={`/journeys/${journeyId}/leads`} className="text-sm text-indigo-600 hover:text-indigo-900">
-                    View all enrolled leads →
-                  </Link>
                 </div>
               )}
             </div>
-          </TabsContent>
-        </Tabs>
+          )}
+        </div>
       </div>
-      
+
       <Dialog open={showEditJourneyDialog} onOpenChange={setShowEditJourneyDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -728,173 +842,204 @@ export default function JourneyDetailPage({ params }: { params: { id: string } }
 
       {/* Add Bulk Enroll Dialog */}
       <Dialog open={showBulkEnrollDialog} onOpenChange={setShowBulkEnrollDialog}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Bulk Enroll Leads</DialogTitle>
           </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-gray-500 mb-4">
-              Enroll leads that match the specified criteria in this journey.
-            </p>
-            
-            {matchingStats && (
-              <div className="bg-gray-50 p-3 rounded-md mb-4">
-                <p className="text-sm font-medium">Matching Statistics</p>
-                <p className="text-xs text-gray-500">
-                  {matchingStats.matchingLeads} out of {matchingStats.totalLeads} leads match the current journey criteria
-                </p>
-              </div>
-            )}
-            
+          <div className="py-4 space-y-4">
             <div className="space-y-4">
-              <div className="grid gap-2">
-                <Label>Lead Age Criteria (Days)</Label>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="bulk-minAge" className="text-xs">Minimum Age</Label>
-                    <Input
-                      id="bulk-minAge"
-                      type="number"
-                      value={bulkEnrollCriteria.leadAgeDays?.min !== undefined ? bulkEnrollCriteria.leadAgeDays.min : ''}
-                      onChange={(e) => {
-                        const value = e.target.value ? parseInt(e.target.value, 10) : undefined;
-                        setBulkEnrollCriteria({ 
-                          ...bulkEnrollCriteria, 
-                          leadAgeDays: { ...bulkEnrollCriteria.leadAgeDays, min: value } 
-                        });
-                      }}
-                      placeholder="Min days"
-                      min={0}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="bulk-maxAge" className="text-xs">Maximum Age</Label>
-                    <Input
-                      id="bulk-maxAge"
-                      type="number"
-                      value={bulkEnrollCriteria.leadAgeDays?.max !== undefined ? bulkEnrollCriteria.leadAgeDays.max : ''}
-                      onChange={(e) => {
-                        const value = e.target.value ? parseInt(e.target.value, 10) : undefined;
-                        setBulkEnrollCriteria({ 
-                          ...bulkEnrollCriteria, 
-                          leadAgeDays: { ...bulkEnrollCriteria.leadAgeDays, max: value } 
-                        });
-                      }}
-                      placeholder="Max days"
-                      min={0}
-                    />
-                  </div>
-                </div>
-              </div>
-              
-              <div className="grid gap-2">
+              <div>
                 <Label>Lead Brands</Label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 mt-1">
                   <Input
                     value={brandInput}
                     onChange={(e) => setBrandInput(e.target.value)}
-                    placeholder="Add brand"
-                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addBrand())}
+                    placeholder="Enter brand name"
+                    onKeyPress={(e) => e.key === 'Enter' && addBrand()}
                   />
-                  <Button type="button" onClick={addBrand} variant="secondary">Add</Button>
+                  <Button type="button" onClick={addBrand} size="sm">Add</Button>
                 </div>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {bulkEnrollCriteria.brands?.map((brand) => (
-                    <Badge key={brand} variant="outline" className="flex items-center gap-1">
-                      {brand}
-                      <button
-                        type="button"
-                        onClick={() => removeBrand(brand)}
-                        className="ml-1 text-gray-500 hover:text-gray-700"
-                      >
-                        &times;
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
+                {bulkEnrollCriteria.brands && bulkEnrollCriteria.brands.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {bulkEnrollCriteria.brands.map(brand => (
+                      <Badge key={brand} variant="outline" className="text-xs">
+                        {brand}
+                        <button onClick={() => removeBrand(brand)} className="ml-1 text-red-500">×</button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
-              
-              <div className="grid gap-2">
+
+              <div>
                 <Label>Lead Sources</Label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 mt-1">
                   <Input
                     value={sourceInput}
                     onChange={(e) => setSourceInput(e.target.value)}
-                    placeholder="Add source"
-                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addSource())}
+                    placeholder="Enter lead source"
+                    onKeyPress={(e) => e.key === 'Enter' && addSource()}
                   />
-                  <Button type="button" onClick={addSource} variant="secondary">Add</Button>
+                  <Button type="button" onClick={addSource} size="sm">Add</Button>
                 </div>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {bulkEnrollCriteria.sources?.map((source) => (
-                    <Badge key={source} variant="outline" className="flex items-center gap-1">
-                      {source}
-                      <button
-                        type="button"
-                        onClick={() => removeSource(source)}
-                        className="ml-1 text-gray-500 hover:text-gray-700"
-                      >
-                        &times;
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
+                {bulkEnrollCriteria.sources && bulkEnrollCriteria.sources.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {bulkEnrollCriteria.sources.map(source => (
+                      <Badge key={source} variant="outline" className="text-xs">
+                        {source}
+                        <button onClick={() => removeSource(source)} className="ml-1 text-red-500">×</button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
-              
-              <div className="grid gap-2">
+
+              <div>
                 <Label>Lead Status</Label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 mt-1">
                   <Input
                     value={statusInput}
                     onChange={(e) => setStatusInput(e.target.value)}
-                    placeholder="Add status"
-                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addStatus())}
+                    placeholder="Enter lead status"
+                    onKeyPress={(e) => e.key === 'Enter' && addStatus()}
                   />
-                  <Button type="button" onClick={addStatus} variant="secondary">Add</Button>
+                  <Button type="button" onClick={addStatus} size="sm">Add</Button>
                 </div>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {bulkEnrollCriteria.leadStatus?.map((status) => (
-                    <Badge key={status} variant="outline" className="flex items-center gap-1">
-                      {status}
-                      <button
-                        type="button"
-                        onClick={() => removeStatus(status)}
-                        className="ml-1 text-gray-500 hover:text-gray-700"
-                      >
-                        &times;
-                      </button>
-                    </Badge>
-                  ))}
+                {bulkEnrollCriteria.leadStatus && bulkEnrollCriteria.leadStatus.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {bulkEnrollCriteria.leadStatus.map(status => (
+                      <Badge key={status} variant="outline" className="text-xs">
+                        {status}
+                        <button onClick={() => removeStatus(status)} className="ml-1 text-red-500">×</button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <Label>Lead Tags</Label>
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    placeholder="Enter lead tag"
+                    onKeyPress={(e) => e.key === 'Enter' && addTag()}
+                  />
+                  <Button type="button" onClick={addTag} size="sm">Add</Button>
+                </div>
+                {bulkEnrollCriteria.leadTags && bulkEnrollCriteria.leadTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {bulkEnrollCriteria.leadTags.map(tag => (
+                      <Badge key={tag} variant="outline" className="text-xs">
+                        {tag}
+                        <button onClick={() => removeTag(tag)} className="ml-1 text-red-500">×</button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Min Lead Age (days)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={9999}
+                    step={1}
+                    value={bulkEnrollCriteria.leadAgeDays?.min || ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const numericValue = value ? parseInt(value, 10) : undefined;
+                      
+                      // Only update if it's a valid number or empty
+                      if (value === '' || (!isNaN(numericValue!) && numericValue! >= 0)) {
+                        setBulkEnrollCriteria({
+                          ...bulkEnrollCriteria,
+                          leadAgeDays: {
+                            ...bulkEnrollCriteria.leadAgeDays,
+                            min: numericValue
+                          }
+                        });
+                      }
+                    }}
+                    placeholder="Min age"
+                  />
+                </div>
+                <div>
+                  <Label>Max Lead Age (days)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={9999}
+                    step={1}
+                    value={bulkEnrollCriteria.leadAgeDays?.max || ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const numericValue = value ? parseInt(value, 10) : undefined;
+                      
+                      // Only update if it's a valid number or empty
+                      if (value === '' || (!isNaN(numericValue!) && numericValue! >= 0)) {
+                        setBulkEnrollCriteria({
+                          ...bulkEnrollCriteria,
+                          leadAgeDays: {
+                            ...bulkEnrollCriteria.leadAgeDays,
+                            max: numericValue
+                          }
+                        });
+                      }
+                    }}
+                    placeholder="Max age"
+                  />
                 </div>
               </div>
-              
-              <div className="grid gap-2">
-                <Label>Max Leads to Enroll</Label>
+
+              <div>
+                <Label>Enrollment Limit</Label>
                 <Input
                   type="number"
-                  value={enrollLimit}
-                  onChange={(e) => setEnrollLimit(parseInt(e.target.value, 10) || 100)}
                   min={1}
-                  max={500}
+                  step={1}
+                  value={enrollLimit}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const numericValue = parseInt(value, 10);
+                    
+                    // Only update if it's a valid positive number
+                    if (!isNaN(numericValue) && numericValue > 0) {
+                      setEnrollLimit(Math.max(1, numericValue));
+                    } else if (value === '') {
+                      setEnrollLimit(10000); // Set to high default for "unlimited"
+                    }
+                  }}
+                  placeholder="Number of leads to enroll (leave high for unlimited)"
                 />
-                <p className="text-xs text-gray-500">Maximum number of leads to enroll in one operation (1-500)</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Set to a high number (e.g., 10,000+) for unlimited enrollment of all matching leads
+                </p>
               </div>
-              
+
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="restart-enrollment"
                   checked={restartEnrollment}
-                  onCheckedChange={(checked) => setRestartEnrollment(checked as boolean)}
+                  onCheckedChange={setRestartEnrollment}
                 />
-                <Label htmlFor="restart-enrollment">Restart for leads already in journey</Label>
+                <Label htmlFor="restart-enrollment">Restart enrollment for already enrolled leads</Label>
               </div>
+
+              {matchingStats && (
+                <div className="bg-gray-50 p-3 rounded">
+                  <p className="text-sm text-gray-600">
+                    Found {matchingStats.totalMatching} matching leads
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setShowBulkEnrollDialog(false);
-              resetBulkEnrollForm();
-            }}>
+            <Button variant="outline" onClick={() => setShowBulkEnrollDialog(false)}>
               Cancel
             </Button>
             <Button onClick={handleBulkEnroll} disabled={isSubmitting}>
@@ -903,6 +1048,6 @@ export default function JourneyDetailPage({ params }: { params: { id: string } }
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </DashboardLayout>
+    </div>
   );
 }

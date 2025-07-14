@@ -1,0 +1,780 @@
+# Optisigns Integration API Documentation
+
+## Overview
+
+The Optisigns integration allows Knittt users to configure displays, create dynamic content, and trigger content display based on webhook events. The integration uses the **Optisigns GraphQL API** at `https://graphql-gateway.optisigns.com`. All endpoints require authentication via JWT token.
+
+**Base URL:** `/api/optisigns`  
+**Authentication:** Bearer token in Authorization header  
+**Optisigns API:** GraphQL API at `https://graphql-gateway.optisigns.com`
+
+> **Note:** Optisigns uses GraphQL for their API. You can test queries and mutations using their GraphQL IDE at: `https://graphql-gateway.optisigns.com/graphql`
+
+---
+
+## 1. Configuration Management
+
+### Get Configuration
+**GET** `/api/optisigns/config`
+
+Get the current Optisigns configuration for the tenant.
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "tenantId": "tenant123",
+  "apiToken": "***xyz", 
+  "apiUrl": "https://graphql-gateway.optisigns.com",
+  "isActive": true,
+  "lastSync": "2024-01-01T10:00:00Z",
+  "syncStatus": "success",
+  "syncError": null,
+  "settings": {
+    "autoSync": true,
+    "syncInterval": 300,
+    "enableWebhooks": true,
+    "defaultContentDuration": 30,
+    "allowCustomAssets": true
+  }
+}
+```
+
+### Update Configuration
+**PUT** `/api/optisigns/config`
+
+Update Optisigns API configuration.
+
+**Request Body:**
+```json
+{
+  "apiToken": "your-optisigns-api-token",
+  "settings": {
+    "autoSync": true,
+    "syncInterval": 300,
+    "enableWebhooks": true,
+    "defaultContentDuration": 30,
+    "allowCustomAssets": true
+  }
+}
+```
+
+> **Note:** The API URL is automatically set to the correct Optisigns GraphQL endpoint and cannot be modified.
+
+**Response:** Updated configuration object
+
+### Test API Connection
+**POST** `/api/optisigns/config/test`
+
+Test connectivity to Optisigns GraphQL API with provided credentials.
+
+**Request Body:**
+```json
+{
+  "apiToken": "your-optisigns-api-token"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "displayCount": 5,
+  "accountInfo": {
+    "accountName": "Your Account",
+    "plan": "Professional"
+  }
+}
+```
+
+---
+
+## 2. Display Management
+
+### List Displays
+**GET** `/api/optisigns/displays`
+
+Get paginated list of synchronized displays.
+
+**Query Parameters:**
+- `page` (integer, default: 1) - Page number
+- `limit` (integer, default: 50) - Items per page
+- `status` (string) - Filter by status: online, offline, unknown
+- `isActive` (boolean) - Filter by active status
+
+**Response:**
+```json
+{
+  "displays": [
+    {
+      "id": "uuid",
+      "tenantId": "tenant123",
+      "optisignsDisplayId": "display123",
+      "name": "Lobby Display",
+      "location": "Main Lobby",
+      "status": "online",
+      "resolution": {"width": 1920, "height": 1080},
+      "orientation": "landscape",
+      "isActive": true,
+      "lastSeen": "2024-01-01T10:00:00Z",
+      "currentContentId": "uuid",
+      "currentContent": {
+        "id": "uuid",
+        "name": "Welcome Message"
+      }
+    }
+  ],
+  "totalCount": 10,
+  "totalPages": 1,
+  "currentPage": 1
+}
+```
+
+### Sync Displays
+**POST** `/api/optisigns/displays/sync`
+
+Synchronize displays from Optisigns API.
+
+**Response:**
+```json
+{
+  "message": "Displays synced successfully",
+  "count": 5,
+  "displays": [...]
+}
+```
+
+### Get Single Display
+**GET** `/api/optisigns/displays/{id}`
+
+Get detailed information about a specific display.
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "name": "Lobby Display",
+  "location": "Main Lobby",
+  "status": "online",
+  "resolution": {"width": 1920, "height": 1080},
+  "orientation": "landscape",
+  "currentContent": {
+    "id": "uuid",
+    "name": "Welcome Message",
+    "contentType": "template"
+  },
+  "executions": [
+    {
+      "id": "uuid",
+      "status": "completed",
+      "triggeredBy": "webhook",
+      "createdAt": "2024-01-01T10:00:00Z"
+    }
+  ]
+}
+```
+
+### Update Display Settings
+**PUT** `/api/optisigns/displays/{id}`
+
+Update display settings (local settings only, not Optisigns API).
+
+**Request Body:**
+```json
+{
+  "name": "Updated Display Name",
+  "location": "New Location",
+  "isActive": true
+}
+```
+
+---
+
+## 3. Content Management
+
+### List Content
+**GET** `/api/optisigns/content`
+
+Get paginated list of content templates.
+
+**Query Parameters:**
+- `page` (integer, default: 1) - Page number
+- `limit` (integer, default: 50) - Items per page
+- `contentType` (string) - Filter by type: template, custom, webhook_generated
+- `isTemplate` (boolean) - Filter templates only
+- `templateCategory` (string) - Filter by template category
+
+**Response:**
+```json
+{
+  "contents": [
+    {
+      "id": "uuid",
+      "name": "Welcome Template",
+      "description": "Main welcome message",
+      "contentType": "template",
+      "isTemplate": true,
+      "templateCategory": "welcome",
+      "template": {
+        "background": {"type": "color", "value": "#ffffff"},
+        "elements": [
+          {
+            "type": "text",
+            "content": "Welcome {{name}}!",
+            "position": {"x": 100, "y": 100},
+            "style": {"fontSize": "24px", "color": "#000"}
+          }
+        ],
+        "duration": 30
+      },
+      "variables": {"name": "Guest"},
+      "isActive": true,
+      "createdAt": "2024-01-01T10:00:00Z"
+    }
+  ],
+  "totalCount": 15,
+  "totalPages": 1,
+  "currentPage": 1
+}
+```
+
+### Get Single Content
+**GET** `/api/optisigns/content/{id}`
+
+Get detailed content information.
+
+### Create Content
+**POST** `/api/optisigns/content`
+
+Create new content template.
+
+**Request Body:**
+```json
+{
+  "name": "New Template",
+  "description": "Description here",
+  "contentType": "custom",
+  "template": {
+    "background": {"type": "color", "value": "#ffffff"},
+    "elements": [
+      {
+        "type": "text",
+        "content": "Hello {{name}}!",
+        "position": {"x": 100, "y": 100},
+        "style": {"fontSize": "24px", "color": "#333"}
+      },
+      {
+        "type": "confetti",
+        "trigger": "onLoad",
+        "duration": 3,
+        "variant": "colorful"
+      }
+    ],
+    "animations": [
+      {
+        "element": 0,
+        "type": "fadeIn",
+        "duration": 1,
+        "delay": 0
+      }
+    ],
+    "duration": 30
+  },
+  "variables": {
+    "name": "Default Name"
+  },
+  "isTemplate": true,
+  "templateCategory": "greeting"
+}
+```
+
+### Update Content
+**PUT** `/api/optisigns/content/{id}`
+
+Update existing content template.
+
+### Delete Content
+**DELETE** `/api/optisigns/content/{id}`
+
+Delete content template.
+
+### Preview Content
+**POST** `/api/optisigns/content/{id}/preview`
+
+Preview content with variables applied.
+
+**Request Body:**
+```json
+{
+  "variables": {
+    "name": "John Doe",
+    "company": "Acme Corp",
+    "achievement": "Employee of the Month"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "content": {...},
+  "renderedTemplate": {
+    "background": {"type": "color", "value": "#ffffff"},
+    "elements": [
+      {
+        "type": "text",
+        "content": "Hello John Doe!",
+        "position": {"x": 100, "y": 100}
+      }
+    ]
+  },
+  "variables": {...},
+  "metadata": {
+    "renderedAt": "2024-01-01T10:00:00Z",
+    "variableCount": 3
+  }
+}
+```
+
+### Send Content to Displays
+**POST** `/api/optisigns/content/{id}/send`
+
+Manually send content to specific displays.
+
+**Request Body:**
+```json
+{
+  "displayIds": ["uuid1", "uuid2"],
+  "duration": 30,
+  "variables": {
+    "name": "John Doe",
+    "company": "Acme Corp"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Content sent to displays",
+  "executions": [
+    {
+      "id": "uuid",
+      "displayId": "uuid1",
+      "status": "sent",
+      "sentAt": "2024-01-01T10:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+## 4. Webhook Rules
+
+### List Webhook Rules
+**GET** `/api/optisigns/webhook-rules`
+
+Get paginated list of webhook rules.
+
+**Query Parameters:**
+- `page` (integer) - Page number
+- `limit` (integer) - Items per page  
+- `isActive` (boolean) - Filter by active status
+
+**Response:**
+```json
+{
+  "rules": [
+    {
+      "id": "uuid",
+      "name": "New Lead Welcome",
+      "description": "Show welcome message for new leads",
+      "webhookEndpointId": "uuid",
+      "conditions": {
+        "triggers": [
+          {
+            "field": "status",
+            "operator": "equals",
+            "value": "new",
+            "type": "string"
+          }
+        ],
+        "operator": "and"
+      },
+      "actions": {
+        "contentId": "uuid",
+        "displayIds": ["all"],
+        "duration": 30,
+        "priority": "high",
+        "variables": {
+          "name": "lead.name",
+          "company": "lead.company"
+        }
+      },
+      "isActive": true,
+      "executionCount": 25,
+      "lastExecuted": "2024-01-01T09:00:00Z",
+      "priority": 50
+    }
+  ],
+  "totalCount": 5,
+  "totalPages": 1,
+  "currentPage": 1
+}
+```
+
+### Create Webhook Rule
+**POST** `/api/optisigns/webhook-rules`
+
+Create new webhook rule for conditional content display.
+
+**Request Body:**
+```json
+{
+  "name": "Sale Celebration",
+  "description": "Show celebration when sale closes",
+  "webhookEndpointId": "uuid",
+  "conditions": {
+    "triggers": [
+      {
+        "field": "event_type",
+        "operator": "equals", 
+        "value": "sale_closed",
+        "type": "string"
+      },
+      {
+        "field": "amount",
+        "operator": "greater_than",
+        "value": "1000",
+        "type": "number"
+      }
+    ],
+    "operator": "and"
+  },
+  "actions": {
+    "contentId": "uuid",
+    "displayIds": ["uuid1", "uuid2"],
+    "duration": 45,
+    "priority": "high",
+    "variables": {
+      "salesperson": "data.salesperson",
+      "amount": "data.amount",
+      "client": "data.client_name"
+    }
+  },
+  "priority": 10
+}
+```
+
+### Update Webhook Rule
+**PUT** `/api/optisigns/webhook-rules/{id}`
+
+Update existing webhook rule.
+
+### Delete Webhook Rule
+**DELETE** `/api/optisigns/webhook-rules/{id}`
+
+Delete webhook rule.
+
+### Test Webhook Rule
+**POST** `/api/optisigns/webhook-rules/{id}/test`
+
+Test webhook rule against sample data.
+
+**Request Body:**
+```json
+{
+  "sampleData": {
+    "event_type": "sale_closed",
+    "amount": 5000,
+    "salesperson": "John Smith",
+    "client_name": "Acme Corp"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "matches": true,
+  "variables": {
+    "salesperson": "John Smith",
+    "amount": 5000,
+    "client": "Acme Corp",
+    "timestamp": "2024-01-01T10:00:00Z"
+  },
+  "rule": {
+    "id": "uuid",
+    "name": "Sale Celebration",
+    "conditions": {...},
+    "actions": {...}
+  }
+}
+```
+
+---
+
+## 5. Assets and Templates
+
+### Get Predefined Assets
+**GET** `/api/optisigns/assets/predefined`
+
+Get list of predefined assets (confetti, frames, animations).
+
+**Response:**
+```json
+{
+  "confetti": {
+    "type": "animation",
+    "name": "Confetti Burst",
+    "duration": 3,
+    "triggers": ["onLoad", "onClick", "timed"],
+    "variants": ["colorful", "gold", "silver", "custom"]
+  },
+  "frames": {
+    "type": "overlay",
+    "name": "Photo Frames",
+    "variants": ["modern", "classic", "fun", "professional", "celebration"]
+  },
+  "animations": {
+    "fadeIn": {"duration": 1, "easing": "ease-in"},
+    "slideIn": {"duration": 1.5, "direction": "left", "easing": "ease-out"},
+    "bounce": {"duration": 2, "iterations": 3},
+    "pulse": {"duration": 1, "iterations": "infinite"},
+    "zoom": {"duration": 1, "scale": "1.2", "easing": "ease-in-out"}
+  }
+}
+```
+
+### Get Content Templates
+**GET** `/api/optisigns/templates`
+
+Get available content templates.
+
+**Query Parameters:**
+- `category` (string) - Filter by template category
+
+### Upload Custom Asset
+**POST** `/api/optisigns/assets/upload`
+
+Upload custom asset (image/video).
+
+**Request:** Multipart form data
+- `asset` (file) - Asset file
+- `name` (string) - Asset name
+- `description` (string) - Asset description
+- `category` (string) - Asset category
+
+**Response:**
+```json
+{
+  "message": "Asset uploaded successfully",
+  "asset": {
+    "id": "uuid",
+    "name": "Custom Logo",
+    "description": "Company logo",
+    "category": "logo",
+    "mimetype": "image/png",
+    "size": 15360,
+    "uploadedAt": "2024-01-01T10:00:00Z"
+  }
+}
+```
+
+---
+
+## 6. Execution and Analytics
+
+### Get Execution History
+**GET** `/api/optisigns/executions`
+
+Get paginated execution history.
+
+**Query Parameters:**
+- `page` (integer) - Page number
+- `limit` (integer) - Items per page
+- `displayId` (uuid) - Filter by display
+- `contentId` (uuid) - Filter by content
+- `status` (string) - Filter by status
+- `triggeredBy` (string) - Filter by trigger type
+- `startDate` (date) - Filter from date
+- `endDate` (date) - Filter to date
+
+**Response:**
+```json
+{
+  "executions": [
+    {
+      "id": "uuid",
+      "status": "completed",
+      "triggeredBy": "webhook",
+      "scheduledFor": null,
+      "sentAt": "2024-01-01T10:00:00Z",
+      "displayedAt": "2024-01-01T10:00:05Z",
+      "completedAt": "2024-01-01T10:00:35Z",
+      "duration": 30,
+      "plannedDuration": 30,
+      "variables": {"name": "John Doe"},
+      "content": {
+        "id": "uuid",
+        "name": "Welcome Template",
+        "contentType": "template"
+      },
+      "display": {
+        "id": "uuid", 
+        "name": "Lobby Display",
+        "location": "Main Lobby"
+      },
+      "webhookRule": {
+        "id": "uuid",
+        "name": "New Lead Welcome"
+      }
+    }
+  ],
+  "totalCount": 100,
+  "totalPages": 2,
+  "currentPage": 1
+}
+```
+
+### Get Analytics Dashboard
+**GET** `/api/optisigns/analytics`
+
+Get analytics dashboard data.
+
+**Query Parameters:**
+- `startDate` (date) - Start date for analytics
+- `endDate` (date) - End date for analytics
+
+**Response:**
+```json
+{
+  "executions": {
+    "total": 150,
+    "successful": 145,
+    "failed": 5,
+    "successRate": "96.67"
+  },
+  "displays": {
+    "total": 8,
+    "online": 7,
+    "offline": 1
+  },
+  "content": {
+    "total": 25
+  },
+  "rules": {
+    "active": 12
+  }
+}
+```
+
+---
+
+## 7. Internal Webhook Processing
+
+### Process Webhook for Optisigns
+**POST** `/api/optisigns/process-webhook`
+
+Internal endpoint for processing webhook events (called by webhook system).
+
+**Request Body:**
+```json
+{
+  "webhookData": {
+    "event_type": "lead_created",
+    "lead": {
+      "name": "John Doe",
+      "company": "Acme Corp",
+      "status": "new"
+    }
+  },
+  "webhookEndpointId": "uuid",
+  "webhookEventId": "uuid"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Processed 2 matching Optisigns rules",
+  "matchedRules": 2,
+  "executions": 4,
+  "executionIds": ["uuid1", "uuid2", "uuid3", "uuid4"]
+}
+```
+
+---
+
+## Error Responses
+
+All endpoints return standard error responses:
+
+```json
+{
+  "error": "Error message description"
+}
+```
+
+**Common HTTP Status Codes:**
+- `200` - Success
+- `201` - Created successfully
+- `400` - Bad request / Validation error
+- `401` - Unauthorized
+- `403` - Forbidden 
+- `404` - Resource not found
+- `500` - Internal server error
+
+---
+
+## Webhook Rule Condition Operators
+
+When creating webhook rules, these operators are available:
+
+- `equals` - Exact match
+- `not_equals` - Not equal to
+- `contains` - String contains value
+- `not_contains` - String does not contain value
+- `greater_than` - Numeric greater than
+- `less_than` - Numeric less than
+- `exists` - Field exists and is not null
+- `not_exists` - Field does not exist or is null
+- `regex` - Regular expression match
+
+## Content Template Structure
+
+Content templates use this structure:
+
+```json
+{
+  "background": {
+    "type": "color|image|video",
+    "value": "#ffffff|url"
+  },
+  "elements": [
+    {
+      "type": "text|image|video|confetti|frame",
+      "content": "Text content or {{variable}}",
+      "position": {"x": 100, "y": 100},
+      "size": {"width": 200, "height": 50},
+      "style": {
+        "fontSize": "24px",
+        "color": "#000",
+        "fontFamily": "Arial"
+      }
+    }
+  ],
+  "animations": [
+    {
+      "element": 0,
+      "type": "fadeIn|slideIn|bounce|pulse|zoom",
+      "duration": 1,
+      "delay": 0,
+      "easing": "ease-in|ease-out|ease-in-out"
+    }
+  ],
+  "duration": 30,
+  "transitions": []
+}
+```

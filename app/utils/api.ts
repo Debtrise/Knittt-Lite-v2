@@ -66,7 +66,7 @@ api.interceptors.response.use(
 
 // Auth APIs
 export const login = async (username: string, password: string) => {
-  const response = await api.post('/login', { username, password });
+  const response = await api.post('/auth/login', { username, password });
   return response.data;
 };
 
@@ -1320,12 +1320,12 @@ export const addTwilioNumber = async (numberData: {
   accountSid: string;
   authToken: string;
 }) => {
-  const response = await smsApi.post('/twilio-numbers', numberData);
+  const response = await smsApi.post('/sms/twilio/numbers', numberData);
   return response.data;
 };
 
 export const uploadTwilioNumbers = async (formData: FormData) => {
-  const response = await smsApi.post('/twilio-numbers/upload', formData, {
+  const response = await smsApi.post('/sms/twilio/numbers/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -1334,14 +1334,14 @@ export const uploadTwilioNumbers = async (formData: FormData) => {
 };
 
 export const listTwilioNumbers = async () => {
-  const response = await smsApi.get('/twilio-numbers');
+  const response = await smsApi.get('/sms/twilio/numbers');
   return response.data;
 };
 
 export const deleteTwilioNumber = async (numberId: number, options?: {
   reassign?: boolean;
 }) => {
-  const response = await smsApi.delete(`/twilio-numbers/${numberId}`, {
+  const response = await smsApi.delete(`/sms/twilio/numbers/${numberId}`, {
     params: options,
   });
   return response.data;
@@ -1432,23 +1432,30 @@ export const createJourneyStep = async (journeyId: number, stepData: {
   isExitPoint: boolean;
   position?: { x: number; y: number };
 }) => {
-  // Handle transfer group configuration
-  if (stepData.actionType === 'call' && stepData.actionConfig.transferGroupId) {
-    // If using transfer group, ensure proper structure
+  // Handle call action configuration
+  if (stepData.actionType === 'call') {
     const callConfig = {
-      transferGroupId: stepData.actionConfig.transferGroupId,
-      // Include any optional overrides
-      ...(stepData.actionConfig.fallbackDID && { fallbackDID: stepData.actionConfig.fallbackDID }),
-      ...(stepData.actionConfig.amd !== undefined && { amd: stepData.actionConfig.amd }),
-      ...(stepData.actionConfig.playPosition !== undefined && { playPosition: stepData.actionConfig.playPosition }),
-      ...(stepData.actionConfig.skipPositionAnnouncement !== undefined && { skipPositionAnnouncement: stepData.actionConfig.skipPositionAnnouncement }),
-      ...(stepData.actionConfig.ivrFile && { ivrFile: stepData.actionConfig.ivrFile }),
-      ...(stepData.actionConfig.recordingId && { recordingId: stepData.actionConfig.recordingId }),
-      ...(stepData.actionConfig.scriptId && { scriptId: stepData.actionConfig.scriptId }),
-      // Handle dialer context - if provided in step config, it will override transfer group
-      ...(stepData.actionConfig.dialerContext && { dialerContext: stepData.actionConfig.dialerContext }),
-      // These will be overridden by transfer group if it has them
+      // New primary fields
+      ...(stepData.actionConfig.context && { context: stepData.actionConfig.context }),
       ...(stepData.actionConfig.ingroup && { ingroup: stepData.actionConfig.ingroup }),
+      ...(stepData.actionConfig.did && { did: stepData.actionConfig.did }),
+      ...(stepData.actionConfig.amd !== undefined && { amd: stepData.actionConfig.amd }),
+      
+      // Transfer configuration
+      ...(stepData.actionConfig.transferNumber && { transferNumber: stepData.actionConfig.transferNumber }),
+      ...(stepData.actionConfig.transferGroupId && { transferGroupId: stepData.actionConfig.transferGroupId }),
+      
+      // Other call settings
+      ...(stepData.actionConfig.fallbackDID && { fallbackDID: stepData.actionConfig.fallbackDID }),
+      ...(stepData.actionConfig.callerId && { callerId: stepData.actionConfig.callerId }),
+      ...(stepData.actionConfig.scriptId && { scriptId: stepData.actionConfig.scriptId }),
+      ...(stepData.actionConfig.maxAttempts !== undefined && { maxAttempts: stepData.actionConfig.maxAttempts }),
+      ...(stepData.actionConfig.recordCall !== undefined && { recordCall: stepData.actionConfig.recordCall }),
+      ...(stepData.actionConfig.useLocalDID !== undefined && { useLocalDID: stepData.actionConfig.useLocalDID }),
+      ...(stepData.actionConfig.respectBusinessHours !== undefined && { respectBusinessHours: stepData.actionConfig.respectBusinessHours }),
+      
+      // Legacy support
+      ...(stepData.actionConfig.dialerContext && { dialerContext: stepData.actionConfig.dialerContext }),
     };
     
     stepData = {
@@ -1474,21 +1481,30 @@ export const updateJourneyStep = async (journeyId: number, stepId: number, stepD
   isExitPoint?: boolean;
   position?: { x: number; y: number };
 }) => {
-  // Handle transfer group configuration for updates
-  if (stepData.actionType === 'call' && stepData.actionConfig?.transferGroupId) {
+  // Handle call action configuration for updates
+  if (stepData.actionType === 'call' && stepData.actionConfig) {
     const callConfig = {
-      transferGroupId: stepData.actionConfig.transferGroupId,
-      // Include any optional overrides
-      ...(stepData.actionConfig.fallbackDID && { fallbackDID: stepData.actionConfig.fallbackDID }),
-      ...(stepData.actionConfig.amd !== undefined && { amd: stepData.actionConfig.amd }),
-      ...(stepData.actionConfig.playPosition !== undefined && { playPosition: stepData.actionConfig.playPosition }),
-      ...(stepData.actionConfig.skipPositionAnnouncement !== undefined && { skipPositionAnnouncement: stepData.actionConfig.skipPositionAnnouncement }),
-      ...(stepData.actionConfig.ivrFile && { ivrFile: stepData.actionConfig.ivrFile }),
-      ...(stepData.actionConfig.recordingId && { recordingId: stepData.actionConfig.recordingId }),
-      ...(stepData.actionConfig.scriptId && { scriptId: stepData.actionConfig.scriptId }),
-      // Handle dialer context
-      ...(stepData.actionConfig.dialerContext && { dialerContext: stepData.actionConfig.dialerContext }),
+      // New primary fields
+      ...(stepData.actionConfig.context && { context: stepData.actionConfig.context }),
       ...(stepData.actionConfig.ingroup && { ingroup: stepData.actionConfig.ingroup }),
+      ...(stepData.actionConfig.did && { did: stepData.actionConfig.did }),
+      ...(stepData.actionConfig.amd !== undefined && { amd: stepData.actionConfig.amd }),
+      
+      // Transfer configuration
+      ...(stepData.actionConfig.transferNumber && { transferNumber: stepData.actionConfig.transferNumber }),
+      ...(stepData.actionConfig.transferGroupId && { transferGroupId: stepData.actionConfig.transferGroupId }),
+      
+      // Other call settings
+      ...(stepData.actionConfig.fallbackDID && { fallbackDID: stepData.actionConfig.fallbackDID }),
+      ...(stepData.actionConfig.callerId && { callerId: stepData.actionConfig.callerId }),
+      ...(stepData.actionConfig.scriptId && { scriptId: stepData.actionConfig.scriptId }),
+      ...(stepData.actionConfig.maxAttempts !== undefined && { maxAttempts: stepData.actionConfig.maxAttempts }),
+      ...(stepData.actionConfig.recordCall !== undefined && { recordCall: stepData.actionConfig.recordCall }),
+      ...(stepData.actionConfig.useLocalDID !== undefined && { useLocalDID: stepData.actionConfig.useLocalDID }),
+      ...(stepData.actionConfig.respectBusinessHours !== undefined && { respectBusinessHours: stepData.actionConfig.respectBusinessHours }),
+      
+      // Legacy support
+      ...(stepData.actionConfig.dialerContext && { dialerContext: stepData.actionConfig.dialerContext }),
     };
     
     stepData = {
@@ -1606,68 +1622,29 @@ export const listWebhooks = async (options?: {
   page?: number;
   limit?: number;
   isActive?: boolean;
+  webhookType?: 'go' | 'pause' | 'stop' | 'announcement';
 }) => {
   const response = await api.get('/webhooks', { params: options });
   return response.data;
 };
 
-export const getWebhookDetails = async (id: number) => {
-  const response = await api.get(`/webhooks/${id}`);
+export const getWebhookDetails = async (webhookId: number) => {
+  const response = await api.get(`/webhooks/${webhookId}`);
   return response.data;
 };
 
-export const createWebhook = async (webhookData: {
-  name: string;
-  description: string;
-  brand: string;
-  source: string;
-  fieldMapping: Record<string, string>;
-  validationRules: {
-    requirePhone: boolean;
-    requireName: boolean;
-    requireEmail: boolean;
-    allowDuplicatePhone: boolean;
-  };
-  autoTagRules?: Array<{
-    field: string;
-    operator: string;
-    value: string;
-    tag: string;
-  }>;
-  requiredHeaders?: Record<string, string>;
-  autoEnrollJourneyId?: number | null;
-}) => {
+export const createWebhook = async (webhookData: any) => {
   const response = await api.post('/webhooks', webhookData);
   return response.data;
 };
 
-export const updateWebhook = async (id: number, webhookData: {
-  name?: string;
-  description?: string;
-  brand?: string;
-  source?: string;
-  fieldMapping?: Record<string, string>;
-  validationRules?: {
-    requirePhone?: boolean;
-    requireName?: boolean;
-    requireEmail?: boolean;
-    allowDuplicatePhone?: boolean;
-  };
-  autoTagRules?: Array<{
-    field: string;
-    operator: string;
-    value: string;
-    tag: string;
-  }>;
-  requiredHeaders?: Record<string, string>;
-  autoEnrollJourneyId?: number | null;
-}) => {
-  const response = await api.put(`/webhooks/${id}`, webhookData);
+export const updateWebhook = async (webhookId: number, webhookData: any) => {
+  const response = await api.put(`/webhooks/${webhookId}`, webhookData);
   return response.data;
 };
 
-export const deleteWebhook = async (id: number) => {
-  const response = await api.delete(`/webhooks/${id}`);
+export const deleteWebhook = async (webhookId: number) => {
+  const response = await api.delete(`/webhooks/${webhookId}`);
   return response.data;
 };
 
@@ -1680,18 +1657,132 @@ export const getWebhookEvents = async (webhookId: number, options?: {
   return response.data;
 };
 
-export const testWebhook = async (id: number, testData: Record<string, any>) => {
-  const response = await api.post(`/webhooks/${id}/test`, testData);
+export const testWebhook = async (webhookId: number, payload: Record<string, any>) => {
+  const response = await api.post(`/webhooks/${webhookId}/test`, payload);
+  return response.data;
+    };
+
+export const regenerateWebhookKey = async (webhookId: number) => {
+  const response = await api.post(`/webhooks/${webhookId}/regenerate-key`);
   return response.data;
 };
 
-export const regenerateWebhookKey = async (id: number) => {
-  const response = await api.post(`/webhooks/${id}/regenerate-key`);
+export const regenerateWebhookToken = async (webhookId: number) => {
+  const response = await api.post(`/webhooks/${webhookId}/regenerate-token`);
   return response.data;
 };
 
-export const regenerateWebhookToken = async (id: number) => {
-  const response = await api.post(`/webhooks/${id}/regenerate-token`);
+// Webhook Configuration APIs
+export const getWebhookConfigOptions = async (webhookType?: 'go' | 'pause' | 'stop' | 'announcement') => {
+  const response = await api.get('/webhooks/types/config-options', { 
+    params: { webhookType } 
+  });
+  return response.data;
+};
+
+export const getWebhookConditions = async (webhookId: number) => {
+  const response = await api.get(`/webhooks/${webhookId}/conditions`);
+  return response.data;
+};
+
+export const updateWebhookConditions = async (webhookId: number, conditions: any) => {
+  const response = await api.put(`/webhooks/${webhookId}/conditions`, conditions);
+  return response.data;
+};
+
+export const testWebhookConditions = async (webhookId: number, payload: Record<string, any>) => {
+  const response = await api.post(`/webhooks/${webhookId}/test-conditions`, payload);
+  return response.data;
+};
+
+export const getConditionOperators = async () => {
+  const response = await api.get('/webhooks/condition-operators');
+  return response.data;
+    };
+
+export const getActionTypes = async (webhookType?: 'go' | 'pause' | 'stop' | 'announcement') => {
+  const response = await api.get('/webhooks/action-types', { 
+    params: { webhookType } 
+  });
+  return response.data;
+      };
+
+// Announcement-Specific APIs
+export const getAnnouncementTemplates = async (options?: {
+  category?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}) => {
+  const response = await api.get('/webhooks/announcement/templates', { params: options });
+  return response.data;
+};
+
+export const getAnnouncementDisplays = async (options?: {
+  status?: 'online' | 'offline' | 'any';
+  location?: string;
+  tags?: string;
+  limit?: number;
+}) => {
+  const response = await api.get('/webhooks/announcement/displays', { params: options });
+  return response.data;
+};
+
+export const getAnnouncementPresets = async (options?: {
+  category?: string;
+  search?: string;
+}) => {
+  const response = await api.get('/webhooks/announcement/presets', { params: options });
+  return response.data;
+};
+
+export const testAnnouncement = async (webhookId: number, testPayload: Record<string, any>) => {
+  const response = await api.post(`/webhooks/${webhookId}/test-announcement`, { testPayload });
+  return response.data;
+};
+
+export const getAnnouncementMetrics = async (webhookId: number, options?: {
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  offset?: number;
+}) => {
+  const response = await api.get(`/webhooks/${webhookId}/announcement-metrics`, { params: options });
+  return response.data;
+};
+
+// Pause/Resume Management APIs
+export const getPausedLeads = async (options?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  webhookId?: number;
+}) => {
+  const response = await api.get('/webhooks/paused-leads', { params: options });
+  return response.data;
+};
+
+export const resumeLead = async (pauseStateId: string, data?: any) => {
+  const response = await api.post(`/webhooks/paused-leads/${pauseStateId}/resume`, data);
+  return response.data;
+};
+
+export const bulkResume = async (pauseStateIds: string[]) => {
+  const response = await api.post('/webhooks/paused-leads/bulk-resume', { pauseStateIds });
+  return response.data;
+};
+
+export const getPauseResumeStats = async (options?: {
+  startDate?: string;
+  endDate?: string;
+}) => {
+  const response = await api.get('/webhooks/pause-resume-stats', { params: options });
+  return response.data;
+};
+
+// Event & Execution Log APIs
+export const getExecutionLog = async (eventId: string) => {
+  const response = await api.get(`/webhooks/events/${eventId}/execution-log`);
   return response.data;
 };
 

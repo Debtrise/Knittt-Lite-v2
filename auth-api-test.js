@@ -9,7 +9,7 @@ async function testLogin() {
     console.log('Testing login...');
     
     // Try a test login - replace with valid credentials
-    const response = await axios.post(`${MAIN_API_URL}/login`, {
+    const response = await axios.post(`${MAIN_API_URL}/auth/login`, {
       username: 'admin',  // Replace with actual username
       password: 'admin123'   // Replace with actual password
     });

@@ -58,6 +58,99 @@
   100% { background-position: 0% 50%; }
 }
 
+/* Animation keyframes for new effects */
+@keyframes flutter {
+  0%, 100% { transform: translate(-50%, -50%) scaleX(1); }
+  50% { transform: translate(-50%, -50%) scaleX(0.8); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slide-in-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes slide-in-down {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes slide-out-left {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+
+@keyframes slide-out-right {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
+}
+
+@keyframes slide-out-up {
+  from { transform: translateY(0); }
+  to { transform: translateY(-100%); }
+}
+
+@keyframes slide-out-down {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+
+@keyframes zoom-in {
+  from { transform: scale(0); }
+  to { transform: scale(1); }
+}
+
+@keyframes zoom-out {
+  from { transform: scale(1); }
+  to { transform: scale(0); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+  20%, 40%, 60%, 80% { transform: translateX(10px); }
+}
+
+@keyframes flip {
+  from { transform: rotateY(0); }
+  to { transform: rotateY(180deg); }
+}
+
+/* Animation utility classes */
+.animate-fade-in { animation: fade-in 0.5s ease-out; }
+.animate-fade-out { animation: fade-out 0.5s ease-out; }
+.animate-slide-in-left { animation: slide-in-left 0.5s ease-out; }
+.animate-slide-in-right { animation: slide-in-right 0.5s ease-out; }
+.animate-slide-in-up { animation: slide-in-up 0.5s ease-out; }
+.animate-slide-in-down { animation: slide-in-down 0.5s ease-out; }
+.animate-slide-out-left { animation: slide-out-left 0.5s ease-out; }
+.animate-slide-out-right { animation: slide-out-right 0.5s ease-out; }
+.animate-slide-out-up { animation: slide-out-up 0.5s ease-out; }
+.animate-slide-out-down { animation: slide-out-down 0.5s ease-out; }
+.animate-zoom-in { animation: zoom-in 0.5s ease-out; }
+.animate-zoom-out { animation: zoom-out 0.5s ease-out; }
+.animate-shake { animation: shake 0.5s ease-in-out; }
+.animate-flip { animation: flip 0.6s ease-in-out; }
+
 .gradient-animation::before {
   content: "";
   position: fixed !important;

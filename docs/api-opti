@@ -1,0 +1,484 @@
+# Optisigns API Documentation
+
+## Overview
+The Optisigns integration allows you to manage digital signage displays, create content, and send content to displays directly from Knittt.
+
+**Base URL:** `http://34.122.156.88:3001/api/optisigns`
+
+**Authentication:** All endpoints require a valid JWT token in the Authorization header:
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+---
+
+## 📋 Configuration Endpoints
+
+### Test API Connection
+**POST** `/optisigns/config/test`
+
+Test connectivity to the Optisigns API with your token.
+
+**Request Body:**
+```json
+{
+  "apiToken": "your_optisigns_api_token"
+}
+```
+
+**Response (Success):**
+```json
+{
+  "success": true,
+  "displayCount": 5,
+  "displays": [...],
+  "accountInfo": {
+    "id": "account_id",
+    "name": "Your Account Name"
+  }
+}
+```
+
+**Response (Error):**
+```json
+{
+  "success": false,
+  "error": "API connection failed: Invalid token"
+}
+```
+
+**Example:**
+```bash
+curl -X POST "http://34.122.156.88:3001/api/optisigns/config/test" \
+-H "Authorization: Bearer YOUR_JWT_TOKEN" \
+-H "Content-Type: application/json" \
+-d '{"apiToken": "your_optisigns_token"}'
+```
+
+---
+
+### Get Configuration
+**GET** `/optisigns/config`
+
+Retrieve current Optisigns configuration for your tenant.
+
+**Response:**
+```json
+{
+  "apiToken": "***last8chars",
+  "settings": {
+    "autoSync": true,
+    "syncInterval": 300,
+    "enableWebhooks": true,
+    "defaultContentDuration": 30,
+    "allowCustomAssets": true
+  },
+  "isActive": true,
+  "lastValidated": "2024-12-20T10:30:00Z"
+}
+```
+
+**Example:**
+```bash
+curl -X GET "http://34.122.156.88:3001/api/optisigns/config" \
+-H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+---
+
+### Update Configuration
+**PUT** `/optisigns/config`
+
+Save or update your Optisigns API configuration.
+
+**Request Body:**
+```json
+{
+  "apiToken": "your_optisigns_api_token",
+  "settings": {
+    "autoSync": true,
+    "syncInterval": 300,
+    "enableWebhooks": true,
+    "defaultContentDuration": 30,
+    "allowCustomAssets": true
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Configuration updated successfully",
+  "apiToken": "***last8chars",
+  "settings": {...},
+  "isActive": true
+}
+```
+
+**Example:**
+```bash
+curl -X PUT "http://34.122.156.88:3001/api/optisigns/config" \
+-H "Authorization: Bearer YOUR_JWT_TOKEN" \
+-H "Content-Type: application/json" \
+-d '{
+  "apiToken": "your_optisigns_token",
+  "settings": {
+    "autoSync": true,
+    "syncInterval": 300,
+    "defaultContentDuration": 30
+  }
+}'
+```
+
+---
+
+## 📺 Display Management
+
+### Sync Displays
+**POST** `/optisigns/displays/sync`
+
+Import all displays from your Optisigns account into Knittt.
+
+**Response:**
+```json
+{
+  "message": "Successfully synced 5 displays",
+  "displayCount": 5,
+  "displays": [
+    {
+      "id": "uuid",
+      "tenantId": "1",
+      "optisignsId": "display_123",
+      "name": "Lobby Display",
+      "status": "online",
+      "location": "Main Lobby",
+      "isOnline": true,
+      "lastSeen": "2024-12-20T10:30:00Z",
+      "metadata": {...}
+    }
+  ]
+}
+```
+
+**Example:**
+```bash
+curl -X POST "http://34.122.156.88:3001/api/optisigns/displays/sync" \
+-H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+---
+
+### Get Displays
+**GET** `/optisigns/displays`
+
+Retrieve all synced displays for your tenant.
+
+**Response:**
+```json
+[
+  {
+    "id": "uuid",
+    "tenantId": "1",
+    "optisignsId": "display_123",
+    "name": "Lobby Display",
+    "status": "online",
+    "location": "Main Lobby",
+    "isOnline": true,
+    "lastSeen": "2024-12-20T10:30:00Z",
+    "createdAt": "2024-12-20T10:00:00Z",
+    "updatedAt": "2024-12-20T10:30:00Z"
+  }
+]
+```
+
+**Example:**
+```bash
+curl -X GET "http://34.122.156.88:3001/api/optisigns/displays" \
+-H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+---
+
+## 📝 Content Management
+
+### Create Content
+**POST** `/optisigns/content`
+
+Create new content in Optisigns and save reference in Knittt.
+
+**Request Body:**
+```json
+{
+  "name": "Welcome Message",
+  "type": "text",
+  "content": "Welcome to our office! Please take a seat.",
+  "duration": 30,
+  "options": {
+    "fontSize": "large",
+    "backgroundColor": "#ffffff",
+    "textColor": "#000000"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Content created successfully",
+  "content": {
+    "id": "uuid",
+    "tenantId": "1",
+    "optisignsId": "content_456",
+    "name": "Welcome Message",
+    "type": "text",
+    "status": "created",
+    "createdAt": "2024-12-20T10:30:00Z"
+  }
+}
+```
+
+**Example:**
+```bash
+curl -X POST "http://34.122.156.88:3001/api/optisigns/content" \
+-H "Authorization: Bearer YOUR_JWT_TOKEN" \
+-H "Content-Type: application/json" \
+-d '{
+  "name": "Welcome Message",
+  "type": "text",
+  "content": "Welcome to our office!",
+  "duration": 30
+}'
+```
+
+---
+
+### Get Content
+**GET** `/optisigns/content`
+
+Retrieve all content created for your tenant.
+
+**Response:**
+```json
+[
+  {
+    "id": "uuid",
+    "tenantId": "1",
+    "optisignsId": "content_456",
+    "name": "Welcome Message",
+    "type": "text",
+    "status": "created",
+    "metadata": {...},
+    "createdAt": "2024-12-20T10:30:00Z",
+    "updatedAt": "2024-12-20T10:30:00Z"
+  }
+]
+```
+
+**Example:**
+```bash
+curl -X GET "http://34.122.156.88:3001/api/optisigns/content" \
+-H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+---
+
+### Send Content to Displays
+**POST** `/optisigns/content/{contentId}/send`
+
+Send specific content to one or more displays.
+
+**Request Body:**
+```json
+{
+  "displayIds": ["display_uuid_1", "display_uuid_2"]
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Content sent to 2 displays successfully",
+  "results": [
+    {
+      "displayId": "display_uuid_1",
+      "success": true,
+      "response": {...}
+    },
+    {
+      "displayId": "display_uuid_2",
+      "success": true,
+      "response": {...}
+    }
+  ]
+}
+```
+
+**Example:**
+```bash
+curl -X POST "http://34.122.156.88:3001/api/optisigns/content/your_content_id/send" \
+-H "Authorization: Bearer YOUR_JWT_TOKEN" \
+-H "Content-Type: application/json" \
+-d '{
+  "displayIds": ["display_uuid_1", "display_uuid_2"]
+}'
+```
+
+---
+
+## 📊 Analytics
+
+### Get Analytics
+**GET** `/optisigns/analytics`
+
+Retrieve analytics data for your displays and content.
+
+**Query Parameters:**
+- `startDate` (optional): Start date for analytics (YYYY-MM-DD)
+- `endDate` (optional): End date for analytics (YYYY-MM-DD)
+- `displayId` (optional): Filter by specific display
+
+**Response:**
+```json
+{
+  "totalImpressions": 1250,
+  "totalDisplays": 5,
+  "totalContent": 12,
+  "recentActivity": [
+    {
+      "displayId": "display_123",
+      "contentId": "content_456",
+      "timestamp": "2024-12-20T10:30:00Z",
+      "action": "content_displayed"
+    }
+  ]
+}
+```
+
+**Example:**
+```bash
+curl -X GET "http://34.122.156.88:3001/api/optisigns/analytics?startDate=2024-12-01&endDate=2024-12-20" \
+-H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+---
+
+## 🔗 Webhook Rules
+
+### Get Webhook Rules
+**GET** `/optisigns/webhook-rules`
+
+Retrieve webhook rules for automation (placeholder implementation).
+
+**Response:**
+```json
+[]
+```
+
+### Create Webhook Rule
+**POST** `/optisigns/webhook-rules`
+
+Create new webhook rule (not implemented yet).
+
+**Response:**
+```json
+{
+  "error": "Webhook rules not implemented yet"
+}
+```
+
+---
+
+## 🔧 Debug Endpoints
+
+### Test Connectivity
+**POST** `/optisigns/debug/connectivity`
+
+Debug basic connectivity to Optisigns API.
+
+**Request Body:**
+```json
+{
+  "apiToken": "your_optisigns_token"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "status": 200,
+  "dataLength": 5,
+  "data": [...]
+}
+```
+
+**Example:**
+```bash
+curl -X POST "http://34.122.156.88:3001/api/optisigns/debug/connectivity" \
+-H "Authorization: Bearer YOUR_JWT_TOKEN" \
+-H "Content-Type: application/json" \
+-d '{"apiToken": "your_optisigns_token"}'
+```
+
+---
+
+## 🚨 Error Codes
+
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Success |
+| 400 | Bad Request - Invalid parameters |
+| 401 | Unauthorized - Invalid JWT token |
+| 404 | Not Found - Resource doesn't exist |
+| 500 | Internal Server Error |
+
+**Common Error Response Format:**
+```json
+{
+  "error": "Description of the error"
+}
+```
+
+---
+
+## 🎯 Complete Workflow Example
+
+```bash
+# 1. Test API connection
+curl -X POST "http://34.122.156.88:3001/api/optisigns/config/test" \
+-H "Authorization: Bearer YOUR_JWT_TOKEN" \
+-H "Content-Type: application/json" \
+-d '{"apiToken": "your_optisigns_token"}'
+
+# 2. Save configuration
+curl -X PUT "http://34.122.156.88:3001/api/optisigns/config" \
+-H "Authorization: Bearer YOUR_JWT_TOKEN" \
+-H "Content-Type: application/json" \
+-d '{"apiToken": "your_optisigns_token", "settings": {"autoSync": true}}'
+
+# 3. Sync displays
+curl -X POST "http://34.122.156.88:3001/api/optisigns/displays/sync" \
+-H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# 4. Create content
+curl -X POST "http://34.122.156.88:3001/api/optisigns/content" \
+-H "Authorization: Bearer YOUR_JWT_TOKEN" \
+-H "Content-Type: application/json" \
+-d '{"name": "Welcome", "type": "text", "content": "Hello!", "duration": 30}'
+
+# 5. Send content to displays
+curl -X POST "http://34.122.156.88:3001/api/optisigns/content/CONTENT_ID/send" \
+-H "Authorization: Bearer YOUR_JWT_TOKEN" \
+-H "Content-Type: application/json" \
+-d '{"displayIds": ["DISPLAY_ID_1", "DISPLAY_ID_2"]}'
+```
+
+---
+
+## 📚 Integration Notes
+
+- **Authentication**: All endpoints require valid JWT token from `/api/login`
+- **Rate Limiting**: Optisigns API has rate limits - be mindful of frequent requests
+- **Error Handling**: All endpoints return descriptive error messages
+- **Data Persistence**: Display and content data is stored in Knittt database
+- **Real-time Updates**: Use `/sync` endpoints to refresh data from Optisigns

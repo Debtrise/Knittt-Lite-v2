@@ -9,13 +9,14 @@ interface WebhookEvent {
   ipAddress: string;
   processingTime: number;
   createdLeadIds: number[];
+  affectedLeadIds: number[];
   payload: Record<string, any>;
   errorMessage?: string;
   validationErrors?: string[];
   processedData?: Record<string, any>;
   headers?: Record<string, string>;
   responseData?: Record<string, any>;
-  // New enhanced fields
+  // Enhanced fields for comprehensive webhook support
   executionLog?: {
     conditionsEvaluated: boolean;
     conditionResults: Array<{
@@ -41,11 +42,37 @@ interface WebhookEvent {
   };
   conditionalRulesApplied?: boolean;
   actionResults?: Record<string, any>;
+  // Pause/Resume specific fields
+  pauseResumeActions?: {
+    leadsPaused: number;
+    leadsResumed: number;
+    journeysPaused: number;
+    journeysResumed: number;
+  };
+  // Stop specific fields
+  stopActions?: {
+    leadsStopped: number;
+    journeysExited: number;
+    leadsMarkedDNC: number;
+    leadsMarkedSold: number;
+  };
+  // Announcement specific fields
+  announcementActions?: {
+    contentGenerated: boolean;
+    contentId?: string;
+    displaysTriggered: number;
+    successfulDisplays: number;
+    failedDisplays: number;
+    totalDuration: number;
+    variablesInjected: Record<string, any>;
+    contentGenerationTime: number;
+  };
 }
 
 interface Webhook {
   id: number;
   name: string;
+  webhookType: 'go' | 'pause' | 'stop' | 'announcement';
   brand?: string;
   source?: string;
   conditionalRules?: {
@@ -60,6 +87,9 @@ interface Webhook {
       }>;
     }>;
   };
+  pauseResumeConfig?: any;
+  stopConfig?: any;
+  announcementConfig?: any;
 }
 
 class WebhookNotificationService {
@@ -176,12 +206,161 @@ class WebhookNotificationService {
     const webhook = this.webhookCache.get(event.webhookId);
     if (!webhook) return;
 
+    // Enhanced processing based on webhook type
+    switch (webhook.webhookType) {
+      case 'go':
+        await this.processGoWebhookEvent(event, webhook);
+        break;
+      case 'pause':
+        await this.processPauseWebhookEvent(event, webhook);
+        break;
+      case 'stop':
+        await this.processStopWebhookEvent(event, webhook);
+        break;
+      case 'announcement':
+        await this.processAnnouncementWebhookEvent(event, webhook);
+        break;
+      default:
+        await this.processBasicWebhookEvent(event, webhook);
+    }
+  }
+
+  private async processGoWebhookEvent(event: WebhookEvent, webhook: Webhook) {
+    if (event.status === 'success' && event.createdLeadIds.length > 0) {
+      const message = this.buildGoWebhookMessage(event, webhook);
+      
+      addWebhookLeadNotification({
+        webhookName: webhook.name,
+        leadCount: event.createdLeadIds.length,
+        leadIds: event.createdLeadIds,
+        brand: webhook.brand,
+        source: webhook.source,
+        message
+      });
+    } else if (event.status === 'failed') {
+      const errorDetails = this.buildErrorMessage(event, webhook);
+      addWebhookErrorNotification(webhook.name, errorDetails);
+    }
+  }
+
+  private async processPauseWebhookEvent(event: WebhookEvent, webhook: Webhook) {
+    if (event.status === 'success' && event.pauseResumeActions) {
+      const { pauseResumeActions } = event;
+      let message = '';
+      
+      if (pauseResumeActions.leadsPaused > 0) {
+        message += `${pauseResumeActions.leadsPaused} lead(s) paused`;
+      }
+      
+      if (pauseResumeActions.leadsResumed > 0) {
+        if (message) message += ', ';
+        message += `${pauseResumeActions.leadsResumed} lead(s) resumed`;
+      }
+      
+      if (pauseResumeActions.journeysPaused > 0) {
+        if (message) message += ', ';
+        message += `${pauseResumeActions.journeysPaused} journey(s) paused`;
+      }
+      
+      addWebhookLeadNotification({
+        webhookName: webhook.name,
+        leadCount: pauseResumeActions.leadsPaused + pauseResumeActions.leadsResumed,
+        leadIds: event.affectedLeadIds || [],
+        brand: webhook.brand,
+        source: webhook.source,
+        message: message || 'Pause/resume actions completed'
+      });
+    } else if (event.status === 'failed') {
+      addWebhookErrorNotification(webhook.name, event.errorMessage || 'Pause/resume webhook failed');
+    }
+  }
+
+  private async processStopWebhookEvent(event: WebhookEvent, webhook: Webhook) {
+    if (event.status === 'success' && event.stopActions) {
+      const { stopActions } = event;
+      let message = '';
+      
+      if (stopActions.leadsStopped > 0) {
+        message += `${stopActions.leadsStopped} lead(s) stopped`;
+      }
+      
+      if (stopActions.leadsMarkedDNC > 0) {
+        if (message) message += ', ';
+        message += `${stopActions.leadsMarkedDNC} marked as DNC`;
+      }
+      
+      if (stopActions.leadsMarkedSold > 0) {
+        if (message) message += ', ';
+        message += `${stopActions.leadsMarkedSold} marked as sold`;
+      }
+      
+      addWebhookLeadNotification({
+        webhookName: webhook.name,
+        leadCount: stopActions.leadsStopped,
+        leadIds: event.affectedLeadIds || [],
+        brand: webhook.brand,
+        source: webhook.source,
+        message: message || 'Stop actions completed'
+      });
+    } else if (event.status === 'failed') {
+      addWebhookErrorNotification(webhook.name, event.errorMessage || 'Stop webhook failed');
+    }
+  }
+
+  private async processAnnouncementWebhookEvent(event: WebhookEvent, webhook: Webhook) {
+    if (event.status === 'success' && event.announcementActions) {
+      const { announcementActions } = event;
+      let message = '';
+      
+      if (announcementActions.contentGenerated) {
+        message += 'Content generated';
+      }
+      
+      if (announcementActions.displaysTriggered > 0) {
+        if (message) message += ', ';
+        message += `${announcementActions.displaysTriggered} display(s) triggered`;
+      }
+      
+      if (announcementActions.successfulDisplays > 0) {
+        if (message) message += ' (';
+        message += `${announcementActions.successfulDisplays} successful`;
+        if (announcementActions.failedDisplays > 0) {
+          message += `, ${announcementActions.failedDisplays} failed`;
+        }
+        message += ')';
+      }
+      
+      addWebhookLeadNotification({
+        webhookName: webhook.name,
+        leadCount: 1, // Announcement events typically affect one "event"
+        leadIds: [],
+        brand: webhook.brand,
+        source: webhook.source,
+        message: message || 'Announcement triggered successfully'
+      });
+    } else if (event.status === 'failed') {
+      addWebhookErrorNotification(webhook.name, event.errorMessage || 'Announcement webhook failed');
+    }
+  }
+
+  private async processBasicWebhookEvent(event: WebhookEvent, webhook: Webhook) {
     // Enhanced processing for conditional rules
     if (event.conditionalRulesApplied && event.executionLog) {
       await this.processConditionalWebhookEvent(event, webhook);
     } else {
       // Fallback to basic processing
-      await this.processBasicWebhookEvent(event, webhook);
+      if (event.status === 'success' && event.createdLeadIds.length > 0) {
+        addWebhookLeadNotification({
+          webhookName: webhook.name,
+          leadCount: event.createdLeadIds.length,
+          leadIds: event.createdLeadIds,
+          brand: webhook.brand,
+          source: webhook.source,
+        });
+      } else if (event.status === 'failed') {
+        const errorMessage = event.errorMessage || 'Unknown error occurred';
+        addWebhookErrorNotification(webhook.name, errorMessage);
+      }
     }
   }
 
@@ -197,12 +376,8 @@ class WebhookNotificationService {
       action.type === 'enroll_journey' && action.status === 'success'
     );
     
-    const notificationActions = executionLog.actionsExecuted.filter(action => 
-      action.type === 'send_notification' && action.status === 'success'
-    );
-
-    // Check for lead creation
-    if (event.status === 'success' && event.createdLeadIds.length > 0) {
+    // Check for lead creation or other successful actions
+    if (event.status === 'success' && (event.createdLeadIds.length > 0 || executionLog.actionsExecuted.some(a => a.status === 'success'))) {
       // Enhanced notification with conditional rule info
       const conditionSetNames = executionLog.conditionResults
         .filter(result => result.matched)
@@ -233,30 +408,39 @@ class WebhookNotificationService {
     }
   }
 
-  private async processBasicWebhookEvent(event: WebhookEvent, webhook: Webhook) {
-    if (event.status === 'success' && event.createdLeadIds.length > 0) {
-      // Success: New leads created
-      addWebhookLeadNotification({
-        webhookName: webhook.name,
-        leadCount: event.createdLeadIds.length,
-        leadIds: event.createdLeadIds,
-        brand: webhook.brand,
-        source: webhook.source,
-      });
-    } else if (event.status === 'partial_success' && event.createdLeadIds.length > 0) {
-      // Partial success: Some leads created but with warnings
-      addWebhookLeadNotification({
-        webhookName: webhook.name,
-        leadCount: event.createdLeadIds.length,
-        leadIds: event.createdLeadIds,
-        brand: webhook.brand,
-        source: webhook.source,
-      });
-    } else if (event.status === 'failed') {
-      // Error: No leads created
-      const errorMessage = event.errorMessage || 'Unknown error occurred';
-      addWebhookErrorNotification(webhook.name, errorMessage);
+  private buildGoWebhookMessage(event: WebhookEvent, webhook: Webhook): string {
+    let message = `${event.createdLeadIds.length} new lead(s) created`;
+    
+    if (event.executionLog?.conditionResults) {
+      const matchedConditions = event.executionLog.conditionResults.filter(r => r.matched);
+      if (matchedConditions.length > 0) {
+        message += ` • Conditions matched: ${matchedConditions.map(c => c.conditionSetName).join(', ')}`;
+      }
     }
+    
+    if (event.executionLog?.actionsExecuted) {
+      const successfulActions = event.executionLog.actionsExecuted.filter(a => a.status === 'success');
+      if (successfulActions.length > 0) {
+        message += ` • ${successfulActions.length} action(s) executed`;
+      }
+    }
+    
+    return message;
+  }
+
+  private buildErrorMessage(event: WebhookEvent, webhook: Webhook): string {
+    if (event.executionLog?.actionsExecuted) {
+      const failedActions = event.executionLog.actionsExecuted.filter(a => a.status === 'failed');
+      if (failedActions.length > 0) {
+        return `Failed actions: ${failedActions.map(a => `${a.type} (${a.error})`).join(', ')}`;
+      }
+    }
+    
+    if (event.validationErrors && event.validationErrors.length > 0) {
+      return `Validation errors: ${event.validationErrors.join(', ')}`;
+    }
+    
+    return event.errorMessage || 'Unknown error occurred';
   }
 
   private buildEnhancedMessage(webhook: Webhook, event: WebhookEvent, details: {
@@ -280,6 +464,68 @@ class WebhookNotificationService {
     }
     
     return message;
+  }
+
+  // Public methods for manual webhook management
+  async testWebhook(webhookId: number, payload: Record<string, any>) {
+    try {
+      const response = await api.webhooks.test(webhookId.toString(), payload);
+      return response.data;
+    } catch (error) {
+      console.error('Error testing webhook:', error);
+      throw error;
+    }
+  }
+
+  async getWebhookMetrics(webhookId: number, startDate?: string, endDate?: string) {
+    try {
+      const webhook = this.webhookCache.get(webhookId);
+      if (webhook?.webhookType === 'announcement') {
+        const response = await api.webhooks.announcement.getMetrics(webhookId.toString(), {
+          startDate,
+          endDate
+        });
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting webhook metrics:', error);
+      throw error;
+    }
+  }
+
+  async getPausedLeads(webhookId?: number) {
+    try {
+      const response = await api.webhooks.pauseResume.getPausedLeads({
+        webhookId,
+        page: 1,
+        limit: 50
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error getting paused leads:', error);
+      throw error;
+    }
+  }
+
+  async resumeLead(pauseStateId: string) {
+    try {
+      const response = await api.webhooks.pauseResume.resumeLead(pauseStateId);
+      return response.data;
+    } catch (error) {
+      console.error('Error resuming lead:', error);
+      throw error;
+    }
+  }
+
+  async getExecutionLog(eventId: number) {
+    try {
+      const response = await api.webhooks.getExecutionLog(eventId.toString());
+      return response.data;
+    } catch (error) {
+      console.error('Error getting execution log:', error);
+      throw error;
+    }
   }
 }
 

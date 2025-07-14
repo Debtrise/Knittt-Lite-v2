@@ -39,7 +39,7 @@ async function getAuthToken() {
     try {
       console.log(`\n🧪 Trying: ${credentials.username}/${credentials.password}`);
       
-      const response = await api.post('/login', credentials);
+      const response = await api.post('/auth/login', credentials);
       
       if (response.data && response.data.token) {
         console.log(`\n✅ SUCCESS! Got authentication token:`);
@@ -70,7 +70,7 @@ async function getAuthToken() {
   console.log('1. Get valid credentials from your system administrator');
   console.log('2. Create a user account if needed');
   console.log('3. Use the login endpoint manually:');
-  console.log(`   curl -X POST ${API_BASE_URL}/login -H "Content-Type: application/json" -d '{"username":"your_user","password":"your_pass"}'`);
+  console.log(`   curl -X POST ${API_BASE_URL}/auth/login -H "Content-Type: application/json" -d '{"username":"your_user","password":"your_pass"}'`);
   console.log('\n4. Then use the token with the test script:');
   console.log('   TEST_TOKEN="your_jwt_token" node test-real-endpoints.js');
 }

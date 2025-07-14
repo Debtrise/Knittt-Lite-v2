@@ -19,7 +19,18 @@ import {
   Volume2,
   ListMusic,
   Settings2,
-  History
+  History,
+  Monitor,
+  Image,
+  Play,
+  Zap,
+  Activity,
+  Sliders,
+  Calendar,
+  Tag,
+  ListChecks,
+  Shield,
+  Database
 } from 'lucide-react';
 
 const navigation = [
@@ -130,6 +141,61 @@ const navigation = [
         name: 'Configuration',
         href: '/recordings/config',
         icon: Settings2,
+      },
+    ],
+  },
+  {
+    name: 'OptiSigns',
+    items: [
+      {
+        name: 'Dashboard',
+        href: '/optisigns',
+        icon: Monitor,
+      },
+      {
+        name: 'Displays',
+        href: '/optisigns/displays',
+        icon: Monitor,
+      },
+      {
+        name: 'Content',
+        href: '/optisigns/content',
+        icon: FileText,
+      },
+      {
+        name: 'Assets',
+        href: '/optisigns/assets',
+        icon: Image,
+      },
+      {
+        name: 'Playlists',
+        href: '/optisigns/playlists',
+        icon: ListChecks,
+      },
+      {
+        name: 'Takeovers',
+        href: '/optisigns/takeovers',
+        icon: Zap,
+      },
+      {
+        name: 'Scheduling',
+        href: '/optisigns/schedule',
+        icon: Calendar,
+      },
+      {
+        name: 'Analytics',
+        href: '/optisigns/analytics',
+        icon: Activity,
+      },
+      {
+        name: 'Status',
+        href: '/optisigns/status',
+        icon: Database,
+      },
+      {
+        name: 'Configuration',
+        href: '/optisigns/config',
+        icon: Settings,
       },
     ],
   },

@@ -114,14 +114,14 @@ const SmsActionConfig: React.FC<SmsActionConfigProps> = ({ config, onChange, act
         <div>
           <Label htmlFor="provider">SMS Provider</Label>
           <Select 
-            value={config.provider || ''} 
-            onValueChange={(value) => handleChange('provider', value || undefined)}
+            value={config.provider || 'default'} 
+            onValueChange={(value) => handleChange('provider', value === 'default' ? undefined : value)}
           >
             <SelectTrigger>
               <SelectValue placeholder="Use default provider" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Use Default Provider</SelectItem>
+                              <SelectItem value="default">Use Default Provider</SelectItem>
               {providers?.providers.twilio.configured && (
                 <SelectItem value="twilio">Twilio</SelectItem>
               )}

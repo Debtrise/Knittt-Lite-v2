@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
@@ -23,19 +23,35 @@ import { ArrowLeft, Save, RefreshCw, Plus, X, Trash2 } from 'lucide-react';
 import api from '@/app/lib/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 
-export default function WebhookReviewPage({ params }: { params: { id: string } }) {
+// Helper function to safely get field mapping value
+const getFieldMappingValue = (field: any, defaultValue: string): string => {
+  if (typeof field === 'string') {
+    return field;
+  }
+  if (typeof field === 'object' && field !== null && 'sourceField' in field) {
+    return (field as { sourceField: string }).sourceField;
+  }
+  return defaultValue;
+};
+
+export default function WebhookReviewPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const webhookId = parseInt(params.id);
+  const resolvedParams = React.use(params);
+  const webhookId = parseInt(resolvedParams.id);
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [webhook, setWebhook] = useState<WebhookEndpoint | null>(null);
   const [formData, setFormData] = useState<Partial<WebhookEndpoint>>({});
   const [availableJourneys, setAvailableJourneys] = useState<any[]>([]);
+  const [availableTemplates, setAvailableTemplates] = useState<any[]>([]);
+  const [availableDisplays, setAvailableDisplays] = useState<any[]>([]);
 
   useEffect(() => {
     fetchWebhook();
     fetchJourneys();
+    fetchTemplates();
+    fetchDisplays();
   }, [webhookId]);
 
   const fetchJourneys = async () => {
@@ -49,13 +65,63 @@ export default function WebhookReviewPage({ params }: { params: { id: string } }
     }
   };
 
+  const fetchTemplates = async () => {
+    try {
+      const response = await api.webhooks.announcement.getTemplates({
+        category: 'announcement',
+        isPublic: true,
+        limit: 100
+      });
+      const data = response.data || response;
+      setAvailableTemplates(data.templates || data || []);
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+      // Don't show error toast as this is not critical
+    }
+  };
+
+  const fetchDisplays = async () => {
+    try {
+      const response = await api.webhooks.announcement.getDisplays({
+        status: 'any',
+        limit: 500
+      });
+      const data = response.data || response;
+      setAvailableDisplays(data.displays || data || []);
+    } catch (error) {
+      console.error('Error fetching displays:', error);
+      // Don't show error toast as this is not critical
+    }
+  };
+
   const fetchWebhook = async () => {
     setLoading(true);
     try {
       const response = await api.webhooks.get(webhookId.toString());
       const data = response.data || response;
+      console.log('Fetched webhook data:', data);
       setWebhook(data);
-      setFormData(data);
+      setFormData({
+        ...data,
+        // Ensure all required fields have default values
+        fieldMapping: data.fieldMapping || {},
+        validationRules: data.validationRules || {
+          requirePhone: false,
+          requireName: false,
+          requireEmail: false,
+          allowDuplicatePhone: false
+        },
+        autoTagRules: data.autoTagRules || [],
+        requiredHeaders: data.requiredHeaders || {},
+        conditionalRules: data.conditionalRules || {
+          enabled: false,
+          logicOperator: 'AND',
+          conditionSets: []
+        },
+        pauseResumeConfig: data.pauseResumeConfig || { enabled: false },
+        stopConfig: data.stopConfig || { enabled: false },
+        announcementConfig: data.announcementConfig || { enabled: false }
+      });
     } catch (error) {
       console.error('Error fetching webhook:', error);
       toast.error('Failed to load webhook details');
@@ -286,7 +352,12 @@ export default function WebhookReviewPage({ params }: { params: { id: string } }
     return (
       <DashboardLayout>
         <div className="container mx-auto py-6">
-          <div className="text-center">Loading webhook details...</div>
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-500">Loading webhook details...</p>
+            </div>
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -340,6 +411,95 @@ export default function WebhookReviewPage({ params }: { params: { id: string } }
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Webhook Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Webhook Information</CardTitle>
+              <CardDescription>Webhook endpoint details and configuration</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {webhook && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Webhook ID</Label>
+                    <div className="p-2 bg-gray-50 rounded border">
+                      <code className="text-sm">{webhook.id}</code>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Endpoint Key</Label>
+                    <div className="p-2 bg-gray-50 rounded border">
+                      <code className="text-sm">{webhook.endpointKey || 'Not available'}</code>
+                    </div>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Webhook URL</Label>
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-gray-50 rounded border flex-1">
+                        <code className="text-sm break-all">
+                          {webhook.webhookUrl || `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://34.122.156.88:3001'}/api/webhook-receiver/${webhook.endpointKey}`}
+                        </code>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const url = webhook.webhookUrl || `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://34.122.156.88:3001'}/api/webhook-receiver/${webhook.endpointKey}`;
+                          navigator.clipboard.writeText(url);
+                          toast.success('Webhook URL copied to clipboard');
+                        }}
+                      >
+                        Copy
+                      </Button>
+                    </div>
+                  </div>
+                  {webhook.securityToken && (
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Security Token</Label>
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-gray-50 rounded border flex-1">
+                          <code className="text-sm">{webhook.securityToken}</code>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            navigator.clipboard.writeText(webhook.securityToken);
+                            toast.success('Security token copied to clipboard');
+                          }}
+                        >
+                          Copy
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {webhook.announcementConfig?.contentCreator?.templateId && (
+                    <div className="space-y-2">
+                      <Label>Template ID</Label>
+                      <div className="p-2 bg-gray-50 rounded border">
+                        <code className="text-sm">{webhook.announcementConfig.contentCreator.templateId}</code>
+                      </div>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label>Created</Label>
+                    <div className="p-2 bg-gray-50 rounded border">
+                      <span className="text-sm">{new Date(webhook.createdAt).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Last Updated</Label>
+                    <div className="p-2 bg-gray-50 rounded border">
+                      <span className="text-sm">{new Date(webhook.updatedAt).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Basic Information */}
           <Card>
             <CardHeader>
@@ -397,6 +557,7 @@ export default function WebhookReviewPage({ params }: { params: { id: string } }
                       <SelectItem value="go">Go</SelectItem>
                       <SelectItem value="pause">Pause</SelectItem>
                       <SelectItem value="stop">Stop</SelectItem>
+                      <SelectItem value="announcement">Announcement</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -429,7 +590,7 @@ export default function WebhookReviewPage({ params }: { params: { id: string } }
                   <Label htmlFor="phone">Phone Field</Label>
                   <Input
                     id="phone"
-                    value={formData.fieldMapping?.phone || ''}
+                    value={getFieldMappingValue(formData.fieldMapping?.phone, '')}
                     onChange={(e) => handleInputChange('fieldMapping', {
                       ...formData.fieldMapping,
                       phone: e.target.value
@@ -441,7 +602,7 @@ export default function WebhookReviewPage({ params }: { params: { id: string } }
                   <Label htmlFor="name">Name Field</Label>
                   <Input
                     id="name"
-                    value={formData.fieldMapping?.name || ''}
+                    value={getFieldMappingValue(formData.fieldMapping?.name, '')}
                     onChange={(e) => handleInputChange('fieldMapping', {
                       ...formData.fieldMapping,
                       name: e.target.value
@@ -453,7 +614,7 @@ export default function WebhookReviewPage({ params }: { params: { id: string } }
                   <Label htmlFor="email">Email Field</Label>
                   <Input
                     id="email"
-                    value={formData.fieldMapping?.email || ''}
+                    value={getFieldMappingValue(formData.fieldMapping?.email, '')}
                     onChange={(e) => handleInputChange('fieldMapping', {
                       ...formData.fieldMapping,
                       email: e.target.value
@@ -509,75 +670,77 @@ export default function WebhookReviewPage({ params }: { params: { id: string } }
             </CardContent>
           </Card>
 
-          {/* Auto Tag Rules */}
+          {/* Auto Tagging */}
           <Card>
             <CardHeader>
-              <CardTitle>Auto Tag Rules</CardTitle>
-              <CardDescription>Configure automatic tagging based on incoming data</CardDescription>
+              <CardTitle>Auto Tagging</CardTitle>
+              <CardDescription>Configure automatic tagging rules for incoming leads</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {(formData.autoTagRules || []).map((rule, index) => (
-                <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                  <div className="space-y-2">
-                    <Label>Field</Label>
-                    <Input
-                      value={rule.field}
-                      onChange={(e) => handleAutoTagRuleChange(index, 'field', e.target.value)}
-                      placeholder="Field name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Operator</Label>
-                    <Select
-                      value={rule.operator}
-                      onValueChange={(value) => handleAutoTagRuleChange(index, 'operator', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select operator" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="equals">Equals</SelectItem>
-                        <SelectItem value="contains">Contains</SelectItem>
-                        <SelectItem value="exists">Exists</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Value</Label>
-                    <Input
-                      value={rule.value || ''}
-                      onChange={(e) => handleAutoTagRuleChange(index, 'value', e.target.value)}
-                      placeholder="Value to match"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Tag</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={rule.tag}
-                        onChange={(e) => handleAutoTagRuleChange(index, 'tag', e.target.value)}
-                        placeholder="Tag name"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeAutoTagRule(index)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+              <div className="space-y-4">
+                {(formData.autoTagRules || []).map((rule, index) => (
+                  <div key={index} className="flex items-start space-x-2">
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-2">
+                      <div className="space-y-2">
+                        <Label>Field</Label>
+                        <Input
+                          value={rule.field || ''}
+                          onChange={(e) => handleAutoTagRuleChange(index, 'field', e.target.value)}
+                          placeholder="source"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Operator</Label>
+                        <Select
+                          value={rule.operator || 'equals'}
+                          onValueChange={(value) => handleAutoTagRuleChange(index, 'operator', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select operator" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="equals">Equals</SelectItem>
+                            <SelectItem value="contains">Contains</SelectItem>
+                            <SelectItem value="exists">Exists</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Value</Label>
+                        <Input
+                          value={rule.value || ''}
+                          onChange={(e) => handleAutoTagRuleChange(index, 'value', e.target.value)}
+                          placeholder="website"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Tag</Label>
+                        <Input
+                          value={rule.tag || ''}
+                          onChange={(e) => handleAutoTagRuleChange(index, 'tag', e.target.value)}
+                          placeholder="web-lead"
+                        />
+                      </div>
                     </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeAutoTagRule(index)}
+                      className="mt-6"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
               <Button
                 type="button"
                 variant="outline"
                 onClick={addAutoTagRule}
-                className="w-full"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Add Auto Tag Rule
+                Add Tag Rule
               </Button>
             </CardContent>
           </Card>
@@ -894,51 +1057,808 @@ export default function WebhookReviewPage({ params }: { params: { id: string } }
             </CardContent>
           </Card>
 
-          {/* Webhook URL and Security */}
+          {/* Pause/Resume Configuration */}
+          {formData.webhookType === 'pause' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Pause/Resume Configuration</CardTitle>
+                <CardDescription>Configure pause and resume behavior for leads and journeys</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    checked={formData.pauseResumeConfig?.enabled || false}
+                    onCheckedChange={(checked) => handleInputChange('pauseResumeConfig', {
+                      ...formData.pauseResumeConfig,
+                      enabled: checked
+                    })}
+                  />
+                  <Label>Enable Pause/Resume Configuration</Label>
+                </div>
+
+                {formData.pauseResumeConfig?.enabled && (
+                  <div className="space-y-6">
+                    {/* Resume Conditions */}
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-medium">Resume Conditions</h4>
+                      
+                      {/* Timer Resume */}
+                      <div className="border rounded-lg p-4 space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            checked={formData.pauseResumeConfig?.resumeConditions?.timerResume?.enabled || false}
+                            onCheckedChange={(checked) => handleInputChange('pauseResumeConfig', {
+                              ...formData.pauseResumeConfig,
+                              resumeConditions: {
+                                ...formData.pauseResumeConfig?.resumeConditions,
+                                timerResume: {
+                                  ...formData.pauseResumeConfig?.resumeConditions?.timerResume,
+                                  enabled: checked
+                                }
+                              }
+                            })}
+                          />
+                          <Label>Timer Resume</Label>
+                        </div>
+                        
+                        {formData.pauseResumeConfig?.resumeConditions?.timerResume?.enabled && (
+                          <div className="grid grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                              <Label>Days</Label>
+                              <Input
+                                type="number"
+                                value={formData.pauseResumeConfig?.resumeConditions?.timerResume?.delayDays || 0}
+                                onChange={(e) => handleInputChange('pauseResumeConfig', {
+                                  ...formData.pauseResumeConfig,
+                                  resumeConditions: {
+                                    ...formData.pauseResumeConfig?.resumeConditions,
+                                    timerResume: {
+                                      ...formData.pauseResumeConfig?.resumeConditions?.timerResume,
+                                      delayDays: parseInt(e.target.value) || 0
+                                    }
+                                  }
+                                })}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Hours</Label>
+                              <Input
+                                type="number"
+                                value={formData.pauseResumeConfig?.resumeConditions?.timerResume?.delayHours || 0}
+                                onChange={(e) => handleInputChange('pauseResumeConfig', {
+                                  ...formData.pauseResumeConfig,
+                                  resumeConditions: {
+                                    ...formData.pauseResumeConfig?.resumeConditions,
+                                    timerResume: {
+                                      ...formData.pauseResumeConfig?.resumeConditions?.timerResume,
+                                      delayHours: parseInt(e.target.value) || 0
+                                    }
+                                  }
+                                })}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Minutes</Label>
+                              <Input
+                                type="number"
+                                value={formData.pauseResumeConfig?.resumeConditions?.timerResume?.delayMinutes || 0}
+                                onChange={(e) => handleInputChange('pauseResumeConfig', {
+                                  ...formData.pauseResumeConfig,
+                                  resumeConditions: {
+                                    ...formData.pauseResumeConfig?.resumeConditions,
+                                    timerResume: {
+                                      ...formData.pauseResumeConfig?.resumeConditions?.timerResume,
+                                      delayMinutes: parseInt(e.target.value) || 0
+                                    }
+                                  }
+                                })}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Status Resume */}
+                      <div className="border rounded-lg p-4 space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            checked={formData.pauseResumeConfig?.resumeConditions?.statusResume?.enabled || false}
+                            onCheckedChange={(checked) => handleInputChange('pauseResumeConfig', {
+                              ...formData.pauseResumeConfig,
+                              resumeConditions: {
+                                ...formData.pauseResumeConfig?.resumeConditions,
+                                statusResume: {
+                                  ...formData.pauseResumeConfig?.resumeConditions?.statusResume,
+                                  enabled: checked
+                                }
+                              }
+                            })}
+                          />
+                          <Label>Status Resume</Label>
+                        </div>
+                        
+                        {formData.pauseResumeConfig?.resumeConditions?.statusResume?.enabled && (
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Target Statuses (comma-separated)</Label>
+                              <Input
+                                value={formData.pauseResumeConfig?.resumeConditions?.statusResume?.targetStatuses?.join(', ') || ''}
+                                onChange={(e) => handleInputChange('pauseResumeConfig', {
+                                  ...formData.pauseResumeConfig,
+                                  resumeConditions: {
+                                    ...formData.pauseResumeConfig?.resumeConditions,
+                                    statusResume: {
+                                      ...formData.pauseResumeConfig?.resumeConditions?.statusResume,
+                                      targetStatuses: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                                    }
+                                  }
+                                })}
+                                placeholder="contacted, qualified, sold"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Check Interval (minutes)</Label>
+                              <Input
+                                type="number"
+                                value={formData.pauseResumeConfig?.resumeConditions?.statusResume?.checkInterval || 30}
+                                onChange={(e) => handleInputChange('pauseResumeConfig', {
+                                  ...formData.pauseResumeConfig,
+                                  resumeConditions: {
+                                    ...formData.pauseResumeConfig?.resumeConditions,
+                                    statusResume: {
+                                      ...formData.pauseResumeConfig?.resumeConditions?.statusResume,
+                                      checkInterval: parseInt(e.target.value) || 30
+                                    }
+                                  }
+                                })}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Tag Resume */}
+                      <div className="border rounded-lg p-4 space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            checked={formData.pauseResumeConfig?.resumeConditions?.tagResume?.enabled || false}
+                            onCheckedChange={(checked) => handleInputChange('pauseResumeConfig', {
+                              ...formData.pauseResumeConfig,
+                              resumeConditions: {
+                                ...formData.pauseResumeConfig?.resumeConditions,
+                                tagResume: {
+                                  ...formData.pauseResumeConfig?.resumeConditions?.tagResume,
+                                  enabled: checked
+                                }
+                              }
+                            })}
+                          />
+                          <Label>Tag Resume</Label>
+                        </div>
+                        
+                        {formData.pauseResumeConfig?.resumeConditions?.tagResume?.enabled && (
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Required Tags (comma-separated)</Label>
+                              <Input
+                                value={formData.pauseResumeConfig?.resumeConditions?.tagResume?.requiredTags?.join(', ') || ''}
+                                onChange={(e) => handleInputChange('pauseResumeConfig', {
+                                  ...formData.pauseResumeConfig,
+                                  resumeConditions: {
+                                    ...formData.pauseResumeConfig?.resumeConditions,
+                                    tagResume: {
+                                      ...formData.pauseResumeConfig?.resumeConditions?.tagResume,
+                                      requiredTags: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                                    }
+                                  }
+                                })}
+                                placeholder="ready, qualified"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Forbidden Tags (comma-separated)</Label>
+                              <Input
+                                value={formData.pauseResumeConfig?.resumeConditions?.tagResume?.forbiddenTags?.join(', ') || ''}
+                                onChange={(e) => handleInputChange('pauseResumeConfig', {
+                                  ...formData.pauseResumeConfig,
+                                  resumeConditions: {
+                                    ...formData.pauseResumeConfig?.resumeConditions,
+                                    tagResume: {
+                                      ...formData.pauseResumeConfig?.resumeConditions?.tagResume,
+                                      forbiddenTags: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                                    }
+                                  }
+                                })}
+                                placeholder="dnc, sold"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <h4 className="text-sm font-medium">Pause Actions</h4>
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              checked={formData.pauseResumeConfig?.pauseActions?.pauseJourneys || false}
+                              onCheckedChange={(checked) => handleInputChange('pauseResumeConfig', {
+                                ...formData.pauseResumeConfig,
+                                pauseActions: {
+                                  ...formData.pauseResumeConfig?.pauseActions,
+                                  pauseJourneys: checked
+                                }
+                              })}
+                            />
+                            <Label>Pause Journeys</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              checked={formData.pauseResumeConfig?.pauseActions?.addPauseTag || false}
+                              onCheckedChange={(checked) => handleInputChange('pauseResumeConfig', {
+                                ...formData.pauseResumeConfig,
+                                pauseActions: {
+                                  ...formData.pauseResumeConfig?.pauseActions,
+                                  addPauseTag: checked
+                                }
+                              })}
+                            />
+                            <Label>Add Pause Tag</Label>
+                          </div>
+                          {formData.pauseResumeConfig?.pauseActions?.addPauseTag && (
+                            <div className="ml-6 space-y-2">
+                              <Label>Pause Tag Name</Label>
+                              <Input
+                                value={formData.pauseResumeConfig?.pauseActions?.pauseTagName || 'paused'}
+                                onChange={(e) => handleInputChange('pauseResumeConfig', {
+                                  ...formData.pauseResumeConfig,
+                                  pauseActions: {
+                                    ...formData.pauseResumeConfig?.pauseActions,
+                                    pauseTagName: e.target.value
+                                  }
+                                })}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <h4 className="text-sm font-medium">Resume Actions</h4>
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              checked={formData.pauseResumeConfig?.resumeActions?.resumeJourneys || false}
+                              onCheckedChange={(checked) => handleInputChange('pauseResumeConfig', {
+                                ...formData.pauseResumeConfig,
+                                resumeActions: {
+                                  ...formData.pauseResumeConfig?.resumeActions,
+                                  resumeJourneys: checked
+                                }
+                              })}
+                            />
+                            <Label>Resume Journeys</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              checked={formData.pauseResumeConfig?.resumeActions?.removePauseTag || false}
+                              onCheckedChange={(checked) => handleInputChange('pauseResumeConfig', {
+                                ...formData.pauseResumeConfig,
+                                resumeActions: {
+                                  ...formData.pauseResumeConfig?.resumeActions,
+                                  removePauseTag: checked
+                                }
+                              })}
+                            />
+                            <Label>Remove Pause Tag</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              checked={formData.pauseResumeConfig?.resumeActions?.addResumeTag || false}
+                              onCheckedChange={(checked) => handleInputChange('pauseResumeConfig', {
+                                ...formData.pauseResumeConfig,
+                                resumeActions: {
+                                  ...formData.pauseResumeConfig?.resumeActions,
+                                  addResumeTag: checked
+                                }
+                              })}
+                            />
+                            <Label>Add Resume Tag</Label>
+                          </div>
+                          {formData.pauseResumeConfig?.resumeActions?.addResumeTag && (
+                            <div className="ml-6 space-y-2">
+                              <Label>Resume Tag Name</Label>
+                              <Input
+                                value={formData.pauseResumeConfig?.resumeActions?.resumeTagName || 'resumed'}
+                                onChange={(e) => handleInputChange('pauseResumeConfig', {
+                                  ...formData.pauseResumeConfig,
+                                  resumeActions: {
+                                    ...formData.pauseResumeConfig?.resumeActions,
+                                    resumeTagName: e.target.value
+                                  }
+                                })}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Stop Configuration */}
+          {formData.webhookType === 'stop' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Stop Configuration</CardTitle>
+                <CardDescription>Configure stop behavior for leads and journeys</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    checked={formData.stopConfig?.enabled || false}
+                    onCheckedChange={(checked) => handleInputChange('stopConfig', {
+                      ...formData.stopConfig,
+                      enabled: checked
+                    })}
+                  />
+                  <Label>Enable Stop Configuration</Label>
+                </div>
+
+                {formData.stopConfig?.enabled && (
+                  <div className="space-y-6">
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-medium">Stop Actions</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              checked={formData.stopConfig?.stopActions?.exitJourneys || false}
+                              onCheckedChange={(checked) => handleInputChange('stopConfig', {
+                                ...formData.stopConfig,
+                                stopActions: {
+                                  ...formData.stopConfig?.stopActions,
+                                  exitJourneys: checked
+                                }
+                              })}
+                            />
+                            <Label>Exit Journeys</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              checked={formData.stopConfig?.stopActions?.addStopTag || false}
+                              onCheckedChange={(checked) => handleInputChange('stopConfig', {
+                                ...formData.stopConfig,
+                                stopActions: {
+                                  ...formData.stopConfig?.stopActions,
+                                  addStopTag: checked
+                                }
+                              })}
+                            />
+                            <Label>Add Stop Tag</Label>
+                          </div>
+                          {formData.stopConfig?.stopActions?.addStopTag && (
+                            <div className="ml-6 space-y-2">
+                              <Label>Stop Tag Name</Label>
+                              <Input
+                                value={formData.stopConfig?.stopActions?.stopTagName || 'stopped'}
+                                onChange={(e) => handleInputChange('stopConfig', {
+                                  ...formData.stopConfig,
+                                  stopActions: {
+                                    ...formData.stopConfig?.stopActions,
+                                    stopTagName: e.target.value
+                                  }
+                                })}
+                              />
+                            </div>
+                          )}
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              checked={formData.stopConfig?.stopActions?.markAsDNC || false}
+                              onCheckedChange={(checked) => handleInputChange('stopConfig', {
+                                ...formData.stopConfig,
+                                stopActions: {
+                                  ...formData.stopConfig?.stopActions,
+                                  markAsDNC: checked
+                                }
+                              })}
+                            />
+                            <Label>Mark as DNC</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              checked={formData.stopConfig?.stopActions?.markAsSold || false}
+                              onCheckedChange={(checked) => handleInputChange('stopConfig', {
+                                ...formData.stopConfig,
+                                stopActions: {
+                                  ...formData.stopConfig?.stopActions,
+                                  markAsSold: checked
+                                }
+                              })}
+                            />
+                            <Label>Mark as Sold</Label>
+                          </div>
+                        </div>
+                        <div className="space-y-3">
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              checked={formData.stopConfig?.stopActions?.preventFutureEnrollment || false}
+                              onCheckedChange={(checked) => handleInputChange('stopConfig', {
+                                ...formData.stopConfig,
+                                stopActions: {
+                                  ...formData.stopConfig?.stopActions,
+                                  preventFutureEnrollment: checked
+                                }
+                              })}
+                            />
+                            <Label>Prevent Future Enrollment</Label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-medium">Metadata Tracking</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            checked={formData.stopConfig?.stopMetadata?.trackStopReason || false}
+                            onCheckedChange={(checked) => handleInputChange('stopConfig', {
+                              ...formData.stopConfig,
+                              stopMetadata: {
+                                ...formData.stopConfig?.stopMetadata,
+                                trackStopReason: checked
+                              }
+                            })}
+                          />
+                          <Label>Track Stop Reason</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            checked={formData.stopConfig?.stopMetadata?.trackStopSource || false}
+                            onCheckedChange={(checked) => handleInputChange('stopConfig', {
+                              ...formData.stopConfig,
+                              stopMetadata: {
+                                ...formData.stopConfig?.stopMetadata,
+                                trackStopSource: checked
+                              }
+                            })}
+                          />
+                          <Label>Track Stop Source</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            checked={formData.stopConfig?.stopMetadata?.trackStopTimestamp || false}
+                            onCheckedChange={(checked) => handleInputChange('stopConfig', {
+                              ...formData.stopConfig,
+                              stopMetadata: {
+                                ...formData.stopConfig?.stopMetadata,
+                                trackStopTimestamp: checked
+                              }
+                            })}
+                          />
+                          <Label>Track Stop Timestamp</Label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Announcement Configuration */}
+          {formData.webhookType === 'announcement' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Announcement Configuration</CardTitle>
+                <CardDescription>Configure announcement generation and display settings</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    checked={formData.announcementConfig?.enabled || false}
+                    onCheckedChange={(checked) => handleInputChange('announcementConfig', {
+                      ...formData.announcementConfig,
+                      enabled: checked
+                    })}
+                  />
+                  <Label>Enable Announcement Configuration</Label>
+                </div>
+
+                {formData.announcementConfig?.enabled && (
+                  <div className="space-y-6">
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-medium">Content Creator Settings</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Selected Template</Label>
+                          <Select
+                            value={formData.announcementConfig?.contentCreator?.templateId || ''}
+                            onValueChange={(value) => {
+                              const selectedTemplate = availableTemplates.find(t => t.id === value);
+                              handleInputChange('announcementConfig', {
+                                ...formData.announcementConfig,
+                                contentCreator: {
+                                  ...formData.announcementConfig?.contentCreator,
+                                  templateId: value,
+                                  templateName: selectedTemplate?.name || ''
+                                }
+                              });
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select template" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableTemplates.map((template) => (
+                                <SelectItem key={template.id} value={template.id}>
+                                  {template.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {formData.announcementConfig?.contentCreator?.templateId && (
+                            <div className="text-xs text-gray-500">
+                              Template ID: {formData.announcementConfig.contentCreator.templateId}
+                            </div>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Template Name Template</Label>
+                          <Input
+                            value={formData.announcementConfig?.contentCreator?.templateName || ''}
+                            onChange={(e) => handleInputChange('announcementConfig', {
+                              ...formData.announcementConfig,
+                              contentCreator: {
+                                ...formData.announcementConfig?.contentCreator,
+                                templateName: e.target.value
+                              }
+                            })}
+                            placeholder="Announcement - {{timestamp}}"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          checked={formData.announcementConfig?.contentCreator?.autoGenerate || false}
+                          onCheckedChange={(checked) => handleInputChange('announcementConfig', {
+                            ...formData.announcementConfig,
+                            contentCreator: {
+                              ...formData.announcementConfig?.contentCreator,
+                              autoGenerate: checked
+                            }
+                          })}
+                        />
+                        <Label>Auto Generate Content</Label>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-medium">Display Settings</h4>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Display Selection Mode</Label>
+                          <Select
+                            value={formData.announcementConfig?.optisigns?.displaySelection?.mode || 'all'}
+                            onValueChange={(value) => handleInputChange('announcementConfig', {
+                              ...formData.announcementConfig,
+                              optisigns: {
+                                ...formData.announcementConfig?.optisigns,
+                                displaySelection: {
+                                  ...formData.announcementConfig?.optisigns?.displaySelection,
+                                  mode: value
+                                }
+                              }
+                            })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select mode" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Displays</SelectItem>
+                              <SelectItem value="specific">Specific Displays</SelectItem>
+                              <SelectItem value="group">Display Groups</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {formData.announcementConfig?.optisigns?.displaySelection?.mode === 'specific' && (
+                          <div className="space-y-2">
+                            <Label>Selected Displays</Label>
+                            <div className="border rounded-lg p-3 max-h-48 overflow-y-auto">
+                              {availableDisplays.length > 0 ? (
+                                <div className="space-y-2">
+                                  {availableDisplays.map((display) => {
+                                    const isSelected = formData.announcementConfig?.optisigns?.displaySelection?.displayIds?.includes(display.id);
+                                    return (
+                                      <div key={display.id} className="flex items-center space-x-2">
+                                        <input
+                                          type="checkbox"
+                                          id={`display-${display.id}`}
+                                          checked={isSelected || false}
+                                          onChange={(e) => {
+                                            const currentDisplayIds = formData.announcementConfig?.optisigns?.displaySelection?.displayIds || [];
+                                            const newDisplayIds = e.target.checked
+                                              ? [...currentDisplayIds, display.id]
+                                              : currentDisplayIds.filter(id => id !== display.id);
+                                            
+                                            handleInputChange('announcementConfig', {
+                                              ...formData.announcementConfig,
+                                              optisigns: {
+                                                ...formData.announcementConfig?.optisigns,
+                                                displaySelection: {
+                                                  ...formData.announcementConfig?.optisigns?.displaySelection,
+                                                  displayIds: newDisplayIds
+                                                }
+                                              }
+                                            });
+                                          }}
+                                        />
+                                        <label htmlFor={`display-${display.id}`} className="text-sm">
+                                          {display.name} 
+                                          <span className="text-gray-500 ml-1">({display.location || 'No location'})</span>
+                                        </label>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <p className="text-gray-500 text-sm">No displays available</p>
+                              )}
+                            </div>
+                            {formData.announcementConfig?.optisigns?.displaySelection?.displayIds?.length > 0 && (
+                              <div className="text-xs text-gray-500">
+                                {formData.announcementConfig.optisigns.displaySelection.displayIds.length} display(s) selected
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {formData.announcementConfig?.optisigns?.displaySelection?.mode === 'all' && (
+                          <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                            <p className="text-sm text-blue-800">All available displays will be used for announcements</p>
+                          </div>
+                        )}
+
+                        {formData.announcementConfig?.optisigns?.displaySelection?.mode === 'group' && (
+                          <div className="space-y-2">
+                            <Label>Display Groups</Label>
+                            <div className="p-3 bg-gray-50 border rounded">
+                              <p className="text-sm text-gray-600">
+                                Groups: {formData.announcementConfig?.optisigns?.displaySelection?.groupIds?.join(', ') || 'None selected'}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-medium">Takeover Settings</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Priority</Label>
+                          <Select
+                            value={formData.announcementConfig?.optisigns?.takeover?.priority || 'MEDIUM'}
+                            onValueChange={(value) => handleInputChange('announcementConfig', {
+                              ...formData.announcementConfig,
+                              optisigns: {
+                                ...formData.announcementConfig?.optisigns,
+                                takeover: {
+                                  ...formData.announcementConfig?.optisigns?.takeover,
+                                  priority: value
+                                }
+                              }
+                            })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select priority" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="LOW">Low</SelectItem>
+                              <SelectItem value="MEDIUM">Medium</SelectItem>
+                              <SelectItem value="HIGH">High</SelectItem>
+                              <SelectItem value="URGENT">Urgent</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Duration (seconds)</Label>
+                          <Input
+                            type="number"
+                            value={formData.announcementConfig?.optisigns?.takeover?.duration || 30}
+                            onChange={(e) => handleInputChange('announcementConfig', {
+                              ...formData.announcementConfig,
+                              optisigns: {
+                                ...formData.announcementConfig?.optisigns,
+                                takeover: {
+                                  ...formData.announcementConfig?.optisigns?.takeover,
+                                  duration: parseInt(e.target.value) || 30
+                                }
+                              }
+                            })}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          checked={formData.announcementConfig?.optisigns?.takeover?.restoreAfter || false}
+                          onCheckedChange={(checked) => handleInputChange('announcementConfig', {
+                            ...formData.announcementConfig,
+                            optisigns: {
+                              ...formData.announcementConfig?.optisigns,
+                              takeover: {
+                                ...formData.announcementConfig?.optisigns?.takeover,
+                                restoreAfter: checked
+                              }
+                            }
+                          })}
+                        />
+                        <Label>Restore After Takeover</Label>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-medium">Variable Mapping</h4>
+                      <div className="space-y-2">
+                        <Label>Variable Mapping (JSON)</Label>
+                        <Textarea
+                          value={JSON.stringify(formData.announcementConfig?.contentCreator?.variableMapping || {}, null, 2)}
+                          onChange={(e) => {
+                            try {
+                              const mapping = JSON.parse(e.target.value);
+                              handleInputChange('announcementConfig', {
+                                ...formData.announcementConfig,
+                                contentCreator: {
+                                  ...formData.announcementConfig?.contentCreator,
+                                  variableMapping: mapping
+                                }
+                              });
+                            } catch (error) {
+                              // Invalid JSON, ignore
+                            }
+                          }}
+                          placeholder='{"dealAmount": "amount", "repName": "name"}'
+                          rows={4}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Test Payload */}
           <Card>
             <CardHeader>
-              <CardTitle>Webhook URL & Security</CardTitle>
-              <CardDescription>Endpoint details and security configuration</CardDescription>
+              <CardTitle>Test Payload</CardTitle>
+              <CardDescription>Configure test payload for webhook testing</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Webhook URL</Label>
-                <div className="flex items-center gap-2">
-                  <code className="bg-gray-100 px-2 py-1 rounded text-sm flex-1">
-                    {webhook.webhookUrl || `${process.env.NEXT_PUBLIC_API_URL}/api/webhook-receiver/${webhook.endpointKey}`}
-                  </code>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      navigator.clipboard.writeText(webhook.webhookUrl || `${process.env.NEXT_PUBLIC_API_URL}/api/webhook-receiver/${webhook.endpointKey}`);
-                      toast.success('Webhook URL copied to clipboard');
-                    }}
-                  >
-                    Copy
-                  </Button>
-                </div>
+                <Label>Test Payload (JSON)</Label>
+                <Textarea
+                  value={JSON.stringify(formData.testPayload || {}, null, 2)}
+                  onChange={(e) => {
+                    try {
+                      const payload = JSON.parse(e.target.value);
+                      handleInputChange('testPayload', payload);
+                    } catch (error) {
+                      // Invalid JSON, ignore
+                    }
+                  }}
+                  placeholder='{"phone": "5551234567", "name": "John Doe", "email": "john@example.com"}'
+                  rows={6}
+                />
               </div>
-              {webhook.securityToken && (
-                <div className="space-y-2">
-                  <Label>Security Token</Label>
-                  <div className="flex items-center gap-2">
-                    <code className="bg-gray-100 px-2 py-1 rounded text-sm flex-1">
-                      {webhook.securityToken}
-                    </code>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        navigator.clipboard.writeText(webhook.securityToken);
-                        toast.success('Security token copied to clipboard');
-                      }}
-                    >
-                      Copy
-                    </Button>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
 

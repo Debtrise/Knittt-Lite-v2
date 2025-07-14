@@ -203,7 +203,7 @@ Content-Type: application/json
   "name": "string",
   "description": "string",
   "stepOrder": "number",
-  "actionType": "call|sms|email|status_change|tag_update|webhook|wait_for_event|conditional_branch|lead_assignment|data_update|journey_transfer|delay",
+  "actionType": "call|sms|email|status_change|tag_update|webhook|delay",
   "actionConfig": {},
   "delayType": "immediate|fixed_time|delay_after_previous|delay_after_enrollment|specific_days",
   "delayConfig": {},

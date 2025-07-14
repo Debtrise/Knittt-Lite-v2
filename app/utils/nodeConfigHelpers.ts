@@ -12,11 +12,41 @@ export const getActionTypeParams = (actionType: JourneyActionType): ParamDefinit
     case 'call':
       return [
         {
-          id: 'dialerContext',
-          name: 'Dialer Context',
+          id: 'context',
+          name: 'Context',
           type: 'string',
           required: false,
-          description: 'JSON configuration for the dialer (if provided, other fields will be disabled except transfer group)'
+          description: 'Dialer context (e.g., BDS_Prime_Dialer) - overrides most other settings'
+        },
+        {
+          id: 'ingroup',
+          name: 'Ingroup',
+          type: 'string',
+          required: false,
+          default: 'SALES',
+          description: 'Ingroup for the call (e.g., SALES, SALES_FOLLOWUP)'
+        },
+        {
+          id: 'did',
+          name: 'DID',
+          type: 'string',
+          required: false,
+          description: 'Specific DID number to use for the call'
+        },
+        {
+          id: 'amd',
+          name: 'AMD (Answering Machine Detection)',
+          type: 'boolean',
+          required: false,
+          default: true,
+          description: 'Enable answering machine detection'
+        },
+        {
+          id: 'dialerContext',
+          name: 'Dialer Context (Legacy)',
+          type: 'string',
+          required: false,
+          description: 'JSON configuration for the dialer (legacy field, use Context instead)'
         },
         {
           id: 'transferGroupId',
@@ -205,112 +235,7 @@ export const getActionTypeParams = (actionType: JourneyActionType): ParamDefinit
         }
       ];
       
-    case 'sms_twilio':
-      return [
-        {
-          id: 'message',
-          name: 'Message',
-          type: 'string',
-          required: false,
-          description: 'SMS text (supports variables) - leave empty to use template'
-        },
-        {
-          id: 'templateId',
-          name: 'SMS Template',
-          type: 'template_select',
-          templateType: 'sms',
-          required: false,
-          description: 'Select an SMS template (alternative to message)'
-        },
-        {
-          id: 'from',
-          name: 'From Number',
-          type: 'string',
-          required: false,
-          description: 'Sender phone number (leave empty for Twilio default)'
-        },
-        {
-          id: 'statusCallback',
-          name: 'Status Callback URL',
-          type: 'string',
-          required: false,
-          description: 'Custom status callback URL for this message'
-        },
-        {
-          id: 'trackClicks',
-          name: 'Track Clicks',
-          type: 'boolean',
-          required: false,
-          default: true,
-          description: 'Whether to track link clicks'
-        },
-        {
-          id: 'optOutMessage',
-          name: 'Include Opt-Out',
-          type: 'boolean',
-          required: false,
-          default: true,
-          description: 'Include opt-out instructions'
-        }
-      ];
-      
-    case 'sms_meera':
-      return [
-        {
-          id: 'message',
-          name: 'Message',
-          type: 'string',
-          required: false,
-          description: 'SMS text (supports variables) - leave empty to use template'
-        },
-        {
-          id: 'templateId',
-          name: 'SMS Template',
-          type: 'template_select',
-          templateType: 'sms',
-          required: false,
-          description: 'Select an SMS template (alternative to message)'
-        },
-        {
-          id: 'from',
-          name: 'From Number',
-          type: 'string',
-          required: false,
-          description: 'Sender phone number (leave empty for Meera default)'
-        },
-        {
-          id: 'enableUnicode',
-          name: 'Enable Unicode',
-          type: 'boolean',
-          required: false,
-          default: true,
-          description: 'Enable Unicode characters for this message'
-        },
-        {
-          id: 'maxSegments',
-          name: 'Max Segments',
-          type: 'number',
-          required: false,
-          default: 4,
-          description: 'Maximum number of SMS segments'
-        },
-        {
-          id: 'trackClicks',
-          name: 'Track Clicks',
-          type: 'boolean',
-          required: false,
-          default: true,
-          description: 'Whether to track link clicks'
-        },
-        {
-          id: 'optOutMessage',
-          name: 'Include Opt-Out',
-          type: 'boolean',
-          required: false,
-          default: true,
-          description: 'Include opt-out instructions'
-        }
-      ];
+
       
     case 'email':
       return [
@@ -483,203 +408,7 @@ export const getActionTypeParams = (actionType: JourneyActionType): ParamDefinit
         }
       ];
       
-    case 'wait_for_event':
-      return [
-        {
-          id: 'eventType',
-          name: 'Event Type',
-          type: 'select',
-          options: ['inbound_call', 'email_opened', 'link_clicked', 'form_submitted', 'sms_replied'],
-          required: true,
-          description: 'Event type to wait for'
-        },
-        {
-          id: 'timeoutDays',
-          name: 'Timeout Days',
-          type: 'number',
-          required: false,
-          default: 7,
-          description: 'Days to wait before timing out'
-        },
-        {
-          id: 'timeoutAction',
-          name: 'Timeout Action',
-          type: 'select',
-          options: ['skip_step', 'end_journey'],
-          required: false,
-          default: 'skip_step',
-          description: 'Action on timeout'
-        },
-        {
-          id: 'captureData',
-          name: 'Capture Event Data',
-          type: 'boolean',
-          required: false,
-          default: true,
-          description: 'Whether to capture event data'
-        }
-      ];
-      
-    case 'conditional_branch':
-      return [
-        {
-          id: 'conditionField',
-          name: 'Condition Field',
-          type: 'string',
-          required: true,
-          description: 'Field to evaluate (e.g., additionalData.value)'
-        },
-        {
-          id: 'operator',
-          name: 'Operator',
-          type: 'select',
-          options: ['=', '!=', '>', '<', '>=', '<=', 'contains', 'not_contains', 'exists', 'not_exists'],
-          required: true,
-          description: 'Comparison operator'
-        },
-        {
-          id: 'value',
-          name: 'Value',
-          type: 'string',
-          required: false,
-          description: 'Value to compare against'
-        },
-        {
-          id: 'nextStepId',
-          name: 'Next Step ID',
-          type: 'number',
-          required: true,
-          description: 'ID of step to go to if condition is true'
-        },
-        {
-          id: 'defaultNextStepId',
-          name: 'Default Next Step ID',
-          type: 'number',
-          required: false,
-          description: 'Default step if condition is false'
-        }
-      ];
-      
-    case 'lead_assignment':
-      return [
-        {
-          id: 'assignmentType',
-          name: 'Assignment Type',
-          type: 'select',
-          options: ['user', 'team'],
-          required: true,
-          description: 'User or team'
-        },
-        {
-          id: 'assignToId',
-          name: 'Assign To ID',
-          type: 'string',
-          required: true,
-          description: 'User or team ID'
-        },
-        {
-          id: 'notifyAssignee',
-          name: 'Notify Assignee',
-          type: 'boolean',
-          required: false,
-          default: true,
-          description: 'Send notification to assignee'
-        },
-        {
-          id: 'notificationMethod',
-          name: 'Notification Method',
-          type: 'select',
-          options: ['email', 'sms', 'system'],
-          required: false,
-          default: 'email',
-          description: 'Method to notify assignee'
-        },
-        {
-          id: 'assignmentNote',
-          name: 'Assignment Note',
-          type: 'string',
-          required: false,
-          description: 'Note for the assignee'
-        },
-        {
-          id: 'priority',
-          name: 'Priority',
-          type: 'select',
-          options: ['low', 'medium', 'high', 'urgent'],
-          required: false,
-          default: 'medium',
-          description: 'Priority level'
-        }
-      ];
-      
-    case 'data_update':
-      return [
-        {
-          id: 'field',
-          name: 'Field',
-          type: 'string',
-          required: true,
-          description: 'Field to update (e.g., additionalData.score)'
-        },
-        {
-          id: 'value',
-          name: 'Value',
-          type: 'string',
-          required: true,
-          description: 'New value'
-        },
-        {
-          id: 'operation',
-          name: 'Operation',
-          type: 'select',
-          options: ['set', 'increment', 'decrement'],
-          required: false,
-          default: 'set',
-          description: 'Operation to perform'
-        },
-        {
-          id: 'recordNote',
-          name: 'Record Note',
-          type: 'boolean',
-          required: false,
-          default: true,
-          description: 'Record a note about the update'
-        }
-      ];
-      
-    case 'journey_transfer':
-      return [
-        {
-          id: 'targetJourneyId',
-          name: 'Target Journey ID',
-          type: 'number',
-          required: true,
-          description: 'Target journey ID'
-        },
-        {
-          id: 'exitCurrentJourney',
-          name: 'Exit Current Journey',
-          type: 'boolean',
-          required: false,
-          default: true,
-          description: 'Whether to exit the current journey'
-        },
-        {
-          id: 'transferContextData',
-          name: 'Transfer Context Data',
-          type: 'boolean',
-          required: false,
-          default: true,
-          description: 'Transfer context data to new journey'
-        },
-        {
-          id: 'startAtStep',
-          name: 'Start At Step',
-          type: 'number',
-          required: false,
-          description: 'Start at specific step ID (null = start at beginning)'
-        }
-      ];
+
       
     case 'delay':
       return [

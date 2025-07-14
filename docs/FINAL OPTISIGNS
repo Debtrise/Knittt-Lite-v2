@@ -1,0 +1,2049 @@
+# Knittt OptiSigns Integration API Documentation
+## Complete REST API Reference for OptiSigns Digital Signage Features
+
+This documentation covers all OptiSigns integration endpoints available in the Knittt platform for managing digital displays, content, and scheduling.
+
+---
+
+## Device Takeover Management
+
+### List Active Takeovers
+
+Get all currently active device takeovers.
+
+**Endpoint:** `GET /optisigns/takeovers`
+
+**Query Parameters:**
+- `page` (int): Page number (default: 1)
+- `limit` (int): Items per page (default: 50)
+- `priority` (string): Filter by priority level
+- `status` (string): Filter by status (ACTIVE, COMPLETED, CANCELLED)
+- `deviceId` (string): Filter by specific device
+
+**Response:**
+```json
+{
+  "takeovers": [
+    {
+      "id": "takeover-uuid",
+      "deviceId": "device-uuid",
+      "deviceName": "Lobby Display",
+      "contentType": "ASSET",
+      "contentId": "emergency-asset-uuid",
+      "contentName": "Evacuation Notice",
+      "priority": "EMERGENCY",
+      "status": "ACTIVE",
+      "startTime": "2025-06-23T10:30:00.000Z",
+      "endTime": "2025-06-23T10:35:00.000Z",
+      "timeRemaining": 180,
+      "message": "Emergency broadcast",
+      "initiatedBy": "admin@company.com",
+      "createdAt": "2025-06-23T10:30:00.000Z"
+    }
+  ],
+  "pagination": {
+    "currentPage": 1,
+    "totalPages": 1,
+    "totalCount": 3
+  },
+  "summary": {
+    "totalActive": 3,
+    "emergencyTakeovers": 1,
+    "highPriorityTakeovers": 2,
+    "devicesUnderTakeover": 3
+  },
+  "timestamp": "2025-06-23T10:32:00.000Z"
+}
+```
+
+### Get Takeover Details
+
+Get detailed information about a specific takeover.
+
+**Endpoint:** `GET /optisigns/takeovers/:id`
+
+**Response:**
+```json
+{
+  "takeover": {
+    "id": "takeover-uuid",
+    "deviceId": "device-uuid",
+    "device": {
+      "id": "device-uuid",
+      "name": "Lobby Display",
+      "location": "Building A - Lobby",
+      "status": "ONLINE"
+    },
+    "contentType": "ASSET",
+    "contentId": "emergency-asset-uuid",
+    "content": {
+      "id": "emergency-asset-uuid",
+      "name": "Evacuation Notice",
+      "type": "image",
+      "fileType": "png"
+    },
+    "priority": "EMERGENCY",
+    "status": "ACTIVE",
+    "startTime": "2025-06-23T10:30:00.000Z",
+    "endTime": "2025-06-23T10:35:00.000Z",
+    "duration": 300,
+    "timeRemaining": 180,
+    "message": "Emergency broadcast - evacuation notice",
+    "restoreAfter": true,
+    "previousContent": {
+      "type": "PLAYLIST",
+      "id": "previous-playlist-id",
+      "name": "Regular Content"
+    },
+    "initiatedBy": "admin@company.com",
+    "metadata": {
+      "userAgent": "Knittt Dashboard",
+      "ipAddress": "192.168.1.100"
+    },
+    "createdAt": "2025-06-23T10:30:00.000Z",
+    "updatedAt": "2025-06-23T10:30:00.000Z"
+  },
+  "timestamp": "2025-06-23T10:32:00.000Z"
+}
+```
+
+### Cancel Takeover
+
+Cancel an active takeover before its scheduled end time.
+
+**Endpoint:** `DELETE /optisigns/takeovers/:id`
+
+**Request Body:**
+```json
+{
+  "reason": "Emergency resolved",
+  "restoreContent": true
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Takeover cancelled successfully",
+  "takeover": {
+    "id": "takeover-uuid",
+    "status": "CANCELLED",
+    "cancelledAt": "2025-06-23T10:32:00.000Z",
+    "cancelledBy": "admin@company.com",
+    "reason": "Emergency resolved"
+  },
+  "device": {
+    "id": "device-uuid",
+    "name": "Lobby Display",
+    "currentType": "PLAYLIST",
+    "currentPlaylistId": "restored-playlist-id"
+  },
+  "timestamp": "2025-06-23T10:32:00.000Z"
+}
+```
+
+### Extend Takeover Duration
+
+Extend the duration of an active takeover.
+
+**Endpoint:** `POST /optisigns/takeovers/:id/extend`
+
+**Request Body:**
+```json
+{
+  "additionalSeconds": 300,
+  "reason": "Situation ongoing"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Takeover duration extended successfully",
+  "takeover": {
+    "id": "takeover-uuid",
+    "originalEndTime": "2025-06-23T10:35:00.000Z",
+    "newEndTime": "2025-06-23T10:40:00.000Z",
+    "totalDuration": 600,
+    "timeRemaining": 480,
+    "extensionReason": "Situation ongoing"
+  },
+  "timestamp": "2025-06-23T10:32:00.000Z"
+}
+```
+
+### Emergency Broadcast
+
+Quickly broadcast emergency content to all available devices.
+
+**Endpoint:** `POST /optisigns/emergency-broadcast`
+
+**Request Body:**
+```json
+{
+  "contentType": "ASSET",
+  "contentId": "emergency-asset-uuid",
+  "duration": 600,
+  "message": "EMERGENCY: Building evacuation required immediately",
+  "criteria": {
+    "excludeOffline": true,
+    "includeLocations": ["Building A", "Building B"],
+    "excludeLocations": ["Maintenance Room"],
+    "includeTags": ["emergency-capable"],
+    "excludeTags": ["maintenance-mode"]
+  },
+  "override": {
+    "scheduledContent": true,
+    "activeTakeovers": false
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Emergency broadcast initiated successfully",
+  "broadcast": {
+    "id": "broadcast-uuid",
+    "contentType": "ASSET",
+    "contentId": "emergency-asset-uuid",
+    "priority": "EMERGENCY",
+    "duration": 600,
+    "message": "EMERGENCY: Building evacuation required immediately",
+    "startTime": "2025-06-23T10:30:00.000Z",
+    "endTime": "2025-06-23T10:40:00.000Z"
+  },
+  "summary": {
+    "totalDevicesTargeted": 25,
+    "successfulTakeovers": 23,
+    "failedTakeovers": 2,
+    "skippedDevices": 0,
+    "offlineDevices": 2
+  },
+  "results": {
+    "successful": [
+      {
+        "deviceId": "device-uuid-1",
+        "deviceName": "Lobby Display",
+        "takeoverId": "takeover-uuid-1"
+      }
+    ],
+    "failed": [
+      {
+        "deviceId": "device-uuid-25",
+        "deviceName": "Offline Display",
+        "error": "Device offline"
+      }
+    ]
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Stop Emergency Broadcast
+
+End all takeovers created by an emergency broadcast.
+
+**Endpoint:** `POST /optisigns/emergency-broadcast/:id/stop`
+
+**Request Body:**
+```json
+{
+  "reason": "Emergency resolved - all clear",
+  "restoreContent": true
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Emergency broadcast stopped successfully",
+  "broadcast": {
+    "id": "broadcast-uuid",
+    "status": "STOPPED",
+    "stoppedAt": "2025-06-23T10:35:00.000Z",
+    "reason": "Emergency resolved - all clear"
+  },
+  "summary": {
+    "devicesRestored": 23,
+    "failedRestorations": 0
+  },
+  "timestamp": "2025-06-23T10:35:00.000Z"
+}
+```
+
+---
+
+## Base URL & Authentication
+
+**Base URL:** `https://app.knittt.com/api`
+
+**Authentication:** All endpoints require Bearer token authentication
+```http
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+**Content-Type:** `application/json` (except file uploads)
+
+---
+
+## Configuration Endpoints
+
+### Test OptiSigns API Connection
+
+Test a new API token before saving configuration.
+
+**Endpoint:** `POST /optisigns/config/test`
+
+**Request Body:**
+```json
+{
+  "apiToken": "your_optisigns_api_token_here"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "user": {
+    "_id": "user_id",
+    "email": "user@example.com"
+  },
+  "message": "OptiSigns API connection successful",
+  "testDuration": "1234ms",
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "error": "Authentication failed: invalid signature. Please check your OptiSigns API token.",
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Get Configuration
+
+Get current OptiSigns configuration for your tenant.
+
+**Endpoint:** `GET /optisigns/config`
+
+**Response:**
+```json
+{
+  "apiToken": "***oken_suffix",
+  "settings": {
+    "autoSync": true,
+    "syncInterval": 3600
+  },
+  "isActive": true,
+  "lastValidated": "2025-06-23T09:00:00.000Z",
+  "status": "active",
+  "message": "OptiSigns is configured and ready to use"
+}
+```
+
+### Update Configuration
+
+Save or update OptiSigns API configuration.
+
+**Endpoint:** `PUT /optisigns/config`
+
+**Request Body:**
+```json
+{
+  "apiToken": "your_optisigns_api_token",
+  "settings": {
+    "autoSync": true,
+    "syncInterval": 3600
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "message": "OptiSigns configuration updated successfully",
+  "apiToken": "***oken_suffix",
+  "settings": {
+    "autoSync": true,
+    "syncInterval": 3600
+  },
+  "isActive": true,
+  "lastValidated": "2025-06-23T10:30:00.000Z",
+  "status": "active"
+}
+```
+
+### Get Configuration Status
+
+Quick check if OptiSigns is configured and working.
+
+**Endpoint:** `GET /optisigns/status`
+
+**Response:**
+```json
+{
+  "configured": true,
+  "lastValidated": "2025-06-23T09:00:00.000Z",
+  "message": "OptiSigns is configured and ready to use",
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+---
+
+## Device/Display Management
+
+### Sync Displays from OptiSigns
+
+Fetch all displays from OptiSigns and sync to local database.
+
+**Endpoint:** `POST /optisigns/displays/sync`
+
+**Response:**
+```json
+{
+  "message": "Successfully synced 25 displays",
+  "summary": {
+    "totalSynced": 25,
+    "onlineDisplays": 18,
+    "offlineDisplays": 7
+  },
+  "displays": [
+    {
+      "id": "uuid-here",
+      "name": "Lobby Display",
+      "status": "ONLINE",
+      "isOnline": true,
+      "currentType": "PLAYLIST",
+      "currentPlaylistId": "playlist-id"
+    }
+  ],
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### List Displays
+
+Get paginated list of synced displays.
+
+**Endpoint:** `GET /optisigns/displays`
+
+**Query Parameters:**
+- `page` (int): Page number (default: 1)
+- `limit` (int): Items per page (default: 50)
+- `status` (string): Filter by status
+- `isOnline` (boolean): Filter by online status
+- `location` (string): Filter by location
+
+**Example:** `GET /optisigns/displays?page=1&limit=10&isOnline=true`
+
+**Response:**
+```json
+{
+  "displays": [
+    {
+      "id": "uuid-here",
+      "tenantId": "tenant_1", 
+      "optisignsDisplayId": "optisigns_device_id",
+      "name": "Main Lobby Screen",
+      "status": "ONLINE",
+      "isOnline": true,
+      "currentType": "PLAYLIST",
+      "currentAssetId": null,
+      "currentPlaylistId": "playlist-id",
+      "uuid": "hardware-uuid",
+      "location": null,
+      "lastSeen": "2025-06-23T10:25:00.000Z",
+      "createdAt": "2025-06-20T15:30:00.000Z",
+      "updatedAt": "2025-06-23T10:25:00.000Z"
+    }
+  ],
+  "pagination": {
+    "currentPage": 1,
+    "totalPages": 3,
+    "totalCount": 25,
+    "hasNextPage": true,
+    "hasPreviousPage": false
+  },
+  "statistics": {
+    "total": 25,
+    "online": 18,
+    "offline": 7,
+    "configured": true
+  }
+}
+```
+
+### Get Single Display
+
+Get detailed information about a specific display.
+
+**Endpoint:** `GET /optisigns/displays/:id`
+
+**Response:**
+```json
+{
+  "display": {
+    "id": "uuid-here",
+    "name": "Conference Room Display",
+    "status": "ONLINE", 
+    "isOnline": true,
+    "currentType": "ASSET",
+    "currentAssetId": "asset-id",
+    "schedules": [
+      {
+        "id": "schedule-id",
+        "startTime": "2025-06-23T09:00:00.000Z",
+        "endTime": "2025-06-23T17:00:00.000Z",
+        "status": "ACTIVE"
+      }
+    ],
+    "events": [
+      {
+        "id": "event-id",
+        "eventType": "CONTENT_STARTED",
+        "timestamp": "2025-06-23T10:30:00.000Z"
+      }
+    ]
+  },
+  "configured": true,
+  "message": "Display details retrieved successfully",
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Pair New Device
+
+Pair a new OptiSigns device using pairing code.
+
+**Endpoint:** `POST /optisigns/devices/pair`
+
+**Request Body:**
+```json
+{
+  "pairingCode": "3JRKC8"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Device paired successfully",
+  "device": {
+    "id": "new-uuid",
+    "name": "OptiSign Display 12345678",
+    "optisignsDisplayId": "optisigns_device_id",
+    "status": "PAIRED",
+    "isOnline": true,
+    "currentType": null,
+    "uuid": "hardware-uuid"
+  },
+  "optisignsData": {
+    "_id": "optisigns_device_id",
+    "deviceName": "New Device",
+    "status": "PAIRED"
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Update Device
+
+Update device settings (name, content assignment, etc.).
+
+**Endpoint:** `PUT /optisigns/devices/:id`
+
+**Request Body:**
+```json
+{
+  "deviceName": "Updated Display Name",
+  "currentType": "PLAYLIST",
+  "currentPlaylistId": "playlist-id"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Device updated successfully",
+  "device": {
+    "id": "uuid-here",
+    "name": "Updated Display Name",
+    "currentType": "PLAYLIST",
+    "currentPlaylistId": "playlist-id",
+    "lastSeen": "2025-06-23T10:30:00.000Z"
+  },
+  "optisignsData": {
+    "_id": "optisigns_device_id",
+    "deviceName": "Updated Display Name"
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Delete Device
+
+Remove device from OptiSigns and local database.
+
+**Endpoint:** `DELETE /optisigns/devices/:id`
+
+**Response:**
+```json
+{
+  "message": "Device deleted successfully",
+  "deviceId": "uuid-here",
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Assign Content to Device
+
+Assign playlist or asset to a specific device.
+
+**Endpoint:** `POST /optisigns/devices/:id/assign`
+
+**Request Body:**
+```json
+{
+  "contentType": "PLAYLIST",
+  "contentId": "local-playlist-uuid"
+}
+```
+
+**Content Types:**
+- `PLAYLIST` - Assign a playlist
+- `ASSET` - Assign a single asset
+
+**Response:**
+```json
+{
+  "message": "PLAYLIST assigned to device successfully",
+  "device": {
+    "id": "device-uuid",
+    "currentType": "PLAYLIST",
+    "currentPlaylistId": "optisigns-playlist-id"
+  },
+  "assignment": {
+    "contentType": "PLAYLIST",
+    "contentId": "local-playlist-uuid"
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Reboot Device
+
+Send reboot command to device.
+
+**Endpoint:** `POST /optisigns/devices/:id/reboot`
+
+**Response:**
+```json
+{
+  "message": "Reboot command sent (Note: OptiSigns API may not support device reboot)",
+  "device": {
+    "id": "device-uuid",
+    "name": "Device Name"
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Take Over Device
+
+Immediately override current content on device with priority content.
+
+**Endpoint:** `POST /optisigns/devices/:id/takeover`
+
+**Request Body:**
+```json
+{
+  "contentType": "ASSET",
+  "contentId": "emergency-asset-uuid",
+  "priority": "EMERGENCY",
+  "duration": 300,
+  "message": "Emergency broadcast - evacuation notice",
+  "restoreAfter": true
+}
+```
+
+**Priority Levels:**
+- `EMERGENCY` - Highest priority, overrides everything
+- `HIGH` - High priority, overrides normal content
+- `NORMAL` - Normal priority, respects existing schedules
+
+**Parameters:**
+- `contentType` (required): "ASSET" or "PLAYLIST"
+- `contentId` (required): UUID of content to display
+- `priority` (optional): Priority level (default: "HIGH")
+- `duration` (optional): Takeover duration in seconds (null = permanent)
+- `message` (optional): Reason for takeover
+- `restoreAfter` (optional): Restore previous content after duration (default: true)
+
+**Response:**
+```json
+{
+  "message": "Device takeover initiated successfully",
+  "takeover": {
+    "id": "takeover-uuid",
+    "deviceId": "device-uuid",
+    "contentType": "ASSET",
+    "contentId": "emergency-asset-uuid",
+    "priority": "EMERGENCY",
+    "duration": 300,
+    "startTime": "2025-06-23T10:30:00.000Z",
+    "endTime": "2025-06-23T10:35:00.000Z",
+    "status": "ACTIVE",
+    "previousContent": {
+      "type": "PLAYLIST",
+      "id": "previous-playlist-id"
+    }
+  },
+  "device": {
+    "id": "device-uuid",
+    "name": "Lobby Display",
+    "currentType": "ASSET",
+    "currentAssetId": "emergency-asset-uuid"
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Bulk Device Takeover
+
+Take over multiple devices simultaneously with the same content.
+
+**Endpoint:** `POST /optisigns/devices/bulk-takeover`
+
+**Request Body:**
+```json
+{
+  "deviceIds": ["device-uuid-1", "device-uuid-2", "device-uuid-3"],
+  "contentType": "ASSET",
+  "contentId": "emergency-asset-uuid",
+  "priority": "EMERGENCY",
+  "duration": 600,
+  "message": "Building-wide emergency announcement",
+  "restoreAfter": true,
+  "filters": {
+    "location": "Building A",
+    "tags": ["emergency-capable"]
+  }
+}
+```
+
+**Alternative - Takeover by Criteria:**
+```json
+{
+  "criteria": {
+    "status": "ONLINE",
+    "location": "Building A",
+    "tags": ["emergency-capable"]
+  },
+  "contentType": "ASSET",
+  "contentId": "emergency-asset-uuid",
+  "priority": "EMERGENCY",
+  "duration": 300,
+  "message": "Emergency evacuation notice"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Bulk takeover initiated on 15 devices",
+  "summary": {
+    "totalDevices": 15,
+    "successfulTakeovers": 14,
+    "failedTakeovers": 1,
+    "offlineDevices": 0
+  },
+  "takeovers": [
+    {
+      "id": "takeover-uuid-1",
+      "deviceId": "device-uuid-1",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "takeover-uuid-2", 
+      "deviceId": "device-uuid-2",
+      "status": "ACTIVE"
+    }
+  ],
+  "failures": [
+    {
+      "deviceId": "device-uuid-3",
+      "error": "Device not responding"
+    }
+  ],
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Stop Device Takeover
+
+End takeover and restore previous content or schedule.
+
+**Endpoint:** `POST /optisigns/devices/:id/stop-takeover`
+
+**Request Body:**
+```json
+{
+  "restoreContent": true,
+  "reason": "Emergency resolved"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Device takeover stopped successfully",
+  "device": {
+    "id": "device-uuid",
+    "name": "Lobby Display",
+    "currentType": "PLAYLIST",
+    "currentPlaylistId": "restored-playlist-id"
+  },
+  "restoredContent": {
+    "type": "PLAYLIST",
+    "id": "restored-playlist-id",
+    "name": "Regular Content"
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Get Device Takeover Status
+
+Check if device is currently under takeover control.
+
+**Endpoint:** `GET /optisigns/devices/:id/takeover-status`
+
+**Response:**
+```json
+{
+  "device": {
+    "id": "device-uuid",
+    "name": "Lobby Display"
+  },
+  "takeover": {
+    "id": "takeover-uuid",
+    "isActive": true,
+    "priority": "EMERGENCY",
+    "contentType": "ASSET",
+    "contentId": "emergency-asset-uuid",
+    "startTime": "2025-06-23T10:30:00.000Z",
+    "endTime": "2025-06-23T10:35:00.000Z",
+    "timeRemaining": 180,
+    "message": "Emergency broadcast - evacuation notice",
+    "initiatedBy": "user@company.com"
+  },
+  "previousContent": {
+    "type": "PLAYLIST",
+    "id": "previous-playlist-id",
+    "name": "Regular Content"
+  },
+  "timestamp": "2025-06-23T10:32:00.000Z"
+}
+```
+
+---
+
+## Asset Management
+
+### Sync Assets from OptiSigns
+
+Fetch all assets from OptiSigns and sync to local database.
+
+**Endpoint:** `POST /optisigns/assets/sync`
+
+**Response:**
+```json
+{
+  "message": "Successfully synced 50 assets",
+  "summary": {
+    "totalSynced": 50,
+    "byType": {
+      "image": 30,
+      "video": 15,
+      "document": 5
+    }
+  },
+  "assets": [
+    {
+      "id": "uuid-here",
+      "name": "Marketing Video",
+      "type": "video",
+      "fileType": "mp4",
+      "fileSize": 25000000,
+      "webLink": "https://cdn.optisigns.com/..."
+    }
+  ],
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### List Assets
+
+Get paginated list of synced assets.
+
+**Endpoint:** `GET /optisigns/assets`
+
+**Query Parameters:**
+- `page` (int): Page number (default: 1)
+- `limit` (int): Items per page (default: 50)
+- `type` (string): Filter by file type
+- `search` (string): Search in name and file type
+
+**Example:** `GET /optisigns/assets?type=image&search=logo`
+
+**Response:**
+```json
+{
+  "assets": [
+    {
+      "id": "uuid-here",
+      "tenantId": "tenant_1",
+      "optisignsId": "optisigns_asset_id", 
+      "name": "Company Logo",
+      "type": "image",
+      "fileType": "png",
+      "fileSize": 150000,
+      "url": "https://cdn.optisigns.com/...",
+      "webLink": "https://cdn.optisigns.com/...",
+      "status": "created",
+      "createdAt": "2025-06-20T15:30:00.000Z"
+    }
+  ],
+  "pagination": {
+    "currentPage": 1,
+    "totalPages": 5,
+    "totalCount": 50
+  },
+  "statistics": {
+    "total": 50,
+    "byType": {
+      "image": 30,
+      "video": 15,
+      "document": 5
+    },
+    "totalSize": 500000000,
+    "configured": true
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Upload Asset
+
+Upload new asset to OptiSigns.
+
+**Endpoint:** `POST /optisigns/assets/upload`
+
+**Request:** Multipart form data
+- `file` (file): Asset file
+- `name` (string): Asset name
+- `type` (string): Asset type
+
+**Example using curl:**
+```bash
+curl -X POST \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "file=@image.jpg" \
+  -F "name=Marketing Image" \
+  -F "type=image" \
+  https://app.knittt.com/api/optisigns/assets/upload
+```
+
+**Response:**
+```json
+{
+  "message": "Asset uploaded successfully",
+  "asset": {
+    "id": "new-uuid",
+    "name": "Marketing Image",
+    "type": "image",
+    "fileType": "jpeg",
+    "fileSize": 250000,
+    "webLink": "https://cdn.optisigns.com/..."
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Delete Asset
+
+Delete asset from OptiSigns and local database.
+
+**Endpoint:** `DELETE /optisigns/assets/:id`
+
+**Response:**
+```json
+{
+  "message": "Asset deleted successfully",
+  "result": {
+    "success": true,
+    "message": "Asset deleted successfully",
+    "assetId": "uuid-here"
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+---
+
+## Playlist Management
+
+### List Playlists
+
+Get paginated list of playlists.
+
+**Endpoint:** `GET /optisigns/playlists`
+
+**Query Parameters:**
+- `page` (int): Page number (default: 1)
+- `limit` (int): Items per page (default: 50)
+
+**Response:**
+```json
+{
+  "playlists": [
+    {
+      "id": "uuid-here",
+      "tenantId": "tenant_1",
+      "optisignsId": "optisigns_playlist_id",
+      "name": "Marketing Content",
+      "description": "Promotional videos and images",
+      "assetCount": 5,
+      "duration": 300,
+      "isActive": true,
+      "createdAt": "2025-06-20T15:30:00.000Z"
+    }
+  ],
+  "pagination": {
+    "currentPage": 1,
+    "totalPages": 2,
+    "totalCount": 8
+  },
+  "configured": true,
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Create Playlist
+
+Create new playlist in OptiSigns.
+
+**Endpoint:** `POST /optisigns/playlists`
+
+**Request Body:**
+```json
+{
+  "name": "New Marketing Playlist",
+  "description": "Latest promotional content"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Playlist created successfully",
+  "playlist": {
+    "id": "new-uuid",
+    "name": "New Marketing Playlist",
+    "description": "Latest promotional content",
+    "assetCount": 0,
+    "optisignsId": "optisigns_playlist_id"
+  },
+  "optisignsData": {
+    "_id": "optisigns_playlist_id",
+    "name": "New Marketing Playlist"
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Add Assets to Playlist
+
+Add multiple assets to an existing playlist.
+
+**Endpoint:** `POST /optisigns/playlists/:id/assets`
+
+**Request Body:**
+```json
+{
+  "assetIds": ["asset-uuid-1", "asset-uuid-2", "asset-uuid-3"]
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Added 3 assets to playlist",
+  "result": {
+    "success": true,
+    "message": "Added 3 assets to playlist",
+    "playlist": {
+      "id": "playlist-uuid",
+      "assetCount": 8
+    },
+    "addedAssets": 3
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Get Playlist with Assets
+
+Get playlist details including all associated assets.
+
+**Endpoint:** `GET /optisigns/playlists/:id/assets`
+
+**Response:**
+```json
+{
+  "playlist": {
+    "id": "playlist-uuid",
+    "name": "Marketing Content",
+    "description": "Promotional materials",
+    "assetCount": 5,
+    "playlistAssets": [
+      {
+        "id": "relation-uuid",
+        "position": 0,
+        "duration": 30,
+        "content": {
+          "id": "asset-uuid",
+          "name": "Logo Animation",
+          "type": "video",
+          "fileType": "mp4"
+        }
+      }
+    ]
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+---
+
+## Tag Management
+
+### List Tags
+
+Get all tags for the current tenant.
+
+**Endpoint:** `GET /optisigns/tags`
+
+**Response:**
+```json
+{
+  "tags": [
+    {
+      "id": "tag-uuid",
+      "tenantId": "tenant_1",
+      "optisignsId": "optisigns_tag_id",
+      "name": "Marketing",
+      "color": "#FF5733",
+      "isActive": true,
+      "createdAt": "2025-06-20T15:30:00.000Z"
+    }
+  ],
+  "count": 5,
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Create Tag
+
+Create new tag in OptiSigns.
+
+**Endpoint:** `POST /optisigns/tags`
+
+**Request Body:**
+```json
+{
+  "name": "Seasonal",
+  "color": "#33A8FF"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Tag created successfully",
+  "tag": {
+    "id": "new-tag-uuid",
+    "name": "Seasonal",
+    "color": "#33A8FF",
+    "optisignsId": "optisigns_tag_id"
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Apply Tag to Resource
+
+Apply tag to display, asset, or playlist.
+
+**Endpoint:** `POST /optisigns/tags/:tagId/apply`
+
+**Request Body:**
+```json
+{
+  "resourceType": "DISPLAY",
+  "resourceId": "display-uuid"
+}
+```
+
+**Resource Types:**
+- `DISPLAY` - For displays/devices
+- `CONTENT` - For assets  
+- `PLAYLIST` - For playlists
+
+**Response:**
+```json
+{
+  "message": "Tag applied successfully",
+  "result": {
+    "success": true,
+    "message": "Tag applied successfully",
+    "resourceTag": {
+      "id": "relation-uuid",
+      "tagId": "tag-uuid",
+      "resourceType": "DISPLAY",
+      "resourceId": "display-uuid"
+    }
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Get Resource Tags
+
+Get all tags applied to a specific resource.
+
+**Endpoint:** `GET /optisigns/:resourceType/:resourceId/tags`
+
+**Resource Types:** `displays`, `assets`, `playlists`
+
+**Example:** `GET /optisigns/displays/display-uuid/tags`
+
+**Response:**
+```json
+{
+  "tags": [
+    {
+      "id": "tag-uuid",
+      "name": "Marketing",
+      "color": "#FF5733"
+    }
+  ],
+  "count": 1,
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+---
+
+## Scheduling
+
+### Schedule Content
+
+Schedule playlist to display at specific times.
+
+**Endpoint:** `POST /optisigns/schedule`
+
+**Request Body:**
+```json
+{
+  "deviceId": "display-uuid",
+  "playlistId": "playlist-uuid", 
+  "startTime": "2025-06-24T09:00:00.000Z",
+  "endTime": "2025-06-24T17:00:00.000Z"
+}
+```
+
+**Validation Rules:**
+- Start time must be in the future
+- End time must be after start time
+- Cannot overlap with existing schedules
+- Times must be in ISO 8601 format
+
+**Response:**
+```json
+{
+  "message": "Content scheduled successfully",
+  "result": {
+    "success": true,
+    "message": "Content scheduled successfully",
+    "schedule": {
+      "id": "schedule-uuid",
+      "displayId": "display-uuid",
+      "playlistId": "playlist-uuid",
+      "contentType": "PLAYLIST",
+      "startTime": "2025-06-24T09:00:00.000Z",
+      "endTime": "2025-06-24T17:00:00.000Z",
+      "status": "SCHEDULED"
+    }
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### List Schedules
+
+Get paginated list of schedules.
+
+**Endpoint:** `GET /optisigns/schedules`
+
+**Query Parameters:**
+- `page` (int): Page number (default: 1)
+- `limit` (int): Items per page (default: 50)
+- `deviceId` (string): Filter by device
+- `status` (string): Filter by status (SCHEDULED, ACTIVE, COMPLETED, CANCELLED)
+
+**Response:**
+```json
+{
+  "schedules": [
+    {
+      "id": "schedule-uuid",
+      "tenantId": "tenant_1",
+      "displayId": "display-uuid",
+      "playlistId": "playlist-uuid",
+      "contentType": "PLAYLIST",
+      "startTime": "2025-06-24T09:00:00.000Z",
+      "endTime": "2025-06-24T17:00:00.000Z",
+      "status": "SCHEDULED",
+      "display": {
+        "id": "display-uuid",
+        "name": "Conference Room Display",
+        "status": "ONLINE"
+      },
+      "playlist": {
+        "id": "playlist-uuid",
+        "name": "Meeting Content",
+        "assetCount": 3
+      }
+    }
+  ],
+  "pagination": {
+    "currentPage": 1,
+    "totalPages": 2,
+    "totalCount": 15
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Get Schedule Details
+
+Get detailed information about specific schedule.
+
+**Endpoint:** `GET /optisigns/schedules/:id`
+
+**Response:**
+```json
+{
+  "schedule": {
+    "id": "schedule-uuid",
+    "displayId": "display-uuid",
+    "playlistId": "playlist-uuid",
+    "contentType": "PLAYLIST",
+    "startTime": "2025-06-24T09:00:00.000Z",
+    "endTime": "2025-06-24T17:00:00.000Z",
+    "status": "SCHEDULED",
+    "isRecurring": false,
+    "display": {
+      "id": "display-uuid",
+      "name": "Conference Room Display"
+    },
+    "playlist": {
+      "id": "playlist-uuid",
+      "name": "Meeting Content"
+    }
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Cancel Schedule
+
+Cancel a scheduled content assignment.
+
+**Endpoint:** `DELETE /optisigns/schedules/:id`
+
+**Response:**
+```json
+{
+  "message": "Schedule cancelled successfully",
+  "scheduleId": "schedule-uuid",
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+---
+
+## Analytics & Reporting
+
+### Get Analytics Dashboard
+
+Get overview analytics for OptiSigns integration.
+
+**Endpoint:** `GET /optisigns/analytics`
+
+**Response:**
+```json
+{
+  "summary": {
+    "totalDisplays": 25,
+    "onlineDisplays": 18,
+    "offlineDisplays": 7,
+    "totalAssets": 50,
+    "totalPlaylists": 8,
+    "totalSchedules": 15,
+    "activeSchedules": 3,
+    "activeTakeovers": 2,
+    "emergencyTakeovers": 1,
+    "uptime": "72.0",
+    "configured": true
+  },
+  "contentAnalytics": {
+    "byType": [
+      {"type": "image", "count": 30},
+      {"type": "video", "count": 15},
+      {"type": "document", "count": 5}
+    ],
+    "totalSize": 500000000
+  },
+  "takeoverAnalytics": {
+    "totalTakeoversToday": 5,
+    "emergencyTakeoversToday": 2,
+    "averageTakeoverDuration": 180,
+    "devicesCurrentlyUnderTakeover": 2,
+    "takeoversByPriority": {
+      "EMERGENCY": 2,
+      "HIGH": 1,
+      "NORMAL": 0
+    },
+    "recentTakeovers": [
+      {
+        "id": "takeover-uuid-1",
+        "deviceName": "Lobby Display",
+        "priority": "EMERGENCY",
+        "startTime": "2025-06-23T10:30:00.000Z",
+        "status": "ACTIVE"
+      }
+    ]
+  },
+  "health": {
+    "status": "warning",
+    "issues": [
+      "7 displays offline",
+      "2 emergency takeovers active"
+    ]
+  },
+  "lastUpdated": "2025-06-23T10:30:00.000Z"
+}
+```
+
+**Health Status Values:**
+- `healthy` - All systems operational
+- `warning` - Some issues detected
+- `critical` - Major problems
+- `not_configured` - OptiSigns not set up
+
+---
+
+## Debug & Testing Endpoints
+
+### Debug API with Token
+
+Test OptiSigns API connection and discover schema (admin only).
+
+**Endpoint:** `POST /optisigns/debug/test-token`
+
+**Request Body:**
+```json
+{
+  "apiToken": "optisigns_token_to_test"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "OptiSigns API debug completed",
+  "results": {
+    "connectionTest": "SUCCESS",
+    "schemaDiscovery": "SUCCESS", 
+    "deviceQueries": "SUCCESS",
+    "availableQueries": ["me", "devices", "assets", "playlists"],
+    "workingDeviceQuery": "devices_relay",
+    "deviceCount": 25,
+    "errors": []
+  },
+  "fullResults": {
+    "me": {...},
+    "devices": {...},
+    "schema": {...}
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Discover Schema
+
+Test OptiSigns schema discovery with stored config.
+
+**Endpoint:** `GET /optisigns/debug/discover-schema`
+
+**Response:**
+```json
+{
+  "message": "Schema discovery completed",
+  "devicesFound": 25,
+  "devices": [
+    {
+      "_id": "device_id",
+      "deviceName": "Display Name",
+      "status": "ONLINE"
+    }
+  ],
+  "pageInfo": {
+    "hasNextPage": false,
+    "endCursor": null
+  },
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+---
+
+## Error Responses
+
+### Standard Error Format
+
+All endpoints return errors in this format:
+
+```json
+{
+  "error": "Error message describing what went wrong",
+  "details": "Additional error details if available",
+  "timestamp": "2025-06-23T10:30:00.000Z"
+}
+```
+
+### Common Error Codes
+
+**400 Bad Request:**
+```json
+{
+  "error": "Invalid request data",
+  "details": "Pairing code must be 6 characters"
+}
+```
+
+**401 Unauthorized:**
+```json
+{
+  "error": "Authentication required",
+  "details": "Please provide valid JWT token"
+}
+```
+
+**403 Forbidden:**
+```json
+{
+  "error": "OptiSigns not configured for your account",
+  "message": "Please configure your OptiSigns API token first",
+  "configureEndpoint": "/api/optisigns/config"
+}
+```
+
+**404 Not Found:**
+```json
+{
+  "error": "Display not found"
+}
+```
+
+**500 Internal Server Error:**
+```json
+{
+  "error": "OptiSigns API connection failed",
+  "details": "Authentication failed: invalid signature"
+}
+```
+
+### Takeover-Specific Errors
+
+**409 Conflict:**
+```json
+{
+  "error": "Device already under higher priority takeover",
+  "details": "Cannot override EMERGENCY priority takeover with HIGH priority",
+  "currentTakeover": {
+    "id": "existing-takeover-uuid",
+    "priority": "EMERGENCY",
+    "endTime": "2025-06-23T10:40:00.000Z"
+  }
+}
+```
+
+**422 Unprocessable Entity:**
+```json
+{
+  "error": "Invalid takeover duration",
+  "details": "Duration cannot exceed 24 hours for non-emergency takeovers"
+}
+```
+
+**423 Locked:**
+```json
+{
+  "error": "Device is in maintenance mode",
+  "details": "Cannot initiate takeover on device in maintenance mode"
+}
+```
+
+**424 Failed Dependency:**
+```json
+{
+  "error": "Content not available for takeover",
+  "details": "Asset is currently being processed and cannot be displayed"
+}
+```
+
+---
+
+## Rate Limiting
+
+### Limits
+- **Configuration endpoints:** 10 requests per minute
+- **Sync operations:** 2 requests per minute  
+- **Standard CRUD:** 100 requests per minute
+- **File uploads:** 5 requests per minute
+
+### Rate Limit Headers
+```http
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1624449600
+```
+
+---
+
+## Webhooks (Future)
+
+Webhook support for real-time OptiSigns events is planned for future releases.
+
+**Planned Events:**
+- `device.online` - Device comes online
+- `device.offline` - Device goes offline  
+- `content.started` - Content playback started
+- `content.completed` - Content playback finished
+- `schedule.activated` - Scheduled content activated
+
+---
+
+## SDKs & Examples
+
+### JavaScript/Node.js Example
+
+```javascript
+const axios = require('axios');
+
+class KnitttOptiSigns {
+  constructor(apiToken, baseUrl = 'https://app.knittt.com/api') {
+    this.apiToken = apiToken;
+    this.baseUrl = baseUrl;
+  }
+
+  async request(method, endpoint, data = null) {
+    const config = {
+      method,
+      url: `${this.baseUrl}${endpoint}`,
+      headers: {
+        'Authorization': `Bearer ${this.apiToken}`,
+        'Content-Type': 'application/json'
+      }
+    };
+
+    if (data) {
+      config.data = data;
+    }
+
+    try {
+      const response = await axios(config);
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.error || error.message);
+    }
+  }
+
+  // Configuration
+  async testConnection(optisignsToken) {
+    return this.request('POST', '/optisigns/config/test', {
+      apiToken: optisignsToken
+    });
+  }
+
+  async getConfig() {
+    return this.request('GET', '/optisigns/config');
+  }
+
+  async updateConfig(optisignsToken, settings = {}) {
+    return this.request('PUT', '/optisigns/config', {
+      apiToken: optisignsToken,
+      settings
+    });
+  }
+
+  // Displays
+  async syncDisplays() {
+    return this.request('POST', '/optisigns/displays/sync');
+  }
+
+  async getDisplays(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return this.request('GET', `/optisigns/displays?${query}`);
+  }
+
+  async pairDevice(pairingCode) {
+    return this.request('POST', '/optisigns/devices/pair', {
+      pairingCode
+    });
+  }
+
+  async assignContent(deviceId, contentType, contentId) {
+    return this.request('POST', `/optisigns/devices/${deviceId}/assign`, {
+      contentType,
+      contentId
+    });
+  }
+
+  // Assets
+  async syncAssets() {
+    return this.request('POST', '/optisigns/assets/sync');
+  }
+
+  async getAssets(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return this.request('GET', `/optisigns/assets?${query}`);
+  }
+
+  // Playlists
+  async createPlaylist(name, description = '') {
+    return this.request('POST', '/optisigns/playlists', {
+      name,
+      description
+    });
+  }
+
+  async addAssetsToPlaylist(playlistId, assetIds) {
+    return this.request('POST', `/optisigns/playlists/${playlistId}/assets`, {
+      assetIds
+    });
+  }
+
+  // Scheduling
+  async scheduleContent(deviceId, playlistId, startTime, endTime) {
+    return this.request('POST', '/optisigns/schedule', {
+      deviceId,
+      playlistId,
+      startTime,
+      endTime
+    });
+  }
+
+  // Device Takeover
+  async takeoverDevice(deviceId, contentType, contentId, options = {}) {
+    return this.request('POST', `/optisigns/devices/${deviceId}/takeover`, {
+      contentType,
+      contentId,
+      ...options
+    });
+  }
+
+  async bulkTakeover(deviceIds, contentType, contentId, options = {}) {
+    return this.request('POST', '/optisigns/devices/bulk-takeover', {
+      deviceIds,
+      contentType,
+      contentId,
+      ...options
+    });
+  }
+
+  async emergencyBroadcast(contentType, contentId, options = {}) {
+    return this.request('POST', '/optisigns/emergency-broadcast', {
+      contentType,
+      contentId,
+      priority: 'EMERGENCY',
+      ...options
+    });
+  }
+
+  async stopTakeover(deviceId, restoreContent = true) {
+    return this.request('POST', `/optisigns/devices/${deviceId}/stop-takeover`, {
+      restoreContent
+    });
+  }
+
+  async getTakeoverStatus(deviceId) {
+    return this.request('GET', `/optisigns/devices/${deviceId}/takeover-status`);
+  }
+
+  async getActiveTakeovers(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return this.request('GET', `/optisigns/takeovers?${query}`);
+  }
+
+  async cancelTakeover(takeoverId, reason = '') {
+    return this.request('DELETE', `/optisigns/takeovers/${takeoverId}`, {
+      reason,
+      restoreContent: true
+    });
+  }
+
+  // Analytics
+  async getAnalytics() {
+    return this.request('GET', '/optisigns/analytics');
+  }
+}
+
+// Usage Example
+const client = new KnitttOptiSigns('your_jwt_token');
+
+async function example() {
+  try {
+    // Test OptiSigns connection
+    await client.testConnection('your_optisigns_token');
+    
+    // Configure OptiSigns
+    await client.updateConfig('your_optisigns_token', {
+      autoSync: true,
+      syncInterval: 3600
+    });
+    
+    // Sync displays
+    const syncResult = await client.syncDisplays();
+    console.log(`Synced ${syncResult.summary.totalSynced} displays`);
+    
+    // Get displays
+    const displays = await client.getDisplays({ isOnline: true });
+    console.log(`Found ${displays.displays.length} online displays`);
+    
+    // Pair new device
+    const newDevice = await client.pairDevice('ABC123');
+    console.log(`Paired device: ${newDevice.device.name}`);
+    
+    // Emergency takeover example
+    const emergencyAssetId = 'emergency-asset-uuid';
+    const takeover = await client.takeoverDevice(
+      displays.displays[0].id,
+      'ASSET',
+      emergencyAssetId,
+      {
+        priority: 'EMERGENCY',
+        duration: 300,
+        message: 'Fire alarm - evacuate building',
+        restoreAfter: true
+      }
+    );
+    console.log(`Emergency takeover initiated: ${takeover.takeover.id}`);
+    
+    // Bulk emergency broadcast
+    const broadcast = await client.emergencyBroadcast(
+      'ASSET',
+      emergencyAssetId,
+      {
+        duration: 600,
+        message: 'Building evacuation - all personnel exit immediately',
+        criteria: {
+          excludeOffline: true,
+          includeTags: ['emergency-capable']
+        }
+      }
+    );
+    console.log(`Emergency broadcast to ${broadcast.summary.successfulTakeovers} devices`);
+    
+    // Check takeover status
+    const status = await client.getTakeoverStatus(displays.displays[0].id);
+    if (status.takeover.isActive) {
+      console.log(`Device under takeover: ${status.takeover.message}`);
+      console.log(`Time remaining: ${status.takeover.timeRemaining} seconds`);
+    }
+    
+    // Get all active takeovers
+    const activeTakeovers = await client.getActiveTakeovers({
+      priority: 'EMERGENCY'
+    });
+    console.log(`Active emergency takeovers: ${activeTakeovers.takeovers.length}`);
+    
+    // Stop takeover when emergency is resolved
+    setTimeout(async () => {
+      await client.stopTakeover(displays.displays[0].id, true);
+      console.log('Emergency resolved - takeover stopped');
+    }, 300000); // Stop after 5 minutes
+    
+    // Get analytics including takeover data
+    const analytics = await client.getAnalytics();
+    console.log(`System health: ${analytics.health.status}`);
+    console.log(`Active takeovers: ${analytics.summary.activeTakeovers}`);
+    
+  } catch (error) {
+    console.error('Error:', error.message);
+  }
+}
+```
+
+### cURL Examples
+
+**Test OptiSigns Connection:**
+```bash
+curl -X POST https://app.knittt.com/api/optisigns/config/test \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"apiToken": "YOUR_OPTISIGNS_TOKEN"}'
+```
+
+**Sync Displays:**
+```bash
+curl -X POST https://app.knittt.com/api/optisigns/displays/sync \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Get Displays:**
+```bash
+curl -X GET "https://app.knittt.com/api/optisigns/displays?page=1&limit=10&isOnline=true" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Pair Device:**
+```bash
+curl -X POST https://app.knittt.com/api/optisigns/devices/pair \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"pairingCode": "ABC123"}'
+```
+
+**Device Takeover:**
+```bash
+curl -X POST https://app.knittt.com/api/optisigns/devices/DEVICE_ID/takeover \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contentType": "ASSET",
+    "contentId": "emergency-asset-uuid",
+    "priority": "EMERGENCY",
+    "duration": 300,
+    "message": "Emergency evacuation notice",
+    "restoreAfter": true
+  }'
+```
+
+**Emergency Broadcast:**
+```bash
+curl -X POST https://app.knittt.com/api/optisigns/emergency-broadcast \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contentType": "ASSET",
+    "contentId": "emergency-asset-uuid",
+    "duration": 600,
+    "message": "EMERGENCY: Building evacuation required",
+    "criteria": {
+      "excludeOffline": true,
+      "includeTags": ["emergency-capable"]
+    }
+  }'
+```
+
+**Check Takeover Status:**
+```bash
+curl -X GET https://app.knittt.com/api/optisigns/devices/DEVICE_ID/takeover-status \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Stop Takeover:**
+```bash
+curl -X POST https://app.knittt.com/api/optisigns/devices/DEVICE_ID/stop-takeover \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"restoreContent": true, "reason": "Emergency resolved"}'
+```
+
+**List Active Takeovers:**
+```bash
+curl -X GET "https://app.knittt.com/api/optisigns/takeovers?priority=EMERGENCY" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+---
+
+## Support & Troubleshooting
+
+### Common Issues
+
+**OptiSigns Not Configured:**
+- Check `/optisigns/status` endpoint
+- Verify API token with `/optisigns/config/test`
+- Update configuration with `/optisigns/config`
+
+**Sync Issues:**
+- Check OptiSigns API token validity
+- Verify network connectivity
+- Review error logs for specific issues
+
+**Device Pairing Problems:**
+- Ensure pairing code is exactly 6 characters
+- Verify code hasn't expired
+- Check device isn't already paired
+
+**Takeover Issues:**
+- **Priority Conflicts:** Cannot override higher priority takeovers
+- **Device Offline:** Takeover will fail if device is not online
+- **Content Unavailable:** Ensure content exists and is accessible
+- **Duration Limits:** Emergency takeovers can be unlimited, others max 24 hours
+- **Maintenance Mode:** Devices in maintenance mode cannot be taken over
+
+**Emergency Broadcast Problems:**
+- **No Devices Found:** Check criteria filters and device availability
+- **Partial Failures:** Some devices may fail individually - check response details
+- **Content Not Ready:** Ensure emergency content is pre-uploaded and available
+- **Network Issues:** Bulk operations may timeout with large device counts
+
+### Takeover Best Practices
+
+**Emergency Preparedness:**
+- Pre-upload emergency content assets
+- Test emergency broadcast with small device groups
+- Train staff on takeover priority levels
+- Set up monitoring for failed takeovers
+
+**Content Management:**
+- Keep emergency assets optimized for quick loading
+- Use high-contrast, readable emergency content
+- Test content on different display sizes
+- Maintain emergency content library
+
+**Operational Guidelines:**
+- Use EMERGENCY priority only for real emergencies
+- Document takeover reasons for audit trail
+- Always restore content after emergency resolved
+- Monitor takeover duration to prevent indefinite overrides
+
+### Debug Mode
+
+Enable debug mode by setting `DEBUG=optisigns` environment variable for detailed logging.
+
+### Getting Help
+
+For integration support, contact the Knittt development team or check the internal documentation portal.

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth State Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .error { color: red; }
+        .success { color: green; }
+        .info { color: blue; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>Authentication State Debug Tool</h1>
+    
+    <div class="section">
+        <h2>Current Auth State</h2>
+        <div id="authState">Loading...</div>
+    </div>
+    
+    <div class="section">
+        <h2>Test Login</h2>
+        <input type="text" id="username" placeholder="Username" value="admin">
+        <input type="password" id="password" placeholder="Password" value="admin123">
+        <button onclick="testLogin()">Test Login</button>
+        <div id="loginResult"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Test Backend Connection</h2>
+        <button onclick="testBackend()">Test API Connection</button>
+        <div id="backendResult"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Actions</h2>
+        <button onclick="clearAuth()">Clear Auth Data</button>
+        <button onclick="refreshPage()">Refresh Page</button>
+    </div>
+
+    <script>
+        // Check current auth state
+        function checkAuthState() {
+            const authData = localStorage.getItem('auth-storage');
+            const authDiv = document.getElementById('authState');
+            
+            if (authData) {
+                try {
+                    const parsed = JSON.parse(authData);
+                    authDiv.innerHTML = `
+                        <div class="success">Auth data found!</div>
+                        <pre>${JSON.stringify(parsed, null, 2)}</pre>
+                        <p><strong>User Role:</strong> ${parsed.state?.user?.role || 'Not found'}</p>
+                        <p><strong>Is Authenticated:</strong> ${parsed.state?.isAuthenticated || 'false'}</p>
+                        <p><strong>Token Present:</strong> ${parsed.state?.token ? 'Yes' : 'No'}</p>
+                    `;
+                } catch (e) {
+                    authDiv.innerHTML = `<div class="error">Error parsing auth data: ${e.message}</div>`;
+                }
+            } else {
+                authDiv.innerHTML = '<div class="error">No auth data found in localStorage</div>';
+            }
+        }
+        
+        // Test login
+        async function testLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('loginResult');
+            
+            resultDiv.innerHTML = '<div class="info">Testing login...</div>';
+            
+            try {
+                const apiUrl = 'http://34.122.156.88:3001/api';
+                const response = await fetch(`${apiUrl}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password }),
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `
+                        <div class="success">Login successful!</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    
+                    // Store auth data like the app would
+                    const authData = {
+                        state: {
+                            token: data.token,
+                            user: {
+                                userId: data.userId,
+                                username: data.username,
+                                tenantId: data.tenantId,
+                                role: data.role
+                            },
+                            isAuthenticated: true
+                        }
+                    };
+                    localStorage.setItem('auth-storage', JSON.stringify(authData));
+                    checkAuthState();
+                } else {
+                    const errorData = await response.text();
+                    resultDiv.innerHTML = `<div class="error">Login failed: ${response.status} - ${errorData}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">Connection error: ${error.message}</div>`;
+            }
+        }
+        
+        // Test backend connection
+        async function testBackend() {
+            const resultDiv = document.getElementById('backendResult');
+            resultDiv.innerHTML = '<div class="info">Testing backend connection...</div>';
+            
+            const endpoints = [
+                'http://34.122.156.88:3001/api',
+                'http://localhost:3001/api',
+                'http://127.0.0.1:3001/api'
+            ];
+            
+            let results = [];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(`${endpoint}/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: 'test', password: 'test' })
+                    });
+                    
+                    results.push(`✅ ${endpoint} - Reachable (${response.status})`);
+                } catch (error) {
+                    results.push(`❌ ${endpoint} - ${error.message}`);
+                }
+            }
+            
+            resultDiv.innerHTML = `
+                <h3>Backend Connection Test Results:</h3>
+                <pre>${results.join('\n')}</pre>
+            `;
+        }
+        
+        // Clear auth data
+        function clearAuth() {
+            localStorage.removeItem('auth-storage');
+            alert('Auth data cleared!');
+            checkAuthState();
+        }
+        
+        // Refresh page
+        function refreshPage() {
+            window.location.reload();
+        }
+        
+        // Initialize
+        checkAuthState();
+    </script>
+</body>
+</html> 

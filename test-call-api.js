@@ -48,7 +48,7 @@ const showMenu = () => {
 // Login and get token
 const login = async (username, password) => {
   try {
-    const response = await api.post('/login', { username, password });
+    const response = await api.post('/auth/login', { username, password });
     return response.data.token;
   } catch (error) {
     console.error('Login failed:', error.response?.data || error.message);

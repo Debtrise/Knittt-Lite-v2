@@ -1,0 +1,361 @@
+Knittt API Documentation
+Authentication
+All endpoints require authentication using a bearer token unless otherwise specified.
+
+Header: Authorization: Bearer <token>
+Some public endpoints may use X-Tenant-ID header instead
+Content Creation API
+Templates
+Get Templates
+GET /api/content/templates
+Query Parameters:
+
+category - Filter by category (welcome_screen, promotional_banner, etc.)
+isPublic - Boolean, filter public/private templates
+search - Search templates by name/description
+page - Page number (default: 1)
+limit - Items per page (default: 50)
+Get Single Template
+GET /api/content/templates/:templateId
+Create Template
+POST /api/content/templates
+Body:
+
+json
+{
+  "name": "Template Name",
+  "description": "Description",
+  "category": "welcome_screen",
+  "canvasSize": { "width": 1920, "height": 1080 },
+  "elements": {},
+  "variables": {},
+  "tags": ["tag1", "tag2"]
+}
+Projects
+Get Projects
+GET /api/content/projects
+Query Parameters:
+
+status - Filter by status (draft, published, archived)
+search - Search projects
+page - Page number
+limit - Items per page
+Create Project
+POST /api/content/projects
+Body:
+
+json
+{
+  "name": "Project Name",
+  "description": "Description",
+  "templateId": "uuid",
+  "canvasSize": { "width": 1920, "height": 1080 }
+}
+Get Single Project
+GET /api/content/projects/:projectId
+Update Project
+PUT /api/content/projects/:projectId
+Delete Project
+DELETE /api/content/projects/:projectId
+Elements
+Create Element
+POST /api/content/projects/:projectId/elements
+Body:
+
+json
+{
+  "elementType": "text",
+  "position": { "x": 100, "y": 100, "z": 1 },
+  "size": { "width": 200, "height": 50 },
+  "properties": {},
+  "styles": {}
+}
+Update Element
+PUT /api/content/projects/:projectId/elements/:elementId
+Delete Element
+DELETE /api/content/projects/:projectId/elements/:elementId
+Reorder Elements
+PUT /api/content/projects/:projectId/elements/reorder
+Body:
+
+json
+{
+  "elementOrders": [
+    { "elementId": "uuid", "layerOrder": 1 },
+    { "elementId": "uuid", "layerOrder": 2 }
+  ]
+}
+Assets
+Get Assets
+GET /api/content/assets
+Query Parameters:
+
+assetType - Filter by type (image, video, audio, etc.)
+search - Search assets
+tags - Comma-separated tags
+page - Page number
+limit - Items per page
+Upload Asset
+POST /api/content/assets/upload
+Content-Type: multipart/form-data
+Field: file - The file to upload
+Field: name - Asset name
+Field: tags - Comma-separated tags
+Field: metadata - JSON string of metadata
+Delete Asset
+DELETE /api/content/assets/:assetId
+Variables
+Get Variables
+GET /api/content/variables
+Query Parameters:
+
+category - Filter by category
+dataSource - Filter by data source
+Create Variable
+POST /api/content/variables
+Initialize System Variables
+POST /api/content/variables/initialize-system
+Preview & Export
+Generate Preview
+POST /api/content/projects/:projectId/preview
+Body:
+
+json
+{
+  "device": "desktop" // or "mobile", "tablet"
+}
+Publish to OptiSigns
+POST /api/content/projects/:projectId/publish
+Body:
+
+json
+{
+  "displayIds": ["uuid1", "uuid2"]
+}
+Get Export Status
+GET /api/content/exports/:exportId/status
+OptiSync Integration
+Get OptiSync Projects (Public)
+GET /api/content/optisync/projects
+Headers:
+
+X-Tenant-ID - Required tenant identifier
+Get OptiSync Data Feed (Public)
+GET /api/content/optisync/projects/:projectId/feed
+Headers:
+
+X-Tenant-ID - Required tenant identifier Query Parameters:
+format - Data format (default: json)
+includeElements - Include elements (default: true)
+includeAssets - Include assets (default: true)
+lastUpdated - Filter by last update date
+OptiSync Webhook (Public)
+POST /api/content/optisync/projects/:projectId/webhook
+Headers:
+
+X-Tenant-ID - Required tenant identifier Body:
+json
+{
+  "action": "refresh", // or "validate"
+  "source": "manual"
+}
+Get OptiSync Configuration
+GET /api/content/optisync/projects/:projectId/config
+Query Parameters:
+
+refreshInterval - Refresh interval in seconds
+Get OptiSync Status
+GET /api/content/optisync/status
+Public Content
+Serve Public Content (No Auth)
+GET /api/content/public/:exportId
+Get Content Info (No Auth)
+GET /api/content/public/:exportId/info
+System
+Get System Status
+GET /api/content/system/status
+OptiSigns API
+Configuration
+Test API Connection
+POST /api/optisigns/config/test
+Body:
+
+json
+{
+  "apiToken": "your-optisigns-api-token"
+}
+Update Configuration
+PUT /api/optisigns/config
+Body:
+
+json
+{
+  "apiToken": "your-api-token",
+  "settings": {}
+}
+Get Configuration
+GET /api/optisigns/config
+Displays
+Sync Displays
+POST /api/optisigns/displays/sync
+Get Displays
+GET /api/optisigns/displays
+Query Parameters:
+
+page - Page number (default: 1)
+limit - Items per page (default: 50)
+status - Filter by status
+isOnline - Filter online/offline (true/false)
+location - Filter by location
+Get Single Display
+GET /api/optisigns/displays/:id
+Update Display
+PUT /api/optisigns/displays/:id
+Body:
+
+json
+{
+  "name": "New Display Name",
+  "location": "New Location"
+}
+Tags
+Add Tags to Display
+POST /api/optisigns/displays/:id/tags
+Body:
+
+json
+{
+  "tags": ["tag1", "tag2"]
+}
+Remove Tags from Display
+DELETE /api/optisigns/displays/:id/tags
+Body:
+
+json
+{
+  "tags": ["tag1", "tag2"]
+}
+Takeover
+Initiate Device Takeover
+POST /api/optisigns/displays/:id/takeover
+Body:
+
+json
+{
+  "contentType": "ASSET", // or "PLAYLIST"
+  "contentId": "uuid",
+  "priority": "HIGH", // EMERGENCY, HIGH, NORMAL
+  "duration": 300, // seconds, optional
+  "message": "Takeover reason",
+  "restoreAfter": true,
+  "teamId": "optional-team-id"
+}
+Stop Takeover
+POST /api/optisigns/displays/:id/stop-takeover
+Body:
+
+json
+{
+  "restoreContent": true,
+  "reason": "Manual stop"
+}
+Get Takeover Status
+GET /api/optisigns/displays/:id/takeover-status
+List Takeovers
+GET /api/optisigns/takeovers
+Query Parameters:
+
+page - Page number
+limit - Items per page
+priority - Filter by priority
+status - Filter by status
+displayId - Filter by display
+Assets
+Upload Asset
+POST /api/optisigns/assets/upload
+Content-Type: multipart/form-data
+Field: file - File to upload
+Field: name - Asset name
+Field: teamId - Optional team ID
+Create Website Asset
+POST /api/optisigns/assets/website
+Body:
+
+json
+{
+  "url": "https://example.com",
+  "name": "Website Name",
+  "teamId": "optional-team-id"
+}
+Sync Assets
+POST /api/optisigns/assets/sync
+Get Assets
+GET /api/optisigns/assets
+Query Parameters:
+
+page - Page number
+limit - Items per page
+type - Filter by asset type
+Content Push
+Push Content to Display
+POST /api/optisigns/displays/:id/push
+Body:
+
+json
+{
+  "contentId": "asset-or-playlist-id",
+  "schedule": "NOW", // or future schedule
+  "teamId": "optional-team-id"
+}
+Status
+Get Integration Status
+GET /api/optisigns/status
+Common Response Formats
+Success Response
+json
+{
+  "message": "Success message",
+  "data": {},
+  "timestamp": "2025-01-01T00:00:00.000Z"
+}
+Error Response
+json
+{
+  "error": "Error message",
+  "code": "ERROR_CODE",
+  "timestamp": "2025-01-01T00:00:00.000Z"
+}
+Paginated Response
+json
+{
+  "items": [],
+  "pagination": {
+    "currentPage": 1,
+    "totalPages": 10,
+    "totalCount": 100,
+    "hasNextPage": true,
+    "hasPreviousPage": false
+  },
+  "timestamp": "2025-01-01T00:00:00.000Z"
+}
+Element Types
+The content creation system supports these element types:
+
+Text: text, marquee_text, typewriter_text, countdown_text, gradient_text, outline_text, shadow_text
+Media: image, video, audio, image_carousel, image_gallery, slideshow, video_playlist, audio_playlist
+Interactive: button, slider, toggle, dropdown, tabs, accordion, modal, tooltip, hotspot, image_map
+Forms: input_field, textarea, checkbox, radio_button, select_dropdown, file_upload, date_picker, color_picker
+Layout: container, grid, flexbox, divider, spacer, columns, section, header, footer
+Charts: chart, progress_bar, gauge, pie_chart, line_chart, bar_chart, area_chart, scatter_plot, heatmap, treemap
+Social: social_feed, testimonial, rating_stars, share_buttons, social_icons, comment_section, like_button
+Graphics: shape, icon, logo, badge, ribbon, stamp, arrow, line, border, frame
+Effects: particles, confetti, animation, transition, gradient_overlay, mask, filter, glow, shadow
+Advanced: qr_code, barcode, map, calendar, clock, timer, weather, news_feed, rss_feed, embed_code
+Rate Limits
+Asset uploads: 50MB per file
+API requests: Based on tenant configuration
+OptiSync refresh interval: Minimum 300 seconds
+
+
+
+Retry

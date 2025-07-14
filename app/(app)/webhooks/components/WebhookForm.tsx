@@ -15,12 +15,39 @@ import {
   CardHeader,
   CardTitle,
 } from '@/app/components/ui/card';
-import { createWebhook, updateWebhook, getWebhookDetails } from '@/app/utils/api';
+import { 
+  createWebhook, 
+  updateWebhook, 
+  getWebhookDetails, 
+  getWebhookConfigOptions, 
+  getConditionOperators, 
+  getActionTypes, 
+  getAnnouncementTemplates, 
+  getAnnouncementDisplays, 
+  testAnnouncement, 
+  testWebhook 
+} from '@/app/utils/api';
 import api from '@/app/lib/api';
-import { WebhookEndpoint, CreateWebhookParams, UpdateWebhookParams } from '@/app/types/webhook';
+import { WebhookEndpoint, CreateWebhookParams, UpdateWebhookParams, AnnouncementProject, AnnouncementDisplay, WebhookType, ConditionalRules, ConditionSet, Condition, Action } from '@/app/types/webhook';
 import { toast } from 'react-hot-toast';
-import { X, Play, Pause, Square } from 'lucide-react';
+import { X, Play, Pause, Square, Sparkles, Loader2, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
 import { Textarea } from '@/app/components/ui/textarea';
+import { Badge } from '@/app/components/ui/badge';
+import { useAuthStore } from '@/app/store/authStore';
+
+// Define AnnouncementTemplate interface locally
+interface AnnouncementTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  variables?: string[] | Record<string, any>;
+  thumbnail?: string;
+  isPublic?: boolean;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 type WebhookFormProps = {
   webhookId?: number;
@@ -35,13 +62,61 @@ interface Journey {
   isActive: boolean;
 }
 
+// Enhanced loading state component
+const LoadingState = ({ message }: { message: string }) => (
+  <div className="flex items-center justify-center p-8">
+    <div className="flex items-center space-x-3">
+      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      <span className="text-muted-foreground">{message}</span>
+    </div>
+  </div>
+);
+
+// Enhanced error state component
+const ErrorState = ({ message, onRetry }: { message: string; onRetry?: () => void }) => (
+  <div className="flex items-center justify-center p-8">
+    <div className="text-center space-y-3">
+      <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
+      <p className="text-muted-foreground">{message}</p>
+      {onRetry && (
+        <Button variant="outline" onClick={onRetry} size="sm">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Retry
+        </Button>
+      )}
+    </div>
+  </div>
+);
+
+// Enhanced success state component
+const SuccessState = ({ message }: { message: string }) => (
+  <div className="flex items-center space-x-2 text-green-600">
+    <CheckCircle className="h-4 w-4" />
+    <span className="text-sm">{message}</span>
+  </div>
+);
+
 export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: WebhookFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  
+  // Enhanced state management for API data
   const [availableJourneys, setAvailableJourneys] = useState<Journey[]>([]);
+  const [journeysLoading, setJourneysLoading] = useState(false);
+  const [journeysError, setJourneysError] = useState<string | null>(null);
+  
   const [availableWebhookFields, setAvailableWebhookFields] = useState<string[]>([]);
+  
+  const [availableTemplates, setAvailableTemplates] = useState<AnnouncementTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templatesError, setTemplatesError] = useState<string | null>(null);
+  
+  const [availableDisplays, setAvailableDisplays] = useState<AnnouncementDisplay[]>([]);
+  const [displaysLoading, setDisplaysLoading] = useState(false);
+  const [displaysError, setDisplaysError] = useState<string | null>(null);
+  
   const [formData, setFormData] = useState<CreateWebhookParams>({
     name: '',
     description: '',
@@ -120,6 +195,30 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
         trackStopSource: true,
         trackStopTimestamp: true
       }
+    },
+    announcementConfig: {
+      enabled: false,
+      announcementType: 'template', // Default to template
+      contentCreator: {
+        templateId: '',
+        variableMapping: {},
+        autoGenerate: true,
+        templateName: 'Announcement - {{timestamp}}'
+      },
+      optisigns: {
+        displaySelection: {
+          mode: 'all'
+        },
+        takeover: {
+          priority: 'MEDIUM',
+          duration: 30,
+          restoreAfter: true,
+          overrideCurrent: false
+        },
+        scheduling: {
+          immediate: true
+        }
+      }
     }
   });
 
@@ -127,7 +226,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
   const [fieldMappings, setFieldMappings] = useState<Array<{ key: string; value: string }>>([
     { key: 'phone', value: 'phone' },
     { key: 'name', value: 'full_name' },
-    { key: 'email', value: 'email_address' },
+    { key: 'email', value: 'email_address', },
   ]);
   
   const [customFieldMappings, setCustomFieldMappings] = useState<Array<{ key: string; value: string }>>([]);
@@ -151,22 +250,10 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
   const [requiredHeaders, setRequiredHeaders] = useState<Array<{ key: string; value: string }>>([]);
 
   // New state for conditional rules
-  const [conditionalRules, setConditionalRules] = useState({
+  const [conditionalRules, setConditionalRules] = useState<ConditionalRules>({
     enabled: false,
-    logicOperator: 'AND' as 'AND' | 'OR',
-    conditionSets: [] as Array<{
-      name: string;
-      conditions: Array<{
-        field: string;
-        operator: string;
-        value: any;
-        dataType: 'string' | 'number' | 'boolean' | 'date' | 'array';
-      }>;
-      actions: Array<{
-        type: 'create_lead' | 'update_lead' | 'send_notification' | 'enroll_journey' | 'call_webhook' | 'set_tags' | 'create_task' | 'set_dialer_assignment';
-        config: Record<string, any>;
-      }>;
-    }>
+    logicOperator: 'AND',
+    conditionSets: []
   });
 
   // Available operators for conditions
@@ -201,8 +288,16 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
     { value: 'set_dialer_assignment', label: 'Set Dialer Assignment', description: 'Set dialer assignment for leads' },
   ];
 
-  // Fetch available journeys
+  // Add new state for tracking selected displays
+  const [selectedDisplayIds, setSelectedDisplayIds] = useState<string[]>([]);
+  const [displaysFetched, setDisplaysFetched] = useState(false);
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [testPayload, setTestPayload] = useState<string>('{\n  "phone": "+1234567890",\n  "name": "John Doe",\n  "email": "john@example.com"\n}');
+
+  // Enhanced fetch functions with better error handling
   const fetchJourneys = async () => {
+    setJourneysLoading(true);
+    setJourneysError(null);
     try {
       const response = await api.journeys.list();
       console.log('Journeys API response:', response);
@@ -216,11 +311,206 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
       setAvailableJourneys(journeysList);
     } catch (error) {
       console.error('Error fetching journeys:', error);
+      setJourneysError('Failed to load journeys. Please try again.');
       toast.error('Failed to load journeys');
+    } finally {
+      setJourneysLoading(false);
     }
   };
 
-  // Fetch webhook events to extract available fields
+  // Fetch configuration options based on webhook type
+  const fetchConfigOptions = async (webhookType: 'go' | 'pause' | 'stop' | 'announcement') => {
+    try {
+      const response = await getWebhookConfigOptions(webhookType);
+      console.log('Config options for', webhookType, ':', response);
+      
+      if (response.fields) {
+        setAvailableWebhookFields(response.fields);
+      }
+    } catch (error) {
+      console.error('Error fetching config options:', error);
+    }
+  };
+
+  // Fetch condition operators for conditional rules
+  const fetchConditionOperators = async () => {
+    try {
+      const response = await getConditionOperators();
+      console.log('Available condition operators:', response);
+      return response;
+    } catch (error) {
+      console.error('Error fetching condition operators:', error);
+      return [];
+    }
+  };
+
+  // Fetch action types for conditional rules
+  const fetchActionTypes = async (webhookType?: 'go' | 'pause' | 'stop' | 'announcement') => {
+    try {
+      const response = await getActionTypes(webhookType);
+      console.log('Available action types for', webhookType, ':', response);
+      return response;
+    } catch (error) {
+      console.error('Error fetching action types:', error);
+      return [];
+    }
+  };
+
+  // Fetch available announcement templates from backend API
+  const fetchAnnouncementTemplates = async () => {
+    setTemplatesLoading(true);
+    setTemplatesError(null);
+    try {
+      console.log('🔍 Fetching announcement templates from backend API...');
+      
+      // Use the correct templates endpoint pointing to external backend
+      const { token } = useAuthStore.getState();
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://34.122.156.88:3001';
+      const response = await fetch(`${backendUrl}/api/content/templates?category=&isPublic=true&limit=100`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('📦 Raw templates response from backend:', data);
+      
+      // Extract templates from response using the documented structure
+      const templates = data?.templates || [];
+      console.log('📋 Extracted templates array:', templates);
+      console.log('📊 Templates count:', Array.isArray(templates) ? templates.length : 'Not an array');
+      
+      if (!Array.isArray(templates)) {
+        console.error('❌ Templates is not an array:', typeof templates);
+        setTemplatesError('Invalid response format from backend API');
+        return;
+      }
+      
+      // Transform backend templates to match frontend AnnouncementTemplate interface
+      const announcementTemplates = templates.map((template: any) => {
+        console.log('🔄 Transforming template:', template);
+        return {
+          id: template.id,
+          name: template.name,
+          description: template.description || '',
+          category: template.category || 'general',
+          variables: template.tags || [],
+          thumbnail: template.previewImage,
+          isPublic: template.isPublic || false,
+          createdAt: template.createdAt || new Date().toISOString(),
+          updatedAt: template.updatedAt || new Date().toISOString()
+        };
+      });
+      
+      console.log('✅ Transformed announcement templates:', announcementTemplates);
+      setAvailableTemplates(announcementTemplates);
+      
+      if (announcementTemplates.length === 0) {
+        console.warn('⚠️ No templates found in backend response');
+        setTemplatesError('No announcement templates found. Templates need to be created in the content creator system.');
+      } else {
+        console.log(`🎉 Successfully loaded ${announcementTemplates.length} templates from backend`);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching announcement templates from backend:', error);
+      console.error('❌ Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      
+      setTemplatesError('Failed to load announcement templates. Please check your connection and try again.');
+      toast.error('Failed to load announcement templates');
+      setAvailableTemplates([]);
+    } finally {
+      setTemplatesLoading(false);
+    }
+  };
+
+  // Fetch available displays from backend API
+  const fetchAnnouncementDisplays = async () => {
+    setDisplaysLoading(true);
+    setDisplaysError(null);
+    try {
+      console.log('🖥️ Fetching displays from backend API...');
+      
+      // Call the external backend API for displays
+      const { token } = useAuthStore.getState();
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://34.122.156.88:3001';
+      const response = await fetch(`${backendUrl}/api/optisigns/displays?limit=500`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('🖥️ Raw displays response from backend:', data);
+      
+      const displays = data?.displays || data?.data || data || [];
+      console.log('🖥️ Extracted displays array:', displays);
+      console.log('🖥️ Displays count:', Array.isArray(displays) ? displays.length : 'Not an array');
+      
+      if (!Array.isArray(displays)) {
+        console.error('❌ Displays is not an array:', typeof displays);
+        setDisplaysError('Invalid displays response format from backend API');
+        return;
+      }
+      
+      // Transform display data to match AnnouncementDisplay interface
+      const transformedDisplays = displays.map((display: any) => {
+        console.log('🔄 Transforming display:', display);
+        const status = display.isOnline || display.online || display.status === 'online' ? 'online' : 'offline';
+        return {
+          id: display.id || display.deviceId || display.displayId,
+          name: display.name || display.deviceName || display.displayName || `Display ${display.id}`,
+          location: display.location || display.address || display.site || display.locationName || 'Unknown Location',
+          status: status as 'online' | 'offline',
+          isOnline: display.isOnline || display.online || false,
+          resolution: display.resolution || display.screenResolution || { width: 1920, height: 1080 },
+          tags: display.tags || display.deviceTags || [],
+          groupIds: display.groupIds || display.groups || [],
+          lastSeen: display.lastSeen || display.lastActivity || display.updatedAt || new Date().toISOString()
+        };
+      });
+      
+      console.log('✅ Transformed displays:', transformedDisplays);
+      setAvailableDisplays(transformedDisplays);
+      setDisplaysFetched(true);
+      
+      if (transformedDisplays.length === 0) {
+        console.warn('⚠️ No displays found in backend response');
+        setDisplaysError('No displays found. Backend needs to implement OptiSigns integration.');
+      } else {
+        console.log(`🎉 Successfully loaded ${transformedDisplays.length} displays from backend`);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching displays from backend:', error);
+      console.error('❌ Display error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      
+      // Fallback: Show message that backend needs to implement displays endpoint
+      setDisplaysError('Backend API does not have displays endpoint implemented yet. Please ask backend team to implement /api/optisigns/displays endpoint.');
+      toast.error('Backend displays API not available');
+      setAvailableDisplays([]);
+    } finally {
+      setDisplaysLoading(false);
+    }
+  };
+
+  // Enhanced fetch function for webhook events
   const fetchWebhookFields = async () => {
     if (!webhookId) return;
     
@@ -231,7 +521,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
       });
       
       const data = response.data || response;
-      const events = data.events || data || [];
+      const events = data.data || data || [];
       
       // Extract all unique field names from webhook payloads
       const fieldSet = new Set<string>();
@@ -281,11 +571,20 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
         webhookType: webhook.webhookType || 'go',
         brand: webhook.brand || '',
         source: webhook.source || '',
-        fieldMapping: webhook.fieldMapping || {
-          phone: 'phone',
-          name: 'full_name',
-          email: 'email_address',
-        },
+        fieldMapping: (() => {
+          const backendMapping = webhook.fieldMapping || {};
+          const convertedMapping: Record<string, string> = {};
+          Object.entries(backendMapping).forEach(([key, value]) => {
+            convertedMapping[key] = typeof value === 'object' && value !== null && 'sourceField' in value 
+              ? (value as { sourceField: string }).sourceField 
+              : (value as string);
+          });
+          return Object.keys(convertedMapping).length > 0 ? convertedMapping : {
+            phone: 'phone',
+            name: 'full_name',
+            email: 'email_address',
+          };
+        })(),
         validationRules: webhook.validationRules || {
           requirePhone: true,
           requireName: false,
@@ -356,12 +655,40 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
         },
         requiredHeaders: webhook.requiredHeaders || {},
         autoEnrollJourneyId: webhook.autoEnrollJourneyId || undefined,
+        announcementConfig: webhook.announcementConfig || {
+          enabled: false,
+          announcementType: 'template', // Default to template for backward compatibility
+          contentCreator: {
+            templateId: '',
+            variableMapping: {},
+            autoGenerate: true,
+            templateName: 'Announcement - {{timestamp}}'
+          },
+          optisigns: {
+            displaySelection: {
+              mode: 'all'
+            },
+            takeover: {
+              priority: 'MEDIUM',
+              duration: 30,
+              restoreAfter: true,
+              overrideCurrent: false
+            },
+            scheduling: {
+              immediate: true
+            }
+          }
+        },
       });
       
       // Update field mappings for display
-      const mappings = Object.entries(webhook.fieldMapping || {}).map(([key, value]) => ({
+      // Convert from backend format { sourceField: "value" } to frontend format
+      const backendMapping = webhook.fieldMapping || {};
+      const mappings = Object.entries(backendMapping).map(([key, value]) => ({
         key,
-        value: value as string
+        value: typeof value === 'object' && value !== null && 'sourceField' in value 
+          ? (value as { sourceField: string }).sourceField 
+          : (value as string)
       }));
       
       // Split into standard and custom mappings
@@ -393,6 +720,11 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
         setRequiredHeaders(headers);
       }
       
+      // Update selected display IDs for announcement webhooks
+      if (webhook.announcementConfig?.optisigns?.displaySelection?.displayIds) {
+        setSelectedDisplayIds(webhook.announcementConfig.optisigns.displaySelection.displayIds);
+      }
+      
       // Check for conditional rules or advanced processing rules
       if (webhook.conditionalRules) {
         setConditionalRules({
@@ -417,8 +749,13 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
   };
 
   useEffect(() => {
-    // Always fetch journeys when component mounts
+    // Always fetch data when component mounts
     fetchJourneys();
+            fetchAnnouncementTemplates();
+    fetchAnnouncementDisplays();
+    
+    // Fetch config options for default webhook type
+    fetchConfigOptions(formData.webhookType);
     
     if (isEdit && webhookId) {
       fetchWebhook();
@@ -437,6 +774,13 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
     }
   }, [isEdit, webhookId]);
 
+  // Fetch config options when webhook type changes
+  useEffect(() => {
+    if (formData.webhookType) {
+      fetchConfigOptions(formData.webhookType);
+    }
+  }, [formData.webhookType]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -446,12 +790,12 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
     setFormData(prev => ({ ...prev, [name]: checked }));
   };
 
-  const handleValidationRuleChange = (name: keyof typeof formData.validationRules, checked: boolean) => {
+  const handleValidationRuleChange = (name: keyof typeof formData.validationRules, checked: boolean | string) => {
     setFormData(prev => ({
       ...prev,
       validationRules: {
         ...prev.validationRules,
-        [name]: checked,
+        [name]: typeof checked === 'boolean' ? checked : checked === 'true',
       },
     }));
   };
@@ -644,26 +988,49 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
     try {
       setSaving(true);
       
+      // Check if user is authenticated
+      const { token, isAuthenticated } = useAuthStore.getState();
+      if (!isAuthenticated || !token) {
+        toast.error('You must be logged in to create webhooks');
+        router.push('/login');
+        return;
+      }
+      
       // Ensure all field mappings are included
       const fieldMappingData = buildFieldMapping();
+      
+      // Convert field mapping to backend expected format
+      const backendFieldMapping = convertFieldMappingForBackend(fieldMappingData);
       
       // Ensure headers are included
       const requiredHeadersData = buildRequiredHeaders();
 
-      const payload: CreateWebhookParams = {
+      const payload: any = {
         name: formData.name,
         description: formData.description,
         webhookType: formData.webhookType,
         brand: formData.brand,
         source: formData.source,
-        fieldMapping: fieldMappingData,
+        fieldMapping: backendFieldMapping,
         validationRules: formData.validationRules,
         autoTagRules: formData.autoTagRules,
         requiredHeaders: requiredHeadersData,
         autoEnrollJourneyId: formData.autoEnrollJourneyId,
-        conditionalRules: conditionalRules.enabled ? conditionalRules : undefined,
+        conditionalRules: conditionalRules.enabled ? conditionalRules as any : undefined,
         pauseResumeConfig: formData.webhookType === 'pause' ? formData.pauseResumeConfig : undefined,
-        stopConfig: formData.webhookType === 'stop' ? formData.stopConfig : undefined
+        stopConfig: formData.webhookType === 'stop' ? formData.stopConfig : undefined,
+        announcementConfig: formData.webhookType === 'announcement' ? {
+          ...formData.announcementConfig!,
+          optisigns: {
+            ...formData.announcementConfig!.optisigns,
+            displaySelection: {
+              ...formData.announcementConfig!.optisigns.displaySelection,
+              displayIds: formData.announcementConfig!.optisigns.displaySelection.mode === 'specific' 
+                ? selectedDisplayIds 
+                : undefined
+            }
+          }
+        } : undefined
       };
 
       console.log('Submitting webhook with payload:', payload);
@@ -681,9 +1048,27 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
         router.push('/webhooks');
       }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving webhook:', error);
-      toast.error('Failed to save webhook');
+      
+      // Handle authentication errors
+      if (error.response?.status === 401) {
+        toast.error('Authentication failed. Please log in again.');
+        useAuthStore.getState().logout();
+        router.push('/login');
+        return;
+      }
+      
+      // Handle validation errors
+      if (error.response?.status === 400) {
+        const errorMessage = error.response?.data?.error || 'Invalid webhook data. Please check your inputs.';
+        toast.error(errorMessage);
+        return;
+      }
+      
+      // Generic error
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to save webhook';
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -710,22 +1095,51 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
     }
     
     // Validate field mappings
-    if (formData.validationRules.requirePhone && !formData.fieldMapping.phone) {
+    if (formData.validationRules.requirePhone && !getFieldMappingValue(formData.fieldMapping.phone, '')) {
       toast.error('Phone field mapping is required');
       setCurrentStep(3);
       return false;
     }
     
-    if (formData.validationRules.requireName && !formData.fieldMapping.name) {
+    if (formData.validationRules.requireName && !getFieldMappingValue(formData.fieldMapping.name, '')) {
       toast.error('Name field mapping is required');
       setCurrentStep(3);
       return false;
     }
     
-    if (formData.validationRules.requireEmail && !formData.fieldMapping.email) {
+    if (formData.validationRules.requireEmail && !getFieldMappingValue(formData.fieldMapping.email, '')) {
       toast.error('Email field mapping is required');
       setCurrentStep(3);
       return false;
+    }
+    
+    // Validate announcement configuration
+    if (formData.webhookType === 'announcement') {
+      if (formData.announcementConfig?.optisigns?.displaySelection?.mode === 'specific') {
+        if (!selectedDisplayIds || selectedDisplayIds.length === 0) {
+          toast.error('At least one display must be selected for specific display mode');
+          setCurrentStep(2); // Assuming step 2 is where announcement config is
+          return false;
+        }
+      }
+      
+      const announcementType = formData.announcementConfig?.announcementType || 'template';
+      
+      // Validate based on announcement type
+      if (announcementType === 'template') {
+        if (!formData.announcementConfig?.contentCreator?.templateId?.trim()) {
+          toast.error('Announcement template is required for template-based announcements');
+          setCurrentStep(2);
+          return false;
+        }
+      } else if (announcementType === 'video' || announcementType === 'image') {
+        // Validate template selection for video/image types
+        if (!formData.announcementConfig?.contentCreator?.templateId?.trim()) {
+          toast.error(`Content template is required for ${announcementType} announcements`);
+          setCurrentStep(2);
+          return false;
+        }
+      }
     }
     
     return true;
@@ -736,14 +1150,14 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
     console.log("Adding new condition set");
     
     // Create a new condition set with default values
-    const newConditionSet = {
+    const newConditionSet: ConditionSet = {
       name: `Condition Set ${conditionalRules.conditionSets.length + 1}`,
-          conditions: [{
-            field: '',
-            operator: 'equals',
-            value: '',
-            dataType: 'string'
-          }],
+      conditions: [{
+        field: '',
+        operator: 'equals',
+        value: '',
+        dataType: 'string'
+      }],
       actions: [{
         type: 'create_lead',
         config: {}
@@ -1070,6 +1484,26 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
     };
   };
 
+  // Convert field mapping to backend expected format
+  const convertFieldMappingForBackend = (fieldMapping: Record<string, string>) => {
+    const backendMapping: Record<string, { sourceField: string }> = {};
+    Object.entries(fieldMapping).forEach(([key, value]) => {
+      backendMapping[key] = { sourceField: value };
+    });
+    return backendMapping;
+  };
+
+  // Helper function to safely get field mapping value
+  const getFieldMappingValue = (field: any, defaultValue: string): string => {
+    if (typeof field === 'string') {
+      return field;
+    }
+    if (typeof field === 'object' && field !== null && 'sourceField' in field) {
+      return (field as { sourceField: string }).sourceField;
+    }
+    return defaultValue;
+  };
+
   const buildRequiredHeaders = () => {
     return requiredHeaders.reduce((acc, { key, value }) => {
       if (key) acc[key] = value;
@@ -1113,7 +1547,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
           addPauseTag: true,
           pauseTagName: 'paused',
           sendNotification: false,
-          notificationTemplate: null
+          notificationTemplate: undefined
         },
         resumeActions: {
           resumeJourneys: true,
@@ -1121,7 +1555,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
           addResumeTag: false,
           resumeTagName: 'resumed',
           sendNotification: false,
-          notificationTemplate: null
+          notificationTemplate: undefined
         }
       } : prev.pauseResumeConfig,
       stopConfig: type === 'stop' ? {
@@ -1141,7 +1575,31 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
           trackStopSource: true,
           trackStopTimestamp: true
         }
-      } : prev.stopConfig
+      } : prev.stopConfig,
+      announcementConfig: type === 'announcement' ? {
+        enabled: true,
+        announcementType: 'template', // Default to template
+        contentCreator: {
+          templateId: '',
+          variableMapping: {},
+          autoGenerate: true,
+          templateName: 'Announcement - {{timestamp}}'
+        },
+        optisigns: {
+          displaySelection: {
+            mode: 'all'
+          },
+          takeover: {
+            priority: 'MEDIUM',
+            duration: 30,
+            restoreAfter: true,
+            overrideCurrent: false
+          },
+          scheduling: {
+            immediate: true
+          }
+        }
+      } : prev.announcementConfig
     }));
   };
 
@@ -1274,7 +1732,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
   };
 
   const renderBasicInfoStep = () => (
-      <Card>
+    <Card>
         <CardHeader>
           <CardTitle>Basic Information</CardTitle>
           <CardDescription>
@@ -1345,7 +1803,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div
             className={`p-6 rounded-lg border-2 cursor-pointer transition-all ${
               formData.webhookType === 'go'
@@ -1394,6 +1852,23 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
             </div>
             <p className="text-sm text-muted-foreground">
               Stop leads and exit them from all journeys
+            </p>
+          </div>
+
+          <div
+            className={`p-6 rounded-lg border-2 cursor-pointer transition-all ${
+              formData.webhookType === 'announcement'
+                ? 'border-primary bg-primary/5'
+                : 'border-border hover:border-primary/50'
+            }`}
+            onClick={() => handleWebhookTypeChange('announcement')}
+          >
+            <div className="flex items-center space-x-2 mb-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <h3 className="font-medium">Announcement</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Generate content and trigger screen takeovers
             </p>
           </div>
         </div>
@@ -1775,6 +2250,677 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
             </div>
           </div>
         )}
+
+        {formData.webhookType === 'announcement' && (
+          <div className="mt-6 space-y-6">
+            <div className="space-y-6">
+              <div className="flex items-center space-x-2">
+                <h3 className="font-medium text-lg">Announcement Type</h3>
+                <Badge variant="secondary" className="text-xs">Choose Method</Badge>
+              </div>
+              
+              {/* Announcement Type Selection */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div
+                  className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                    formData.announcementConfig?.announcementType === 'template'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                  onClick={() =>
+                    setFormData(prev => ({
+                      ...prev,
+                      announcementConfig: {
+                        ...prev.announcementConfig!,
+                        announcementType: 'template'
+                      }
+                    }))
+                  }
+                >
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    <h4 className="font-medium">Custom Template</h4>
+                  </div>
+                                     <p className="text-sm text-muted-foreground">
+                     Use content creator projects with full customization
+                   </p>
+                </div>
+
+                <div
+                  className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                    formData.announcementConfig?.announcementType === 'video'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                  onClick={() =>
+                    setFormData(prev => ({
+                      ...prev,
+                      announcementConfig: {
+                        ...prev.announcementConfig!,
+                        announcementType: 'video'
+                      }
+                    }))
+                  }
+                >
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Play className="h-5 w-5 text-primary" />
+                    <h4 className="font-medium">Sales Rep Video</h4>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Generate video with sales rep photo and deal details
+                  </p>
+                </div>
+
+                <div
+                  className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                    formData.announcementConfig?.announcementType === 'image'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                  onClick={() =>
+                    setFormData(prev => ({
+                      ...prev,
+                      announcementConfig: {
+                        ...prev.announcementConfig!,
+                        announcementType: 'image'
+                      }
+                    }))
+                  }
+                >
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Square className="h-5 w-5 text-primary" />
+                    <h4 className="font-medium">Sales Rep Image</h4>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Show sales rep photo as image announcement
+                  </p>
+                </div>
+              </div>
+
+              {/* Template Configuration - Only show for template type */}
+              {(!formData.announcementConfig?.announcementType || formData.announcementConfig?.announcementType === 'template') && (
+                                 <div className="space-y-4">
+                                       <div className="flex items-center space-x-2">
+                      <h3 className="font-medium text-lg">Template Configuration</h3>
+                      <Badge variant="secondary" className="text-xs">Announcement Templates</Badge>
+                    </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="space-y-2">
+                    <Label>Announcement Template</Label>
+                    <Select
+                      value={formData.announcementConfig?.contentCreator?.templateId || ""}
+                      onValueChange={(value) =>
+                        setFormData(prev => ({
+                          ...prev,
+                          announcementConfig: {
+                            ...prev.announcementConfig!,
+                            contentCreator: {
+                              ...prev.announcementConfig!.contentCreator,
+                              templateId: value
+                            }
+                          }
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select announcement template" />
+                      </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                                              {availableTemplates.length === 0 ? (
+                          <div className="p-3 text-center text-sm text-muted-foreground">
+                            No announcement templates available.
+                          </div>
+                      ) : (
+                        availableTemplates
+                          .filter(template => template.id && template.id.trim() !== '')
+                          .map((template) => (
+                          <SelectItem key={template.id} value={template.id} className="p-3">
+                            <div className="flex flex-col space-y-1 w-full">
+                              <div className="flex items-center justify-between w-full">
+                                <span className="font-medium text-sm">{template.name}</span>
+                                {template.status && (
+                                  <Badge variant="secondary" className="text-xs ml-2 shrink-0">
+                                    {template.status}
+                                  </Badge>
+                                )}
+                              </div>
+                              {template.description && (
+                                <span className="text-xs text-muted-foreground max-w-full overflow-hidden text-ellipsis line-clamp-2">
+                                  {template.description}
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  
+                  {/* Show selected template details */}
+                  {formData.announcementConfig?.contentCreator?.templateId && (() => {
+                    const selectedTemplate = availableTemplates.find(
+                      t => t.id === formData.announcementConfig?.contentCreator?.templateId
+                    );
+                    return selectedTemplate ? (
+                      <div className="mt-2 p-3 bg-muted/50 rounded-md border">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{selectedTemplate.name}</p>
+                            {selectedTemplate.description && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {selectedTemplate.description}
+                              </p>
+                            )}
+                          </div>
+                          {selectedTemplate.status && (
+                            <Badge variant="outline" className="text-xs ml-2 shrink-0">
+                              {selectedTemplate.status}
+                            </Badge>
+                          )}
+                        </div>
+                        {selectedTemplate.variables && Object.keys(selectedTemplate.variables).length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-muted">
+                            <p className="text-xs font-medium text-muted-foreground mb-1">
+                              Available Variables:
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {Object.keys(selectedTemplate.variables).map((variable, index) => (
+                                <code key={index} className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                                  {`{{${variable}}}`}
+                                </code>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+                <div className="space-y-2">
+                  <Label>Generated Template Name</Label>
+                  <Input
+                    value={formData.announcementConfig?.contentCreator?.templateName || ''}
+                    onChange={(e) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        announcementConfig: {
+                          ...prev.announcementConfig!,
+                          contentCreator: {
+                            ...prev.announcementConfig!.contentCreator,
+                            templateName: e.target.value
+                          }
+                        }
+                      }))
+                    }
+                    placeholder="Announcement - {{rep_name}}"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Name for the generated template. Use variables like {'{{rep_name}}'}, {'{{timestamp}}'}, etc.
+                  </p>
+                </div>
+              </div>
+                              {availableTemplates.length === 0 && (
+                  <div className="col-span-2 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-medium text-amber-800">No Templates Available</h4>
+                        <p className="text-sm text-amber-700 mt-1">
+                          No announcement templates found. Templates need to be created in the content creator system.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="autoGenerate"
+                  checked={formData.announcementConfig?.contentCreator?.autoGenerate || false}
+                  onCheckedChange={(checked) =>
+                    setFormData(prev => ({
+                      ...prev,
+                      announcementConfig: {
+                        ...prev.announcementConfig!,
+                        contentCreator: {
+                          ...prev.announcementConfig!.contentCreator,
+                          autoGenerate: !!checked
+                        }
+                      }
+                    }))
+                  }
+                />
+                <Label htmlFor="autoGenerate">Auto-generate content from project</Label>
+              </div>
+                </div>
+              )}
+
+              {/* Sales Rep & Deal Information Configuration - Show for all announcement types */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <h3 className="font-medium text-lg">Sales Rep & Deal Information</h3>
+                  <Badge variant="outline" className="text-xs">All Announcement Types</Badge>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label>Sales Rep Email Field</Label>
+                    <Input
+                      value={getFieldMappingValue(formData.fieldMapping?.repEmail, 'repEmail')}
+                      onChange={(e) =>
+                        setFormData(prev => ({
+                          ...prev,
+                          fieldMapping: {
+                            ...prev.fieldMapping,
+                            repEmail: e.target.value
+                          }
+                        }))
+                      }
+                      placeholder="repEmail"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Webhook field containing the sales rep email (used to find their photo)
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Sales Rep Name Field</Label>
+                    <Input
+                      value={getFieldMappingValue(formData.fieldMapping?.repName, 'repName')}
+                      onChange={(e) =>
+                        setFormData(prev => ({
+                          ...prev,
+                          fieldMapping: {
+                            ...prev.fieldMapping,
+                            repName: e.target.value
+                          }
+                        }))
+                      }
+                      placeholder="repName"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Webhook field containing the sales rep name (optional)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label>Deal Amount Field</Label>
+                    <Input
+                      value={getFieldMappingValue(formData.fieldMapping?.dealAmount, 'dealAmount')}
+                      onChange={(e) =>
+                        setFormData(prev => ({
+                          ...prev,
+                          fieldMapping: {
+                            ...prev.fieldMapping,
+                            dealAmount: e.target.value
+                          }
+                        }))
+                      }
+                      placeholder="dealAmount"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Webhook field containing the deal amount (for celebrations and announcements)
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Company Name Field</Label>
+                    <Input
+                      value={getFieldMappingValue(formData.fieldMapping?.companyName, 'companyName')}
+                      onChange={(e) =>
+                        setFormData(prev => ({
+                          ...prev,
+                          fieldMapping: {
+                            ...prev.fieldMapping,
+                            companyName: e.target.value
+                          }
+                        }))
+                      }
+                      placeholder="companyName"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Webhook field containing the company/client name (for announcements)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Project/Template Selection for Video/Image */}
+              {(formData.announcementConfig?.announcementType === 'video' || formData.announcementConfig?.announcementType === 'image') && (
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <h4 className="font-medium">Content Project</h4>
+                    <Badge variant="secondary" className="text-xs">Required</Badge>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Select Project for {formData.announcementConfig?.announcementType === 'video' ? 'Video' : 'Image'} Generation</Label>
+                    <Select
+                      value={formData.announcementConfig?.contentCreator?.templateId || ""}
+                      onValueChange={(value) =>
+                        setFormData(prev => ({
+                          ...prev,
+                          announcementConfig: {
+                            ...prev.announcementConfig!,
+                            contentCreator: {
+                              ...prev.announcementConfig!.contentCreator,
+                              templateId: value
+                            }
+                          }
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={`Select ${formData.announcementConfig?.announcementType} project`} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {availableTemplates.length === 0 ? (
+                          <div className="p-3 text-center text-sm text-muted-foreground">
+                            No templates available.
+                          </div>
+                        ) : (
+                          availableTemplates
+                            .filter(template => template.id && template.id.trim() !== '')
+                            .map((template) => (
+                              <SelectItem key={template.id} value={template.id} className="p-3">
+                                <div className="flex flex-col space-y-1 w-full">
+                                  <div className="flex items-center justify-between w-full">
+                                    <span className="font-medium text-sm">{template.name}</span>
+                                    {template.status && (
+                                      <Badge variant="secondary" className="text-xs ml-2 shrink-0">
+                                        {template.status}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {template.description && (
+                                    <span className="text-xs text-muted-foreground max-w-full overflow-hidden text-ellipsis line-clamp-2">
+                                      {template.description}
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    
+                    {/* Show selected template details */}
+                    {formData.announcementConfig?.contentCreator?.templateId && (() => {
+                      const selectedTemplate = availableTemplates.find(
+                        t => t.id === formData.announcementConfig?.contentCreator?.templateId
+                      );
+                      return selectedTemplate ? (
+                        <div className="mt-2 p-3 bg-muted/50 rounded-md border">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium">{selectedTemplate.name}</p>
+                              {selectedTemplate.description && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {selectedTemplate.description}
+                                </p>
+                              )}
+                            </div>
+                            {selectedTemplate.status && (
+                              <Badge variant="outline" className="text-xs ml-2 shrink-0">
+                                {selectedTemplate.status}
+                              </Badge>
+                            )}
+                          </div>
+                          {selectedTemplate.variables && Object.keys(selectedTemplate.variables).length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-muted">
+                              <p className="text-xs font-medium text-muted-foreground mb-1">
+                                Available Variables:
+                              </p>
+                              <div className="flex flex-wrap gap-1">
+                                {Object.keys(selectedTemplate.variables).map((variable, index) => (
+                                  <code key={index} className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                                    {`{{${variable}}}`}
+                                  </code>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : null;
+                    })()}
+                  </div>
+
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-medium text-blue-800">Simple API Integration</h4>
+                        <p className="text-sm text-blue-700 mt-1">
+                          {formData.announcementConfig?.announcementType === 'video' 
+                            ? 'This will use the /announcement/video endpoint to generate a video based on the selected project with the sales rep photo and deal details.'
+                            : 'This will use the /announcement/image endpoint to generate an image based on the selected project with the sales rep photo.'
+                          }
+                        </p>
+                        <p className="text-xs text-blue-600 mt-2">
+                          Required: repEmail, displayIds, project | Optional: repName{formData.announcementConfig?.announcementType === 'video' ? ', dealAmount, companyName' : ''}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-6">
+              <div className="flex items-center space-x-2">
+                <h3 className="font-medium text-lg">Display Configuration</h3>
+                <Badge variant="outline" className="text-xs">OptiSigns</Badge>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label>Display Selection Mode</Label>
+                  <Select
+                    value={formData.announcementConfig?.optisigns?.displaySelection?.mode || "all"}
+                    onValueChange={(value) => handleDisplayModeChange(value as 'all' | 'specific' | 'group')}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Displays</SelectItem>
+                      <SelectItem value="specific">Specific Displays</SelectItem>
+                      <SelectItem value="group">Display Groups</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Specific Display Selection UI */}
+                {formData.announcementConfig?.optisigns?.displaySelection?.mode === 'specific' && (
+                  <div className="space-y-2 col-span-2">
+                    <Label>Select Displays</Label>
+                    {displaysFetched ? (
+                      <div className="max-h-64 overflow-y-auto border rounded-md p-3 space-y-2">
+                        {availableDisplays.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No displays available</p>
+                        ) : (
+                          availableDisplays.map((display) => (
+                            <div key={display.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`display-${display.id}`}
+                                checked={selectedDisplayIds.includes(display.id)}
+                                onCheckedChange={(checked) => 
+                                  handleDisplaySelection(display.id, !!checked)
+                                }
+                              />
+                              <Label 
+                                htmlFor={`display-${display.id}`} 
+                                className="flex-1 text-sm cursor-pointer"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span>{display.name}</span>
+                                  <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                                    <span>{display.location}</span>
+                                    <Badge 
+                                      variant={display.status === 'online' ? 'success' : 'secondary'}
+                                      className="text-xs"
+                                    >
+                                      {display.status}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </Label>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-3 text-center text-sm text-muted-foreground">
+                        Loading displays...
+                      </div>
+                    )}
+                    {selectedDisplayIds.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {selectedDisplayIds.length} display{selectedDisplayIds.length !== 1 ? 's' : ''} selected
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                <div className="space-y-2">
+                  <Label>Takeover Priority</Label>
+                  <Select
+                    value={formData.announcementConfig?.optisigns?.takeover?.priority || "MEDIUM"}
+                    onValueChange={(value) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        announcementConfig: {
+                          ...prev.announcementConfig!,
+                          optisigns: {
+                            ...prev.announcementConfig!.optisigns,
+                            takeover: {
+                              ...prev.announcementConfig!.optisigns.takeover,
+                              priority: value as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
+                            }
+                          }
+                        }
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="LOW">Low</SelectItem>
+                      <SelectItem value="MEDIUM">Medium</SelectItem>
+                      <SelectItem value="HIGH">High</SelectItem>
+                      <SelectItem value="URGENT">Urgent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Duration (seconds)</Label>
+                  <Input
+                    type="number"
+                    value={formData.announcementConfig?.optisigns?.takeover?.duration || 30}
+                    onChange={(e) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        announcementConfig: {
+                          ...prev.announcementConfig!,
+                          optisigns: {
+                            ...prev.announcementConfig!.optisigns,
+                            takeover: {
+                              ...prev.announcementConfig!.optisigns.takeover,
+                              duration: parseInt(e.target.value)
+                            }
+                          }
+                        }
+                      }))
+                    }
+                    placeholder="30"
+                  />
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium">Takeover Options</Label>
+                  <div className="mt-2 space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="restoreAfter"
+                        checked={formData.announcementConfig?.optisigns?.takeover?.restoreAfter || false}
+                        onCheckedChange={(checked) =>
+                          setFormData(prev => ({
+                            ...prev,
+                            announcementConfig: {
+                              ...prev.announcementConfig!,
+                              optisigns: {
+                                ...prev.announcementConfig!.optisigns,
+                                takeover: {
+                                  ...prev.announcementConfig!.optisigns.takeover,
+                                  restoreAfter: !!checked
+                                }
+                              }
+                            }
+                          }))
+                        }
+                      />
+                      <Label htmlFor="restoreAfter" className="text-sm">Restore previous content after announcement</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="overrideCurrent"
+                        checked={formData.announcementConfig?.optisigns?.takeover?.overrideCurrent || false}
+                        onCheckedChange={(checked) =>
+                          setFormData(prev => ({
+                            ...prev,
+                            announcementConfig: {
+                              ...prev.announcementConfig!,
+                              optisigns: {
+                                ...prev.announcementConfig!.optisigns,
+                                takeover: {
+                                  ...prev.announcementConfig!.optisigns.takeover,
+                                  overrideCurrent: !!checked
+                                }
+                              }
+                            }
+                          }))
+                        }
+                      />
+                      <Label htmlFor="overrideCurrent" className="text-sm">Override current content</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="immediate"
+                        checked={formData.announcementConfig?.optisigns?.scheduling?.immediate !== false}
+                        onCheckedChange={(checked) =>
+                          setFormData(prev => ({
+                            ...prev,
+                            announcementConfig: {
+                              ...prev.announcementConfig!,
+                              optisigns: {
+                                ...prev.announcementConfig!.optisigns,
+                                scheduling: {
+                                  ...prev.announcementConfig!.optisigns.scheduling,
+                                  immediate: !!checked
+                                }
+                              }
+                            }
+                          }))
+                        }
+                      />
+                      <Label htmlFor="immediate" className="text-sm">Trigger immediately</Label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -1795,7 +2941,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
               <Label>Phone Number</Label>
               <div className="space-y-1">
                 <Input
-                  value={formData.fieldMapping.phone || ''}
+                  value={getFieldMappingValue(formData.fieldMapping.phone, '')}
                   onChange={(e) => {
                     setFormData(prev => ({
                       ...prev,
@@ -1816,7 +2962,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
               <Label>Full Name</Label>
               <div className="space-y-1">
                 <Input
-                  value={formData.fieldMapping.name || ''}
+                  value={getFieldMappingValue(formData.fieldMapping.name, '')}
                   onChange={(e) => {
                     setFormData(prev => ({
                       ...prev,
@@ -1837,7 +2983,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
               <Label>Email Address</Label>
               <div className="space-y-1">
                 <Input
-                  value={formData.fieldMapping.email || ''}
+                  value={getFieldMappingValue(formData.fieldMapping.email, '')}
                   onChange={(e) => {
                     setFormData(prev => ({
                       ...prev,
@@ -1865,7 +3011,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                 <Label>Lead Identifier Field</Label>
                 <div className="space-y-1">
                   <Input
-                    value={formData.fieldMapping.pauseLeadId || ''}
+                    value={getFieldMappingValue(formData.fieldMapping.pauseLeadId, '')}
                     onChange={(e) =>
                       setFormData(prev => ({
                         ...prev,
@@ -1886,7 +3032,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                 <Label>Pause Duration Field</Label>
                 <div className="space-y-1">
                   <Input
-                    value={formData.fieldMapping.pauseDuration || ''}
+                    value={getFieldMappingValue(formData.fieldMapping.pauseDuration, '')}
                     onChange={(e) =>
                       setFormData(prev => ({
                         ...prev,
@@ -1907,7 +3053,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                 <Label>Pause Reason Field</Label>
                 <div className="space-y-1">
                   <Input
-                    value={formData.fieldMapping.pauseReason || ''}
+                    value={getFieldMappingValue(formData.fieldMapping.pauseReason, '')}
                     onChange={(e) =>
                       setFormData(prev => ({
                         ...prev,
@@ -1936,7 +3082,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                 <Label>Lead Identifier Field</Label>
                 <div className="space-y-1">
                   <Input
-                    value={formData.fieldMapping.stopLeadId || ''}
+                    value={getFieldMappingValue(formData.fieldMapping.stopLeadId, '')}
                     onChange={(e) =>
                       setFormData(prev => ({
                         ...prev,
@@ -1957,7 +3103,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                 <Label>Stop Reason Field</Label>
                 <div className="space-y-1">
                   <Input
-                    value={formData.fieldMapping.stopReason || ''}
+                    value={getFieldMappingValue(formData.fieldMapping.stopReason, '')}
                     onChange={(e) =>
                       setFormData(prev => ({
                         ...prev,
@@ -1978,7 +3124,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                 <Label>DNC Field</Label>
                 <div className="space-y-1">
                   <Input
-                    value={formData.fieldMapping.dncFlag || ''}
+                    value={getFieldMappingValue(formData.fieldMapping.dncFlag, '')}
                     onChange={(e) =>
                       setFormData(prev => ({
                         ...prev,
@@ -1999,7 +3145,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                 <Label>Sold Field</Label>
                 <div className="space-y-1">
                   <Input
-                    value={formData.fieldMapping.soldFlag || ''}
+                    value={getFieldMappingValue(formData.fieldMapping.soldFlag, '')}
                     onChange={(e) =>
                       setFormData(prev => ({
                         ...prev,
@@ -2299,6 +3445,43 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
             </Select>
           </div>
 
+          {/* Webhook Testing Section */}
+          {isEdit && webhookId && (
+            <div className="space-y-4">
+              <h3 className="font-medium">Test Webhook</h3>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Test Payload</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={generateSamplePayload}
+                    >
+                      Generate Sample
+                    </Button>
+                  </div>
+                  <Textarea
+                    value={testPayload}
+                    onChange={(e) => setTestPayload(e.target.value)}
+                    placeholder="Enter JSON payload for testing"
+                    className="h-32 font-mono text-sm"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleTestWebhook}
+                  disabled={testingWebhook}
+                  className="w-full"
+                >
+                  {testingWebhook ? 'Testing...' : 'Test Webhook'}
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-4">
             <h3 className="font-medium">Conditional Rules</h3>
             <div className="space-y-2">
@@ -2554,6 +3737,137 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
         console.error(`Invalid step: ${currentStep}`);
         return renderBasicInfoStep();
     }
+  };
+
+  // Add function to fetch displays when specific mode is selected
+  const handleDisplayModeChange = async (mode: 'all' | 'specific' | 'group') => {
+    setFormData(prev => ({
+      ...prev,
+      announcementConfig: {
+        ...prev.announcementConfig!,
+        optisigns: {
+          ...prev.announcementConfig!.optisigns,
+          displaySelection: {
+            ...prev.announcementConfig!.optisigns.displaySelection,
+            mode,
+            displayIds: mode === 'specific' ? selectedDisplayIds : undefined
+          }
+        }
+      }
+    }));
+
+    // Fetch displays if not already fetched and specific mode is selected
+    if (mode === 'specific' && !displaysFetched) {
+      await fetchAnnouncementDisplays();
+    }
+  };
+
+  // Add function to handle display selection
+  const handleDisplaySelection = (displayId: string, selected: boolean) => {
+    const newSelectedIds = selected 
+      ? [...selectedDisplayIds, displayId]
+      : selectedDisplayIds.filter(id => id !== displayId);
+    
+    setSelectedDisplayIds(newSelectedIds);
+    
+    setFormData(prev => ({
+      ...prev,
+      announcementConfig: {
+        ...prev.announcementConfig!,
+        optisigns: {
+          ...prev.announcementConfig!.optisigns,
+          displaySelection: {
+            ...prev.announcementConfig!.optisigns.displaySelection,
+            displayIds: newSelectedIds
+          }
+        }
+      }
+    }));
+  };
+
+
+
+  // Test webhook functionality
+  const handleTestWebhook = async () => {
+    if (!webhookId) {
+      toast.error('Save the webhook first before testing');
+      return;
+    }
+
+    try {
+      setTestingWebhook(true);
+      const payload = JSON.parse(testPayload);
+      
+      let testResult;
+      if (formData.webhookType === 'announcement') {
+        testResult = await testAnnouncement(webhookId, payload);
+      } else {
+        testResult = await testWebhook(webhookId, payload);
+      }
+      
+      console.log('Test result:', testResult);
+      toast.success('Webhook test completed successfully');
+    } catch (error) {
+      console.error('Error testing webhook:', error);
+      if (error instanceof SyntaxError) {
+        toast.error('Invalid JSON in test payload');
+      } else {
+        toast.error('Webhook test failed');
+      }
+    } finally {
+      setTestingWebhook(false);
+    }
+  };
+
+  // Generate sample test payload based on webhook type
+  const generateSamplePayload = () => {
+    let samplePayload: Record<string, any> = {};
+    
+    switch (formData.webhookType) {
+      case 'go':
+        samplePayload = {
+          phone: "+1234567890",
+          name: "John Doe",
+          email: "john@example.com",
+          brand: formData.brand || "Sample Brand",
+          source: formData.source || "Website"
+        };
+        break;
+      
+      case 'pause':
+        samplePayload = {
+          phone: "+1234567890",
+          pause_reason: "customer_request",
+          pause_duration: "2_hours"
+        };
+        break;
+      
+      case 'stop':
+        samplePayload = {
+          phone: "+1234567890",
+          stop_reason: "sold",
+          stop_type: "converted"
+        };
+        break;
+      
+      case 'announcement':
+        samplePayload = {
+          rep_name: "John Smith",
+          deal_amount: "$50,000",
+          company_name: "Acme Corp",
+          achievement_type: "deal_closed"
+        };
+        break;
+    }
+    
+    // Add custom fields from field mapping
+    Object.entries(formData.fieldMapping).forEach(([key, value]) => {
+      if (!samplePayload[value as string] && key !== 'phone' && key !== 'name' && key !== 'email') {
+        samplePayload[value as string] = `sample_${key}_value`;
+      }
+    });
+    
+    setTestPayload(JSON.stringify(samplePayload, null, 2));
   };
 
   return (

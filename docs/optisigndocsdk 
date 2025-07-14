@@ -1,0 +1,205 @@
+Optisigns SDK
+OptiSigns SDK QuickStart
+OptiSigns TypeScript SDK Quickstart
+
+The OptiSigns TypeScript SDK provides a simple and intuitive way to manage your digital signage infrastructure programmatically. This documentation covers the main features and examples for common use cases.
+
+​
+Installation
+
+Copy
+
+Ask AI
+npm install @optisigns/optisigns
+​
+Authentication
+Initialize the SDK with your API key. Obtain your key from the account settings.
+
+
+Copy
+
+Ask AI
+import { OptiSigns } from "@optisigns/optisigns";
+
+const client = new OptiSigns("YOUR_API_KEY");
+​
+Core Operations
+​
+Devices
+​
+List All Devices
+
+Copy
+
+Ask AI
+const devices = await client.devices.listAllDevices();
+​
+Find Device by Name
+
+Copy
+
+Ask AI
+const device = await client.devices.findByDeviceName("Reception");
+​
+Get Device by ID
+
+Copy
+
+Ask AI
+const device = await client.devices.getDeviceById("device_id");
+​
+Create New Device
+
+Copy
+
+Ask AI
+const newDevice = await client.devices.createDevice({
+  deviceName: "Reception Screen",
+  orientation: "LANDSCAPE",
+});
+​
+Update Device
+
+Copy
+
+Ask AI
+await client.devices.updateDevice("device_id", {
+  deviceName: "Updated Screen Name",
+});
+​
+Delete Device
+
+Copy
+
+Ask AI
+await client.devices.deleteDeviceById("device_id", "team_id");
+​
+Content Management
+​
+Upload File Asset
+
+Copy
+
+Ask AI
+const asset = await client.assets.uploadFileAsset(
+  "./path/to/image.jpg",
+  "team_id"
+);
+​
+Create Website Asset
+
+Copy
+
+Ask AI
+const websiteAsset = await client.assets.createWebsiteAppAsset(
+  {
+    url: "https://example.com",
+    title: "Company Website",
+  },
+  "team_id"
+);
+​
+Modify Asset Settings
+
+Copy
+
+Ask AI
+await client.assets.modifyAssetSettings(
+  "asset_id",
+  {
+    name: "Updated Asset Name",
+    metadata: { key: "value" },
+  },
+  "team_id"
+);
+​
+Common Use Cases
+​
+Managing Digital Screens
+Push Content to Screen:
+
+Copy
+
+Ask AI
+await client.devices.pushContentToDevice(
+  "device_id",
+  "content_id",
+  "team_id",
+  "NOW"
+);
+Reboot Device:
+
+Copy
+
+Ask AI
+await client.devices.rebootDevice("device_id");
+​
+Error Handling
+The SDK uses TypeScript for better type safety and includes comprehensive error handling. Always wrap API calls in try-catch blocks:
+
+
+Copy
+
+Ask AI
+try {
+  const devices = await client.devices.listAllDevices();
+  console.log(devices);
+} catch (error) {
+  console.error("Error fetching devices:", error);
+}
+​
+Best Practices
+Error Handling: Always implement proper error handling in your applications
+Authentication: Keep your API key secure and never expose it in client-side code
+TypeScript: Take advantage of TypeScript types for better code completion and error detection
+Team ID: Keep track of your team ID for operations that require it
+​
+Code Examples
+
+Device Management
+
+Asset Management
+
+Copy
+
+Ask AI
+import { OptiSigns } from "@optisigns/optisigns";
+
+async function manageAssets() {
+  const client = new OptiSigns("YOUR_API_KEY");
+
+  try {
+    // Upload a new asset
+    const asset = await client.assets.uploadFileAsset(
+      "./path/to/image.jpg",
+      "team_id"
+    );
+
+    // Create a website asset
+    const websiteAsset = await client.assets.createWebsiteAppAsset(
+      {
+        url: "https://example.com",
+        title: "Company Website",
+      },
+      "team_id"
+    );
+
+    // Modify asset settings
+    await client.assets.modifyAssetSettings(
+      asset.id,
+      {
+        name: "Updated Asset Name",
+      },
+      "team_id"
+    );
+  } catch (error) {
+    console.error("Error:", error);
+  }
+}
+For more detailed information, visit our API Reference or contact our support team at support@optisigns.com.
+
+Pagination
+OptiSigns Cookbook
+x
+github
+linkedin

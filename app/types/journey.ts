@@ -4,6 +4,7 @@ export interface Journey {
   description: string;
   tenantId: string;
   isActive: boolean;
+  repeatDays?: number;
   triggerCriteria: {
     leadStatus: string[];
     leadTags: string[];
@@ -28,7 +29,8 @@ export interface JourneyStep {
   description: string;
   journeyId: number;
   stepOrder: number;
-  actionType: 'call' | 'sms' | 'sms_twilio' | 'sms_meera' | 'email' | 'status_change' | 'tag_update' | 'webhook' | 'wait_for_event' | 'conditional_branch' | 'lead_assignment' | 'data_update' | 'journey_transfer' | 'delay';
+  dayNumber?: number; // Which day this step should execute (1, 2, 3, etc.)
+  actionType: 'call' | 'sms' | 'email' | 'status_change' | 'tag_update' | 'webhook' | 'delay';
   actionConfig: Record<string, any>;
   delayType: 'immediate' | 'fixed_time' | 'delay_after_previous' | 'delay_after_enrollment' | 'specific_days';
   delayConfig: Record<string, any>;
@@ -45,6 +47,10 @@ export interface JourneyStep {
   };
   isActive: boolean;
   isExitPoint: boolean;
+  isDayStart?: boolean;
+  isDayEnd?: boolean;
+  dayStartTime?: string; // HH:MM format for when this step can start executing
+  dayEndTime?: string; // HH:MM format for when this step should stop executing
   position?: { x: number; y: number };
   createdAt?: string;
   updatedAt?: string;
@@ -59,6 +65,8 @@ export interface LeadJourney {
   startedAt: string;
   nextExecutionTime: string | null;
   lastExecutionTime: string | null;
+  dayCount: number;
+  context?: Record<string, any>;
   Lead?: {
     id: number;
     name: string;

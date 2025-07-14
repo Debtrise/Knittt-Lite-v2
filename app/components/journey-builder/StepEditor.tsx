@@ -13,7 +13,7 @@ import api from '@/app/lib/api';
 import { useAuthStore } from '@/app/store/authStore';
 import toast from 'react-hot-toast';
 import { Trash2, Save, Eye, Play, Pause } from 'lucide-react';
-import { AudioPlayer } from '@/app/components/ui/AudioPlayer';
+import AudioPlayer from '@/app/components/ui/AudioPlayer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { useToast } from '@/app/components/ui/use-toast';
@@ -47,7 +47,11 @@ const StepEditor: React.FC<StepEditorProps> = ({
     delayType: 'immediate',
     delayConfig: {},
     isActive: true,
-    isExitPoint: false
+    isExitPoint: false,
+    isDayStart: false,
+    isDayEnd: false,
+    dayStartTime: '09:00',
+    dayEndTime: '17:00'
   });
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -72,6 +76,16 @@ const StepEditor: React.FC<StepEditorProps> = ({
   
   // Display number for the step (1-based index)
   const displayNumber = stepIndex !== undefined ? stepIndex + 1 : Math.ceil(step.stepOrder / 10);
+  
+  // Helper function to get step day from conditions
+  const getStepDayFromConditions = (conditions: any): number => {
+    if (conditions?.leadAgeDays?.min !== undefined && conditions?.leadAgeDays?.max !== undefined) {
+      if (conditions.leadAgeDays.min === conditions.leadAgeDays.max) {
+        return conditions.leadAgeDays.min + 1; // Convert 0-based to 1-based
+      }
+    }
+    return 1; // Default to day 1
+  };
   
   // Get the parameter definitions for the current action type
   const actionParams = getActionTypeParams(formData.actionType as JourneyActionType);
@@ -195,7 +209,11 @@ const StepEditor: React.FC<StepEditorProps> = ({
         delayType: step.delayType,
         delayConfig: step.delayConfig,
         isActive: step.isActive,
-        isExitPoint: step.isExitPoint
+        isExitPoint: step.isExitPoint,
+        isDayStart: step.isDayStart,
+        isDayEnd: step.isDayEnd,
+        dayStartTime: step.dayStartTime || '09:00',
+        dayEndTime: step.dayEndTime || '17:00'
       });
     }
   }, [step]);
@@ -850,8 +868,21 @@ const StepEditor: React.FC<StepEditorProps> = ({
           <Input
             id="stepOrder"
             type="number"
-            value={formData.stepOrder !== undefined ? Number(formData.stepOrder) || 0 : 0}
-            onChange={(e) => handleChange('stepOrder', parseInt(e.target.value, 10) || 0)}
+            step="1"
+            min="0"
+            value={formData.stepOrder !== undefined ? Math.floor(Number(formData.stepOrder) || 0) : 0}
+            onChange={(e) => {
+              const value = e.target.value;
+              // Ensure only whole numbers, prevent decimals and concatenation errors
+              const integerValue = Math.floor(parseInt(value, 10) || 0);
+              handleChange('stepOrder', integerValue);
+            }}
+            onBlur={(e) => {
+              // Additional validation on blur to ensure clean integer value
+              const value = Math.floor(parseInt(e.target.value, 10) || 0);
+              e.target.value = value.toString();
+              handleChange('stepOrder', value);
+            }}
           />
           <p className="text-xs text-gray-500 mt-1">
             Internal order value. Displayed as Step {displayNumber}.
@@ -976,6 +1007,190 @@ const StepEditor: React.FC<StepEditorProps> = ({
             onCheckedChange={(checked) => handleChange('isExitPoint', !!checked)}
           />
           <Label htmlFor="isExitPoint">Exit Point (Journey ends after this step)</Label>
+        </div>
+        
+        {/* Day Assignment */}
+        <div className="space-y-4 p-4 bg-green-50 rounded-lg border border-green-200">
+          <h4 className="font-medium text-green-900">Journey Day Assignment</h4>
+          
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="dayAssignment" className="text-sm font-medium">Execute on Day</Label>
+              <select
+                id="dayAssignment"
+                value={getStepDayFromConditions(formData.conditions)}
+                onChange={(e) => {
+                  const day = parseInt(e.target.value, 10);
+                  const dayIndex = day - 1; // Convert to 0-based for leadAgeDays
+                  
+                  setFormData((prev) => ({
+                    ...prev,
+                    conditions: {
+                      ...prev.conditions,
+                      leadAgeDays: {
+                        min: dayIndex,
+                        max: dayIndex
+                      }
+                    }
+                  }));
+                }}
+                className="w-full px-3 py-2 border rounded-md text-sm"
+              >
+                <option value={1}>Day 1 (New leads)</option>
+                <option value={2}>Day 2</option>
+                <option value={3}>Day 3</option>
+                <option value={4}>Day 4</option>
+                <option value={5}>Day 5</option>
+                <option value={6}>Day 6</option>
+                <option value={7}>Day 7</option>
+                <option value={14}>Day 14</option>
+                <option value={30}>Day 30</option>
+              </select>
+              <span className="text-xs text-gray-500 mt-1 block">
+                This step will only execute for leads that are exactly this many days old
+              </span>
+            </div>
+            
+            <div className="mt-3 p-3 bg-green-100 rounded border border-green-300">
+              <div className="text-xs text-green-800">
+                <strong>Multi-Day Journey Tips:</strong>
+                <ul className="mt-1 space-y-1 list-disc list-inside">
+                  <li>Day 1 steps execute for fresh leads (0 days old)</li>
+                  <li>Day 2 steps execute when leads are 1 day old</li>
+                  <li>Use different days to spread actions over time</li>
+                  <li>Journey repeats for the configured repeat days</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Enhanced Day Start/End Controls */}
+        <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <h4 className="font-medium text-blue-900">Daily Schedule Controls</h4>
+          
+          <div className="space-y-4">
+            {/* Day Boundary Selection */}
+            <div>
+              <Label className="text-sm font-medium text-blue-900">Day Boundary Role</Label>
+              <div className="mt-2 space-y-2">
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="radio"
+                    id="noBoundary"
+                    name="dayBoundary"
+                    checked={!formData.isDayStart && !formData.isDayEnd}
+                    onChange={() => {
+                      setFormData((prev) => ({ 
+                        ...prev, 
+                        isDayStart: false, 
+                        isDayEnd: false,
+                        dayStartTime: '09:00',
+                        dayEndTime: '17:00'
+                      }));
+                    }}
+                    className="text-blue-600"
+                  />
+                  <Label htmlFor="noBoundary" className="text-sm">Regular step (no day boundary)</Label>
+                </div>
+                
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="radio"
+                    id="dayStart"
+                    name="dayBoundary"
+                    checked={!!formData.isDayStart}
+                    onChange={() => {
+                      setFormData((prev) => ({ 
+                        ...prev, 
+                        isDayStart: true, 
+                        isDayEnd: false 
+                      }));
+                    }}
+                    className="text-green-600"
+                  />
+                  <Label htmlFor="dayStart" className="text-sm">
+                    <span className="text-green-700 font-medium">Day Start</span> - First step of the day
+                  </Label>
+                </div>
+                
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="radio"
+                    id="dayEnd"
+                    name="dayBoundary"
+                    checked={!!formData.isDayEnd}
+                    onChange={() => {
+                      setFormData((prev) => ({ 
+                        ...prev, 
+                        isDayStart: false, 
+                        isDayEnd: true 
+                      }));
+                    }}
+                    className="text-blue-600"
+                  />
+                  <Label htmlFor="dayEnd" className="text-sm">
+                    <span className="text-blue-700 font-medium">Day End</span> - Last step of the day
+                  </Label>
+                </div>
+              </div>
+            </div>
+
+            {/* Time Controls */}
+            {(formData.isDayStart || formData.isDayEnd) && (
+              <div className="grid grid-cols-1 gap-4 mt-4 p-3 bg-white rounded border border-blue-300">
+                {formData.isDayStart && (
+                  <div>
+                    <Label htmlFor="dayStartTime" className="text-sm font-medium text-green-700">
+                      🌅 Day Start Time
+                    </Label>
+                    <input
+                      id="dayStartTime"
+                      type="time"
+                      value={formData.dayStartTime || '09:00'}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, dayStartTime: e.target.value }))}
+                      className="w-full px-3 py-2 border rounded text-sm mt-1"
+                    />
+                    <span className="text-xs text-gray-600 mt-1 block">
+                      Journey execution starts at this time each day
+                    </span>
+                  </div>
+                )}
+                
+                {formData.isDayEnd && (
+                  <div>
+                    <Label htmlFor="dayEndTime" className="text-sm font-medium text-blue-700">
+                      🌆 Day End Time
+                    </Label>
+                    <input
+                      id="dayEndTime"
+                      type="time"
+                      value={formData.dayEndTime || '17:00'}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, dayEndTime: e.target.value }))}
+                      className="w-full px-3 py-2 border rounded text-sm mt-1"
+                    />
+                    <span className="text-xs text-gray-600 mt-1 block">
+                      Journey execution pauses at this time, resumes next day
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Day Boundary Rules */}
+            <div className="mt-4 p-3 bg-blue-100 rounded border border-blue-300">
+              <div className="text-xs text-blue-800">
+                <strong>Day Boundary Rules:</strong>
+                <ul className="mt-1 space-y-1 list-disc list-inside">
+                  <li><strong>Day Start:</strong> Resumes execution after overnight pause</li>
+                  <li><strong>Day End:</strong> Pauses execution until next day start</li>
+                  <li><strong>Automatic Pairing:</strong> Each day should have both start and end steps</li>
+                  <li><strong>Cross-Day Flow:</strong> Day End → Next Day Start (automatic)</li>
+                  <li><strong>Time Enforcement:</strong> Steps respect business hours and timezone</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
         
         <div className="flex justify-between pt-4 border-t border-gray-200">

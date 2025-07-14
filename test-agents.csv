@@ -1,0 +1,5 @@
+fullName,emailAddress,photoURL,territory,phone
+John Smith,john.smith@company.com,https://example.com/photos/john.jpg,North,555-0101
+Sarah Johnson,sarah.j@company.com,https://example.com/photos/sarah.png,South,555-0102
+Mike Wilson,mike.w@company.com,https://example.com/photos/mike.jpeg,East,555-0103
+Lisa Brown,lisa.brown@company.com,https://example.com/photos/lisa.jpg,West,555-0104

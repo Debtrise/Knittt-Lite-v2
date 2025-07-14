@@ -1,6 +1,6 @@
 // Types for the Webhook API
 
-export type WebhookType = 'go' | 'pause' | 'stop';
+export type WebhookType = 'go' | 'pause' | 'stop' | 'announcement';
 
 export interface WebhookEndpoint {
   id: number;
@@ -23,6 +23,7 @@ export interface WebhookEndpoint {
   conditionalRules?: ConditionalRules;
   pauseResumeConfig?: PauseResumeConfig;
   stopConfig?: StopConfig;
+  announcementConfig?: AnnouncementConfig;
   createdAt: string;
   updatedAt: string;
 }
@@ -75,6 +76,16 @@ export interface WebhookEvent {
     leadsMarkedDNC: number;
     leadsMarkedSold: number;
   };
+  announcementActions?: {
+    contentGenerated: boolean;
+    contentId?: string;
+    displaysTriggered: number;
+    successfulDisplays: number;
+    failedDisplays: number;
+    totalDuration: number;
+    variablesInjected: Record<string, any>;
+    contentGenerationTime: number;
+  };
 }
 
 export interface WebhookListResponse {
@@ -120,6 +131,7 @@ export interface CreateWebhookParams {
   conditionalRules?: ConditionalRules | null;
   pauseResumeConfig?: PauseResumeConfig;
   stopConfig?: StopConfig;
+  announcementConfig?: AnnouncementConfig;
 }
 
 export interface UpdateWebhookParams {
@@ -136,6 +148,7 @@ export interface UpdateWebhookParams {
   conditionalRules?: ConditionalRules | null;
   pauseResumeConfig?: PauseResumeConfig;
   stopConfig?: StopConfig;
+  announcementConfig?: AnnouncementConfig;
 }
 
 export interface WebhookDeleteResponse {
@@ -206,7 +219,7 @@ export interface Condition {
 }
 
 export interface Action {
-  type: 'create_lead' | 'update_lead' | 'delete_lead' | 'send_notification' | 'enroll_journey' | 'call_webhook' | 'set_tags' | 'create_task';
+  type: 'create_lead' | 'update_lead' | 'delete_lead' | 'send_notification' | 'enroll_journey' | 'call_webhook' | 'set_tags' | 'create_task' | 'set_dialer_assignment';
   config: Record<string, any>;
 }
 
@@ -268,4 +281,146 @@ export interface StopConfig {
     trackStopSource: boolean;
     trackStopTimestamp: boolean;
   };
+}
+
+// New interfaces for announcement functionality
+export interface AnnouncementConfig {
+  enabled: boolean;
+  announcementType?: 'template' | 'video' | 'image'; // Type of announcement to generate
+  contentCreator: {
+    templateId: string;
+    variableMapping: Record<string, string>;
+    autoGenerate?: boolean;
+    templateName?: string;
+  };
+  optisigns: {
+    displaySelection: {
+      mode: 'all' | 'specific' | 'group';
+      displayIds?: string[];
+      groupIds?: string[];
+      criteria?: {
+        location?: string[];
+        status?: 'online' | 'offline' | 'any';
+        tags?: string[];
+      };
+    };
+    takeover: {
+      priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+      duration: number; // seconds
+      restoreAfter: boolean;
+      overrideCurrent?: boolean;
+    };
+    scheduling?: {
+      immediate: boolean;
+      delay?: number; // seconds
+      specificTime?: string; // ISO datetime
+      businessHoursOnly?: boolean;
+    };
+  };
+  conditions?: {
+    enabled: boolean;
+    rules: Array<{
+      field: string;
+      operator: string;
+      value: any;
+      required: boolean;
+    }>;
+  };
+}
+
+// Updated interface for projects instead of templates
+export interface AnnouncementProject {
+  id: string;
+  name: string;
+  description: string;
+  status: 'draft' | 'published' | 'archived';
+  version: number;
+  canvasSize: { width: number; height: number };
+  variables: Record<string, any>;
+  elements?: any[];
+  thumbnail?: string;
+  isPublic?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Keep the old interface for backward compatibility but mark as deprecated
+/** @deprecated Use AnnouncementProject instead */
+export interface AnnouncementTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  variables: string[];
+  thumbnail?: string;
+  isPublic: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AnnouncementDisplay {
+  id: string;
+  name: string;
+  location: string;
+  status: 'online' | 'offline';
+  isOnline: boolean;
+  isActive?: boolean;
+  resolution: {
+    width: number;
+    height: number;
+  };
+  tags?: string[];
+  groupIds?: string[];
+  lastSeen: string;
+}
+
+export interface AnnouncementMetric {
+  id: string;
+  webhookEventId: number;
+  announcementStartTime: string;
+  totalDuration: number;
+  successfulDisplays: number;
+  failedDisplays: number;
+  displayIds: string[];
+  variablesInjected: Record<string, any>;
+  contentGenerationTime: number;
+  processingTime: number;
+  contentId?: string;
+  errors?: string[];
+  createdAt: string;
+}
+
+export interface AnnouncementTestResponse {
+  configurationValid: boolean;
+  errors: string[];
+  warnings: string[];
+  simulationResults: {
+    triggerConditions: 'would_pass' | 'would_fail' | 'not_applicable';
+    variableExtraction: {
+      variablesFound: number;
+      variables: Record<string, any>;
+      missingVariables?: string[];
+    };
+    contentGeneration: {
+      templateExists: boolean;
+      estimatedGenerationTime: string;
+      previewAvailable?: boolean;
+    };
+    displaySelection: {
+      mode: string;
+      estimatedDisplayCount: string | number;
+      selectedDisplays?: AnnouncementDisplay[];
+    };
+  };
+}
+
+export interface AnnouncementPreset {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  announcementConfig: AnnouncementConfig;
+  fieldMapping: FieldMapping;
+  validationRules: ValidationRules;
+  createdAt: string;
 } 

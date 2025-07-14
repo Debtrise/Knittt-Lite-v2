@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/app/store/authStore';
-import { Phone, Users, BarChart, Layers, Settings, FileText, User, LogOut, Menu, X, GitBranch, MessageSquare, Route, Link2, Mic, Music, Search } from 'lucide-react';
+import { Phone, Users, BarChart, Layers, Settings, FileText, User, LogOut, Menu, X, GitBranch, MessageSquare, Route, Link2, Mic, Music, Search, Monitor, Palette, Store, Shield } from 'lucide-react';
 import NotificationBar from '@/app/components/ui/NotificationBar';
 import '@/app/services/webhookNotificationService';
 
@@ -29,17 +29,40 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
     { name: 'Transfer Groups', href: '/settings/transfer-groups', icon: <GitBranch className="w-6 h-6" /> },
     { name: 'Templates', href: '/templates', icon: <FileText className="w-6 h-6" /> },
     { name: 'Recordings', href: '/recordings', icon: <Music className="w-6 h-6" /> },
+    { name: 'Content Creator', href: '/content-creator', icon: <Palette className="w-6 h-6" /> },
     { name: 'Webhooks', href: '/webhooks', icon: <Link2 className="w-6 h-6" /> },
+    { name: 'Optisigns', href: '/optisigns', icon: <Monitor className="w-6 h-6" /> },
     { name: 'TracersAPI', href: '/tracers', icon: <Search className="w-6 h-6" /> },
+    { name: 'Marketplace', href: '/marketplace', icon: <Store className="w-6 h-6" /> },
     { name: 'Reports', href: '/reports', icon: <FileText className="w-6 h-6" /> },
     { name: 'Config', href: '/config', icon: <Settings className="w-6 h-6" /> },
     { name: 'Settings', href: '/settings', icon: <Settings className="w-6 h-6" />, adminOnly: true },
     { name: 'Users', href: '/settings/users', icon: <Users className="w-6 h-6" />, adminOnly: true },
+    { name: 'Permissions', href: '/settings/users/permissions', icon: <Shield className="w-6 h-6" />, adminOnly: true },
   ];
 
+  let enhancedNavigation = [...navigation];
+  if (user?.role === 'admin') {
+    enhancedNavigation.splice(
+      enhancedNavigation.findIndex(item => item.name === 'Marketplace'),
+      0,
+      { name: 'Admin Dashboard', href: '/marketplace/admin', icon: <Store className="w-6 h-6" /> }
+    );
+  }
+
   const filteredNavigation = user?.role === 'admin' 
-    ? navigation 
-    : navigation.filter(item => !item.adminOnly);
+    ? enhancedNavigation 
+    : enhancedNavigation.filter(item => !item.adminOnly);
+
+  // Debug logging
+  console.log('Dashboard Debug:', {
+    userRole: user?.role,
+    isAdmin: user?.role === 'admin',
+    totalNavigationItems: navigation.length,
+    adminOnlyItems: navigation.filter(item => item.adminOnly).map(item => item.name),
+    filteredNavigationItems: filteredNavigation.length,
+    filteredAdminItems: filteredNavigation.filter(item => item.adminOnly).map(item => item.name)
+  });
 
   const handleLogout = () => {
     logout();

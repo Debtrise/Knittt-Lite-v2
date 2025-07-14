@@ -3,7 +3,7 @@ const config = require('./app/utils/dialplanApiConfig');
 
 async function testLogin() {
   try {
-    console.log(`Attempting to login to: ${config.apiUrl}/login`);
+    console.log(`Attempting to login to: ${config.apiUrl}/auth/login`);
     
     // Replace with actual credentials
     const credentials = {
@@ -13,7 +13,7 @@ async function testLogin() {
     
     console.log('Using credentials:', credentials.username);
     
-    const response = await axios.post(`${config.apiUrl}/login`, credentials);
+    const response = await axios.post(`${config.apiUrl}/auth/login`, credentials);
     
     if (response.data && response.data.token) {
       console.log('Login successful!');

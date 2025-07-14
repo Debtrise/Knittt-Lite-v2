@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
@@ -24,6 +24,17 @@ import { Input } from '@/app/components/ui/Input';
 import { Label } from '@/app/components/ui/label';
 import { useToast } from '@/app/components/ui/use-toast';
 
+// Helper function to safely get field mapping value
+const getFieldMappingValue = (field: any, defaultValue: string): string => {
+  if (typeof field === 'string') {
+    return field;
+  }
+  if (typeof field === 'object' && field !== null && 'sourceField' in field) {
+    return (field as { sourceField: string }).sourceField;
+  }
+  return defaultValue;
+};
+
 interface Journey {
   id: number;
   name: string;
@@ -44,11 +55,10 @@ interface WebhookData {
   updatedAt: string;
 }
 
-export default function WebhookDetailPage({ params }: { params: { id: string } }) {
+export default function WebhookDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  // Note: params.id is accessed directly for simplicity, but in future Next.js versions, it might need to be awaited.
-  // See: https://nextjs.org/docs/messages/sync-dynamic-apis
-  const webhookId = parseInt(params.id);
+  const resolvedParams = React.use(params);
+  const webhookId = parseInt(resolvedParams.id);
   
   const [loading, setLoading] = useState(true);
   const [webhook, setWebhook] = useState<WebhookEndpoint | null>(null);
@@ -89,14 +99,18 @@ export default function WebhookDetailPage({ params }: { params: { id: string } }
       } else {
         // Set a default test payload based on the field mapping
         const defaultPayload: Record<string, any> = {};
-        if (data.fieldMapping.phone) {
-          defaultPayload[data.fieldMapping.phone] = "5551234567";
+        const phoneField = getFieldMappingValue(data.fieldMapping.phone, '');
+        const nameField = getFieldMappingValue(data.fieldMapping.name, '');
+        const emailField = getFieldMappingValue(data.fieldMapping.email, '');
+        
+        if (phoneField) {
+          defaultPayload[phoneField] = "5551234567";
         }
-        if (data.fieldMapping.name) {
-          defaultPayload[data.fieldMapping.name] = "John Doe";
+        if (nameField) {
+          defaultPayload[nameField] = "John Doe";
         }
-        if (data.fieldMapping.email) {
-          defaultPayload[data.fieldMapping.email] = "john@example.com";
+        if (emailField) {
+          defaultPayload[emailField] = "john@example.com";
         }
         
         setTestPayload(JSON.stringify(defaultPayload, null, 2));
@@ -130,7 +144,7 @@ export default function WebhookDetailPage({ params }: { params: { id: string } }
       fetchWebhookData();
       fetchEvents();
     }
-    // Note: params.id is included for dependency tracking, but might need to be handled differently in future updates.
+
   }, [webhookId, fetchWebhookData, fetchEvents]);
 
   const handleEdit = () => {
@@ -239,19 +253,20 @@ export default function WebhookDetailPage({ params }: { params: { id: string } }
               onValueChange={setActiveTab}
             >
               <TabsList>
-                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="details">Configuration</TabsTrigger>
                 <TabsTrigger value="events">Events</TabsTrigger>
                 <TabsTrigger value="testing">Testing</TabsTrigger>
-                {webhook.conditionalRules?.enabled && (
-                  <TabsTrigger value="rules">Conditional Rules</TabsTrigger>
-                )}
+                                    {webhook.conditionalRules?.enabled && (
+                      <TabsTrigger value="rules">Conditional Rules</TabsTrigger>
+                    )}
+                    <TabsTrigger value="advanced">Advanced Details</TabsTrigger>
               </TabsList>
               
               <TabsContent value="details" className="space-y-4 pt-4">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Webhook Details</CardTitle>
-                    <CardDescription>Configuration details for this webhook endpoint.</CardDescription>
+                    <CardTitle>Webhook Configuration</CardTitle>
+                    <CardDescription>Complete configuration details and settings for this webhook endpoint.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -323,7 +338,7 @@ export default function WebhookDetailPage({ params }: { params: { id: string } }
                                 </td>
                                 <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
                                   <code className="bg-gray-100 px-1 rounded text-xs">
-                                    {sourceField}
+                                    {getFieldMappingValue(sourceField, '')}
                                   </code>
                                 </td>
                               </tr>
@@ -489,6 +504,340 @@ export default function WebhookDetailPage({ params }: { params: { id: string } }
                         )}
                       </div>
                     )}
+
+                    {/* Webhook Type Information */}
+                    <div className="border-t pt-4">
+                      <h3 className="text-sm font-medium text-gray-500 mb-2">Webhook Type</h3>
+                      <div className="flex items-center space-x-4">
+                        <Badge variant="outline" className="text-sm">
+                          {webhook.webhookType.toUpperCase()}
+                        </Badge>
+                        <span className="text-sm text-gray-600">
+                          {webhook.webhookType === 'go' && 'Standard lead processing webhook'}
+                          {webhook.webhookType === 'pause' && 'Pause/resume lead processing'}
+                          {webhook.webhookType === 'stop' && 'Stop lead processing permanently'}
+                          {webhook.webhookType === 'announcement' && 'Generate announcements for displays'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Pause/Resume Configuration */}
+                    {webhook.pauseResumeConfig?.enabled && (
+                      <div className="border-t pt-4">
+                        <h3 className="text-sm font-medium text-gray-500 mb-3">Pause/Resume Configuration</h3>
+                        <div className="space-y-4">
+                          {/* Resume Conditions */}
+                          <div>
+                            <h4 className="text-xs font-medium text-gray-600 mb-2 uppercase">Resume Conditions</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {webhook.pauseResumeConfig.resumeConditions.timerResume?.enabled && (
+                                <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                                  <h5 className="font-medium text-sm text-blue-900">Timer Resume</h5>
+                                  <p className="text-sm text-blue-700">
+                                    Delay: {webhook.pauseResumeConfig.resumeConditions.timerResume.delayDays || 0}d {webhook.pauseResumeConfig.resumeConditions.timerResume.delayHours || 0}h {webhook.pauseResumeConfig.resumeConditions.timerResume.delayMinutes || 0}m
+                                  </p>
+                                </div>
+                              )}
+                              {webhook.pauseResumeConfig.resumeConditions.statusResume?.enabled && (
+                                <div className="p-3 bg-green-50 border border-green-200 rounded">
+                                  <h5 className="font-medium text-sm text-green-900">Status Resume</h5>
+                                  <p className="text-sm text-green-700">
+                                    Statuses: {webhook.pauseResumeConfig.resumeConditions.statusResume.targetStatuses.join(', ')}
+                                  </p>
+                                  <p className="text-xs text-green-600">
+                                    Check interval: {webhook.pauseResumeConfig.resumeConditions.statusResume.checkInterval}min
+                                  </p>
+                                </div>
+                              )}
+                              {webhook.pauseResumeConfig.resumeConditions.tagResume?.enabled && (
+                                <div className="p-3 bg-purple-50 border border-purple-200 rounded">
+                                  <h5 className="font-medium text-sm text-purple-900">Tag Resume</h5>
+                                  <p className="text-sm text-purple-700">
+                                    Required: {webhook.pauseResumeConfig.resumeConditions.tagResume.requiredTags.join(', ') || 'None'}
+                                  </p>
+                                  <p className="text-sm text-purple-700">
+                                    Forbidden: {webhook.pauseResumeConfig.resumeConditions.tagResume.forbiddenTags.join(', ') || 'None'}
+                                  </p>
+                                </div>
+                              )}
+                              {webhook.pauseResumeConfig.resumeConditions.externalResume?.enabled && (
+                                <div className="p-3 bg-orange-50 border border-orange-200 rounded">
+                                  <h5 className="font-medium text-sm text-orange-900">External Resume</h5>
+                                  <p className="text-sm text-orange-700">Enabled via external trigger</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Actions */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-600 mb-2 uppercase">Pause Actions</h4>
+                              <div className="space-y-2">
+                                {webhook.pauseResumeConfig.pauseActions.pauseJourneys && (
+                                  <Badge variant="outline">Pause Journeys</Badge>
+                                )}
+                                {webhook.pauseResumeConfig.pauseActions.addPauseTag && (
+                                  <Badge variant="outline">Add Tag: {webhook.pauseResumeConfig.pauseActions.pauseTagName}</Badge>
+                                )}
+                                {webhook.pauseResumeConfig.pauseActions.sendNotification && (
+                                  <Badge variant="outline">Send Notification</Badge>
+                                )}
+                              </div>
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-600 mb-2 uppercase">Resume Actions</h4>
+                              <div className="space-y-2">
+                                {webhook.pauseResumeConfig.resumeActions.resumeJourneys && (
+                                  <Badge variant="outline">Resume Journeys</Badge>
+                                )}
+                                {webhook.pauseResumeConfig.resumeActions.removePauseTag && (
+                                  <Badge variant="outline">Remove Pause Tag</Badge>
+                                )}
+                                {webhook.pauseResumeConfig.resumeActions.addResumeTag && (
+                                  <Badge variant="outline">Add Tag: {webhook.pauseResumeConfig.resumeActions.resumeTagName}</Badge>
+                                )}
+                                {webhook.pauseResumeConfig.resumeActions.sendNotification && (
+                                  <Badge variant="outline">Send Notification</Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Stop Configuration */}
+                    {webhook.stopConfig?.enabled && (
+                      <div className="border-t pt-4">
+                        <h3 className="text-sm font-medium text-gray-500 mb-3">Stop Configuration</h3>
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-600 mb-2 uppercase">Stop Actions</h4>
+                              <div className="space-y-2">
+                                {webhook.stopConfig.stopActions.exitJourneys && (
+                                  <Badge variant="outline">Exit Journeys</Badge>
+                                )}
+                                {webhook.stopConfig.stopActions.addStopTag && (
+                                  <Badge variant="outline">Add Tag: {webhook.stopConfig.stopActions.stopTagName}</Badge>
+                                )}
+                                {webhook.stopConfig.stopActions.markAsDNC && (
+                                  <Badge variant="destructive">Mark as DNC</Badge>
+                                )}
+                                {webhook.stopConfig.stopActions.markAsSold && (
+                                  <Badge variant="default">Mark as Sold</Badge>
+                                )}
+                                {webhook.stopConfig.stopActions.preventFutureEnrollment && (
+                                  <Badge variant="outline">Prevent Future Enrollment</Badge>
+                                )}
+                              </div>
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-600 mb-2 uppercase">Metadata Tracking</h4>
+                              <div className="space-y-2">
+                                {webhook.stopConfig.stopMetadata.trackStopReason && (
+                                  <Badge variant="outline">Track Reason</Badge>
+                                )}
+                                {webhook.stopConfig.stopMetadata.trackStopSource && (
+                                  <Badge variant="outline">Track Source</Badge>
+                                )}
+                                {webhook.stopConfig.stopMetadata.trackStopTimestamp && (
+                                  <Badge variant="outline">Track Timestamp</Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Additional Stop Config Details */}
+                          {(webhook.stopConfig.stopActions.dncReason || webhook.stopConfig.stopActions.soldReason) && (
+                            <div className="p-3 bg-gray-50 rounded">
+                              {webhook.stopConfig.stopActions.dncReason && (
+                                <p className="text-sm"><span className="font-medium">DNC Reason:</span> {webhook.stopConfig.stopActions.dncReason}</p>
+                              )}
+                              {webhook.stopConfig.stopActions.soldReason && (
+                                <p className="text-sm"><span className="font-medium">Sold Reason:</span> {webhook.stopConfig.stopActions.soldReason}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Announcement Configuration */}
+                    {webhook.announcementConfig?.enabled && (
+                      <div className="border-t pt-4">
+                        <h3 className="text-sm font-medium text-gray-500 mb-3">Announcement Configuration</h3>
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-600 mb-2 uppercase">Content Creator</h4>
+                              <div className="space-y-2">
+                                <div>
+                                  <span className="text-sm font-medium">Project ID:</span>
+                                  <code className="ml-2 bg-gray-100 px-2 py-1 rounded text-xs">
+                                    {webhook.announcementConfig.contentCreator.templateId || 'Not set'}
+                                  </code>
+                                </div>
+                                {webhook.announcementConfig.contentCreator.projectName && (
+                                  <div>
+                                    <span className="text-sm font-medium">Project Name:</span>
+                                    <span className="ml-2 text-sm">{webhook.announcementConfig.contentCreator.projectName}</span>
+                                  </div>
+                                )}
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-sm font-medium">Auto Generate:</span>
+                                  <Badge variant={webhook.announcementConfig.contentCreator.autoGenerate ? "default" : "secondary"}>
+                                    {webhook.announcementConfig.contentCreator.autoGenerate ? 'Yes' : 'No'}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-600 mb-2 uppercase">Display Settings</h4>
+                              <div className="space-y-2">
+                                <div>
+                                  <span className="text-sm font-medium">Selection Mode:</span>
+                                  <Badge variant="outline" className="ml-2">
+                                    {webhook.announcementConfig.optisigns.displaySelection.mode}
+                                  </Badge>
+                                </div>
+                                {webhook.announcementConfig.optisigns.displaySelection.displayIds && (
+                                  <div>
+                                    <span className="text-sm font-medium">Displays:</span>
+                                    <Badge variant="outline" className="ml-2">
+                                      {webhook.announcementConfig.optisigns.displaySelection.displayIds.length} selected
+                                    </Badge>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Takeover Settings */}
+                          <div>
+                            <h4 className="text-xs font-medium text-gray-600 mb-2 uppercase">Takeover Settings</h4>
+                            <div className="flex flex-wrap gap-2">
+                              <Badge variant="outline">
+                                Priority: {webhook.announcementConfig.optisigns.takeover.priority}
+                              </Badge>
+                              <Badge variant="outline">
+                                Duration: {webhook.announcementConfig.optisigns.takeover.duration}s
+                              </Badge>
+                              {webhook.announcementConfig.optisigns.takeover.restoreAfter && (
+                                <Badge variant="outline">Restore After</Badge>
+                              )}
+                              {webhook.announcementConfig.optisigns.takeover.overrideCurrent && (
+                                <Badge variant="outline">Override Current</Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Variable Mapping */}
+                          {webhook.announcementConfig.contentCreator.variableMapping && 
+                           Object.keys(webhook.announcementConfig.contentCreator.variableMapping).length > 0 && (
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-600 mb-2 uppercase">Variable Mapping</h4>
+                              <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                  <thead className="bg-gray-50">
+                                    <tr>
+                                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                        Template Variable
+                                      </th>
+                                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                        Source Field
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="bg-white divide-y divide-gray-200">
+                                    {Object.entries(webhook.announcementConfig.contentCreator.variableMapping).map(([key, value]) => (
+                                      <tr key={key}>
+                                        <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 font-mono">
+                                          {key}
+                                        </td>
+                                        <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 font-mono">
+                                          {value}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Scheduling */}
+                          {webhook.announcementConfig.optisigns.scheduling && (
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-600 mb-2 uppercase">Scheduling</h4>
+                              <div className="flex flex-wrap gap-2">
+                                <Badge variant={webhook.announcementConfig.optisigns.scheduling.immediate ? "default" : "outline"}>
+                                  {webhook.announcementConfig.optisigns.scheduling.immediate ? 'Immediate' : 'Scheduled'}
+                                </Badge>
+                                {webhook.announcementConfig.optisigns.scheduling.delay && (
+                                  <Badge variant="outline">
+                                    Delay: {webhook.announcementConfig.optisigns.scheduling.delay}s
+                                  </Badge>
+                                )}
+                                {webhook.announcementConfig.optisigns.scheduling.businessHoursOnly && (
+                                  <Badge variant="outline">Business Hours Only</Badge>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Conditions */}
+                          {webhook.announcementConfig.conditions?.enabled && (
+                            <div>
+                              <h4 className="text-xs font-medium text-gray-600 mb-2 uppercase">Announcement Conditions</h4>
+                              <div className="space-y-2">
+                                {webhook.announcementConfig.conditions.rules.map((rule, index) => (
+                                  <div key={index} className="flex items-center space-x-3 p-2 bg-gray-50 rounded">
+                                    <code className="bg-white px-2 py-1 rounded text-xs">
+                                      {rule.field}
+                                    </code>
+                                    <span className="text-xs text-gray-600">{rule.operator}</span>
+                                    <code className="bg-white px-2 py-1 rounded text-xs">
+                                      {String(rule.value)}
+                                    </code>
+                                    {rule.required && (
+                                      <Badge variant="destructive" className="text-xs">Required</Badge>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                                                 </div>
+                       </div>
+                     )}
+
+                    {/* Test Payload */}
+                    {webhook.testPayload && (
+                      <div className="border-t pt-4">
+                        <h3 className="text-sm font-medium text-gray-500 mb-2">Saved Test Payload</h3>
+                        <div className="bg-gray-50 rounded p-3 text-xs font-mono max-h-40 overflow-y-auto">
+                          <pre>{JSON.stringify(webhook.testPayload, null, 2)}</pre>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Timestamps */}
+                    <div className="border-t pt-4">
+                      <h3 className="text-sm font-medium text-gray-500 mb-2">Timestamps</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <span className="text-sm font-medium">Created:</span>
+                          <p className="text-sm text-gray-900">{new Date(webhook.createdAt).toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium">Last Updated:</span>
+                          <p className="text-sm text-gray-900">{new Date(webhook.updatedAt).toLocaleString()}</p>
+                        </div>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -730,17 +1079,18 @@ export default function WebhookDetailPage({ params }: { params: { id: string } }
                               <div className="bg-blue-50 border border-blue-200 rounded p-3">
                                 <div className="text-xs space-y-1">
                                   {Object.entries(webhook.fieldMapping).map(([leadField, webhookField]) => {
+                                    const fieldValue = getFieldMappingValue(webhookField, '');
                                     let hasValue = false;
                                     try {
                                       const testPayloadData = JSON.parse(testPayload);
-                                      hasValue = Boolean(webhookField && testPayloadData[webhookField] !== undefined);
+                                      hasValue = Boolean(fieldValue && testPayloadData[fieldValue] !== undefined);
                                     } catch (e) {
                                       hasValue = false;
                                     }
                                     return (
                                       <div key={leadField} className="flex justify-between items-center">
                                         <span className="text-blue-800">
-                                          {leadField} ← {webhookField || 'unmapped'}
+                                          {leadField} ← {fieldValue || 'unmapped'}
                                         </span>
                                         <Badge 
                                           variant={hasValue ? 'default' : 'destructive'} 
@@ -890,6 +1240,602 @@ export default function WebhookDetailPage({ params }: { params: { id: string } }
                   </Card>
                 </TabsContent>
               )}
+
+              <TabsContent value="advanced" className="space-y-4 pt-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Advanced Webhook Details</CardTitle>
+                    <CardDescription>Complete webhook configuration including all parameters and metadata.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Webhook Type Details */}
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-medium text-gray-500 border-b pb-2">Webhook Type Configuration</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <span className="text-sm font-medium">Webhook Type:</span>
+                          <Badge variant="outline" className="ml-2">
+                            {webhook.webhookType?.toUpperCase() || 'GO'}
+                          </Badge>
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium">Endpoint Key:</span>
+                          <code className="ml-2 bg-gray-100 px-2 py-1 rounded text-xs">
+                            {webhook.endpointKey}
+                          </code>
+                        </div>
+                        {webhook.authToken && (
+                          <div className="md:col-span-2">
+                            <span className="text-sm font-medium">Authentication Token:</span>
+                            <code className="ml-2 bg-gray-100 px-2 py-1 rounded text-xs break-all">
+                              {webhook.authToken}
+                            </code>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Full Field Mapping Details */}
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-medium text-gray-500 border-b pb-2">Complete Field Mapping</h3>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                System Field
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Webhook Field
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Type
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Required
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {Object.entries(webhook.fieldMapping || {}).map(([field, sourceField]) => {
+                              const isStandardField = ['phone', 'name', 'email'].includes(field);
+                              const isRequired = 
+                                (field === 'phone' && webhook.validationRules?.requirePhone) ||
+                                (field === 'name' && webhook.validationRules?.requireName) ||
+                                (field === 'email' && webhook.validationRules?.requireEmail);
+                              
+                              return (
+                                <tr key={field}>
+                                  <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {field}
+                                    {isStandardField && (
+                                      <Badge variant="secondary" className="ml-1 text-xs">Standard</Badge>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                                    <code className="bg-gray-100 px-1 rounded text-xs">
+                                      {getFieldMappingValue(sourceField, '')}
+                                    </code>
+                                  </td>
+                                  <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                                    {isStandardField ? 'Standard' : 'Custom'}
+                                  </td>
+                                  <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                                    <Badge variant={isRequired ? 'destructive' : 'secondary'} className="text-xs">
+                                      {isRequired ? 'Required' : 'Optional'}
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Complete Validation Rules */}
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-medium text-gray-500 border-b pb-2">Validation Configuration</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="p-3 border rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Phone Required</span>
+                            <Badge variant={webhook.validationRules?.requirePhone ? 'destructive' : 'secondary'}>
+                              {webhook.validationRules?.requirePhone ? 'Yes' : 'No'}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="p-3 border rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Name Required</span>
+                            <Badge variant={webhook.validationRules?.requireName ? 'destructive' : 'secondary'}>
+                              {webhook.validationRules?.requireName ? 'Yes' : 'No'}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="p-3 border rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Email Required</span>
+                            <Badge variant={webhook.validationRules?.requireEmail ? 'destructive' : 'secondary'}>
+                              {webhook.validationRules?.requireEmail ? 'Yes' : 'No'}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="p-3 border rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Allow Duplicates</span>
+                            <Badge variant={webhook.validationRules?.allowDuplicatePhone ? 'default' : 'destructive'}>
+                              {webhook.validationRules?.allowDuplicatePhone ? 'Yes' : 'No'}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Complete Auto Tag Rules */}
+                    {webhook.autoTagRules && webhook.autoTagRules.length > 0 && (
+                      <div className="space-y-4">
+                        <h3 className="text-sm font-medium text-gray-500 border-b pb-2">Auto-Tagging Rules</h3>
+                        <div className="space-y-3">
+                          {webhook.autoTagRules.map((rule, index) => (
+                            <div key={index} className="p-4 border rounded-lg bg-gray-50">
+                              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div>
+                                  <span className="text-xs font-medium text-gray-600">Field</span>
+                                  <code className="block mt-1 bg-white px-2 py-1 rounded text-sm border">
+                                    {rule.field}
+                                  </code>
+                                </div>
+                                <div>
+                                  <span className="text-xs font-medium text-gray-600">Operator</span>
+                                  <Badge variant="outline" className="block mt-1 text-center">
+                                    {rule.operator}
+                                  </Badge>
+                                </div>
+                                <div>
+                                  <span className="text-xs font-medium text-gray-600">Value</span>
+                                  <code className="block mt-1 bg-white px-2 py-1 rounded text-sm border break-all">
+                                    {rule.value || 'N/A'}
+                                  </code>
+                                </div>
+                                <div>
+                                  <span className="text-xs font-medium text-gray-600">Tag</span>
+                                  <Badge variant="default" className="block mt-1 text-center">
+                                    {rule.tag}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Raw Webhook Data */}
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-medium text-gray-500 border-b pb-2">Raw Webhook Data</h3>
+                      <details className="border rounded-lg">
+                        <summary className="p-4 cursor-pointer hover:bg-gray-50 font-medium">
+                          View Complete Webhook Object
+                        </summary>
+                        <div className="border-t p-4 bg-gray-50">
+                          <pre className="text-xs font-mono overflow-x-auto max-h-96 overflow-y-auto">
+                            {JSON.stringify(webhook, null, 2)}
+                          </pre>
+                        </div>
+                      </details>
+                    </div>
+
+                    {/* Webhook Stats and Metadata */}
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-medium text-gray-500 border-b pb-2">Webhook Statistics</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="p-4 border rounded-lg text-center">
+                          <div className="text-2xl font-bold text-blue-600">
+                            {events.length}
+                          </div>
+                          <div className="text-sm text-gray-600">Total Events</div>
+                        </div>
+                        <div className="p-4 border rounded-lg text-center">
+                          <div className="text-2xl font-bold text-green-600">
+                            {events.filter(e => e.status === 'success').length}
+                          </div>
+                          <div className="text-sm text-gray-600">Successful Events</div>
+                        </div>
+                        <div className="p-4 border rounded-lg text-center">
+                          <div className="text-2xl font-bold text-red-600">
+                            {events.filter(e => e.status === 'failed').length}
+                          </div>
+                          <div className="text-sm text-gray-600">Failed Events</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Additional Configuration */}
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-medium text-gray-500 border-b pb-2">Additional Configuration</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <span className="text-sm font-medium">Active Status:</span>
+                          <Badge variant={webhook.isActive ? 'default' : 'destructive'} className="ml-2">
+                            {webhook.isActive ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <span className="text-sm font-medium">Created:</span>
+                          <span className="ml-2 text-sm text-gray-600">
+                            {new Date(webhook.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          <span className="text-sm font-medium">Last Updated:</span>
+                          <span className="ml-2 text-sm text-gray-600">
+                            {new Date(webhook.updatedAt).toLocaleString()}
+                          </span>
+                        </div>
+                        {webhook.lastTriggered && (
+                          <div className="space-y-2">
+                            <span className="text-sm font-medium">Last Triggered:</span>
+                            <span className="ml-2 text-sm text-gray-600">
+                              {new Date(webhook.lastTriggered).toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Environment and System Info */}
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-medium text-gray-500 border-b pb-2">System Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <span className="text-sm font-medium">Backend URL:</span>
+                          <code className="ml-2 bg-gray-100 px-2 py-1 rounded text-xs">
+                            {process.env.NEXT_PUBLIC_API_URL || 'http://34.122.156.88:3001/api'}
+                          </code>
+                        </div>
+                        <div className="space-y-2">
+                          <span className="text-sm font-medium">Webhook ID:</span>
+                          <code className="ml-2 bg-gray-100 px-2 py-1 rounded text-xs">
+                            {webhook.id}
+                          </code>
+                        </div>
+                        {webhook.tenantId && (
+                          <div className="space-y-2">
+                            <span className="text-sm font-medium">Tenant ID:</span>
+                            <code className="ml-2 bg-gray-100 px-2 py-1 rounded text-xs">
+                              {webhook.tenantId}
+                            </code>
+                          </div>
+                        )}
+                        {webhook.version && (
+                          <div className="space-y-2">
+                            <span className="text-sm font-medium">Version:</span>
+                            <Badge variant="outline" className="ml-2">
+                              {webhook.version}
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                                         {/* Complete Announcement Configuration */}
+                     {webhook.announcementConfig?.enabled && (
+                       <div className="space-y-4">
+                         <h3 className="text-sm font-medium text-gray-500 border-b pb-2">Complete Announcement Configuration</h3>
+                         
+                         {/* Announcement Type & Basic Settings */}
+                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                           <div className="p-4 border rounded-lg bg-purple-50 border-purple-200">
+                             <h4 className="text-sm font-medium text-purple-900 mb-2">Announcement Type</h4>
+                             <Badge variant="outline" className="bg-purple-100 text-purple-800">
+                               {webhook.announcementConfig.announcementType?.toUpperCase() || 'TEMPLATE'}
+                             </Badge>
+                             <p className="text-xs text-purple-700 mt-2">
+                               {webhook.announcementConfig.announcementType === 'template' && 'Uses content creator templates'}
+                               {webhook.announcementConfig.announcementType === 'video' && 'Generates sales rep videos'}
+                               {webhook.announcementConfig.announcementType === 'image' && 'Shows sales rep images'}
+                             </p>
+                           </div>
+                           
+                           <div className="p-4 border rounded-lg bg-blue-50 border-blue-200">
+                             <h4 className="text-sm font-medium text-blue-900 mb-2">Auto Generation</h4>
+                             <Badge variant={webhook.announcementConfig.contentCreator?.autoGenerate ? 'default' : 'secondary'}>
+                               {webhook.announcementConfig.contentCreator?.autoGenerate ? 'Enabled' : 'Disabled'}
+                             </Badge>
+                             <p className="text-xs text-blue-700 mt-2">
+                               {webhook.announcementConfig.contentCreator?.autoGenerate 
+                                 ? 'Content generated automatically from template'
+                                 : 'Manual content creation required'
+                               }
+                             </p>
+                           </div>
+                           
+                           <div className="p-4 border rounded-lg bg-green-50 border-green-200">
+                             <h4 className="text-sm font-medium text-green-900 mb-2">Status</h4>
+                             <Badge variant="default" className="bg-green-100 text-green-800">
+                               ACTIVE
+                             </Badge>
+                             <p className="text-xs text-green-700 mt-2">
+                               Announcement webhook is enabled and ready
+                             </p>
+                           </div>
+                         </div>
+
+                         {/* Content Creator Configuration */}
+                         <div className="p-4 border rounded-lg bg-gray-50">
+                           <h4 className="text-sm font-medium text-gray-900 mb-3">Content Creator Configuration</h4>
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div>
+                               <span className="text-xs font-medium text-gray-600">Template/Project ID:</span>
+                               <code className="block mt-1 bg-white px-2 py-1 rounded text-sm border">
+                                 {webhook.announcementConfig.contentCreator?.templateId || 'Not configured'}
+                               </code>
+                             </div>
+                             <div>
+                               <span className="text-xs font-medium text-gray-600">Template Name Pattern:</span>
+                               <code className="block mt-1 bg-white px-2 py-1 rounded text-sm border">
+                                 {webhook.announcementConfig.contentCreator?.templateName || 'Announcement - {{timestamp}}'}
+                               </code>
+                             </div>
+                           </div>
+                           
+                           {/* Variable Mapping */}
+                           {webhook.announcementConfig.contentCreator?.variableMapping && 
+                            Object.keys(webhook.announcementConfig.contentCreator.variableMapping).length > 0 && (
+                             <div className="mt-4">
+                               <span className="text-xs font-medium text-gray-600">Variable Mapping:</span>
+                               <div className="mt-2 space-y-2">
+                                 {Object.entries(webhook.announcementConfig.contentCreator.variableMapping).map(([key, value]) => (
+                                   <div key={key} className="flex items-center space-x-2 p-2 bg-white rounded border">
+                                     <code className="text-xs bg-gray-100 px-2 py-1 rounded">{key}</code>
+                                     <span className="text-xs text-gray-500">→</span>
+                                     <code className="text-xs bg-blue-100 px-2 py-1 rounded text-blue-800">{value}</code>
+                                   </div>
+                                 ))}
+                               </div>
+                             </div>
+                           )}
+                         </div>
+
+                         {/* OptiSigns Display Configuration */}
+                         <div className="p-4 border rounded-lg bg-gray-50">
+                           <h4 className="text-sm font-medium text-gray-900 mb-3">OptiSigns Display Configuration</h4>
+                           
+                           {/* Display Selection */}
+                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                             <div>
+                               <span className="text-xs font-medium text-gray-600">Selection Mode:</span>
+                               <Badge variant="outline" className="block mt-1 text-center">
+                                 {webhook.announcementConfig.optisigns?.displaySelection?.mode?.toUpperCase() || 'ALL'}
+                               </Badge>
+                             </div>
+                             
+                             {webhook.announcementConfig.optisigns?.displaySelection?.displayIds && (
+                               <div>
+                                 <span className="text-xs font-medium text-gray-600">Selected Displays:</span>
+                                 <Badge variant="default" className="block mt-1 text-center">
+                                   {webhook.announcementConfig.optisigns.displaySelection.displayIds.length} displays
+                                 </Badge>
+                               </div>
+                             )}
+                             
+                             {webhook.announcementConfig.optisigns?.displaySelection?.groupIds && (
+                               <div>
+                                 <span className="text-xs font-medium text-gray-600">Display Groups:</span>
+                                 <Badge variant="outline" className="block mt-1 text-center">
+                                   {webhook.announcementConfig.optisigns.displaySelection.groupIds.length} groups
+                                 </Badge>
+                               </div>
+                             )}
+                           </div>
+
+                           {/* Specific Display IDs */}
+                           {webhook.announcementConfig.optisigns?.displaySelection?.displayIds && 
+                            webhook.announcementConfig.optisigns.displaySelection.displayIds.length > 0 && (
+                             <div className="mb-4">
+                               <span className="text-xs font-medium text-gray-600">Display IDs:</span>
+                               <div className="mt-2 flex flex-wrap gap-1">
+                                 {webhook.announcementConfig.optisigns.displaySelection.displayIds.map((displayId) => (
+                                   <code key={displayId} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                                     {displayId}
+                                   </code>
+                                 ))}
+                               </div>
+                             </div>
+                           )}
+
+                           {/* Takeover Settings */}
+                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                             <div className="p-3 bg-white rounded border">
+                               <span className="text-xs font-medium text-gray-600">Priority:</span>
+                               <Badge variant="outline" className="block mt-1 text-center">
+                                 {webhook.announcementConfig.optisigns?.takeover?.priority || 'MEDIUM'}
+                               </Badge>
+                             </div>
+                             
+                             <div className="p-3 bg-white rounded border">
+                               <span className="text-xs font-medium text-gray-600">Duration:</span>
+                               <Badge variant="outline" className="block mt-1 text-center">
+                                 {webhook.announcementConfig.optisigns?.takeover?.duration || 30}s
+                               </Badge>
+                             </div>
+                             
+                             <div className="p-3 bg-white rounded border">
+                               <span className="text-xs font-medium text-gray-600">Restore After:</span>
+                               <Badge variant={webhook.announcementConfig.optisigns?.takeover?.restoreAfter ? 'default' : 'secondary'} className="block mt-1 text-center">
+                                 {webhook.announcementConfig.optisigns?.takeover?.restoreAfter ? 'Yes' : 'No'}
+                               </Badge>
+                             </div>
+                             
+                             <div className="p-3 bg-white rounded border">
+                               <span className="text-xs font-medium text-gray-600">Override Current:</span>
+                               <Badge variant={webhook.announcementConfig.optisigns?.takeover?.overrideCurrent ? 'destructive' : 'secondary'} className="block mt-1 text-center">
+                                 {webhook.announcementConfig.optisigns?.takeover?.overrideCurrent ? 'Yes' : 'No'}
+                               </Badge>
+                             </div>
+                           </div>
+                         </div>
+
+                         {/* Scheduling Configuration */}
+                         {webhook.announcementConfig.optisigns?.scheduling && (
+                           <div className="p-4 border rounded-lg bg-gray-50">
+                             <h4 className="text-sm font-medium text-gray-900 mb-3">Scheduling Configuration</h4>
+                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                               <div className="p-3 bg-white rounded border">
+                                 <span className="text-xs font-medium text-gray-600">Immediate:</span>
+                                 <Badge variant={webhook.announcementConfig.optisigns.scheduling.immediate !== false ? 'default' : 'secondary'} className="block mt-1 text-center">
+                                   {webhook.announcementConfig.optisigns.scheduling.immediate !== false ? 'Yes' : 'No'}
+                                 </Badge>
+                               </div>
+                               
+                               {webhook.announcementConfig.optisigns.scheduling.delay && (
+                                 <div className="p-3 bg-white rounded border">
+                                   <span className="text-xs font-medium text-gray-600">Delay:</span>
+                                   <Badge variant="outline" className="block mt-1 text-center">
+                                     {webhook.announcementConfig.optisigns.scheduling.delay}s
+                                   </Badge>
+                                 </div>
+                               )}
+                               
+                               {webhook.announcementConfig.optisigns.scheduling.businessHoursOnly && (
+                                 <div className="p-3 bg-white rounded border">
+                                   <span className="text-xs font-medium text-gray-600">Business Hours Only:</span>
+                                   <Badge variant="default" className="block mt-1 text-center">
+                                     Yes
+                                   </Badge>
+                                 </div>
+                               )}
+                             </div>
+                           </div>
+                         )}
+
+                         {/* Sales Rep Field Mapping for Announcements */}
+                         <div className="p-4 border rounded-lg bg-yellow-50 border-yellow-200">
+                           <h4 className="text-sm font-medium text-yellow-900 mb-3">Sales Rep Field Mapping</h4>
+                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                             <div>
+                               <span className="text-xs font-medium text-yellow-700">Rep Email Field:</span>
+                               <code className="block mt-1 bg-white px-2 py-1 rounded text-sm border">
+                                 {getFieldMappingValue(webhook.fieldMapping?.repEmail, 'repEmail')}
+                               </code>
+                             </div>
+                             <div>
+                               <span className="text-xs font-medium text-yellow-700">Rep Name Field:</span>
+                               <code className="block mt-1 bg-white px-2 py-1 rounded text-sm border">
+                                 {getFieldMappingValue(webhook.fieldMapping?.repName, 'repName')}
+                               </code>
+                             </div>
+                             <div>
+                               <span className="text-xs font-medium text-yellow-700">Deal Amount Field:</span>
+                               <code className="block mt-1 bg-white px-2 py-1 rounded text-sm border">
+                                 {getFieldMappingValue(webhook.fieldMapping?.dealAmount, 'dealAmount')}
+                               </code>
+                             </div>
+                             <div>
+                               <span className="text-xs font-medium text-yellow-700">Company Name Field:</span>
+                               <code className="block mt-1 bg-white px-2 py-1 rounded text-sm border">
+                                 {getFieldMappingValue(webhook.fieldMapping?.companyName, 'companyName')}
+                               </code>
+                             </div>
+                           </div>
+                         </div>
+
+                         {/* Announcement Conditions */}
+                         {webhook.announcementConfig.conditions?.enabled && (
+                           <div className="p-4 border rounded-lg bg-red-50 border-red-200">
+                             <h4 className="text-sm font-medium text-red-900 mb-3">Announcement Conditions</h4>
+                             <div className="space-y-2">
+                               {webhook.announcementConfig.conditions.rules?.map((rule, index) => (
+                                 <div key={index} className="flex items-center space-x-3 p-3 bg-white rounded border">
+                                   <code className="bg-gray-100 px-2 py-1 rounded text-xs">
+                                     {rule.field}
+                                   </code>
+                                   <span className="text-xs text-gray-600">{rule.operator}</span>
+                                   <code className="bg-gray-100 px-2 py-1 rounded text-xs">
+                                     {String(rule.value)}
+                                   </code>
+                                   {rule.required && (
+                                     <Badge variant="destructive" className="text-xs">Required</Badge>
+                                   )}
+                                 </div>
+                               )) || (
+                                 <p className="text-sm text-red-700">No specific conditions configured</p>
+                               )}
+                             </div>
+                           </div>
+                         )}
+
+                         {/* Raw Announcement Config */}
+                         <details className="border rounded-lg">
+                           <summary className="p-4 cursor-pointer hover:bg-gray-50 font-medium">
+                             View Raw Announcement Configuration
+                           </summary>
+                           <div className="border-t p-4 bg-gray-50">
+                             <pre className="text-xs font-mono overflow-x-auto max-h-64 overflow-y-auto">
+                               {JSON.stringify(webhook.announcementConfig, null, 2)}
+                             </pre>
+                           </div>
+                         </details>
+                       </div>
+                     )}
+
+                     {/* Custom Properties */}
+                     {(() => {
+                       const standardProps = [
+                         'id', 'name', 'description', 'brand', 'source', 'fieldMapping', 
+                         'validationRules', 'autoTagRules', 'requiredHeaders', 'autoEnrollJourneyId',
+                         'isActive', 'createdAt', 'updatedAt', 'endpointKey', 'authToken',
+                         'webhookType', 'pauseResumeConfig', 'stopConfig', 'announcementConfig',
+                         'conditionalRules', 'testPayload', 'webhookUrl', 'securityToken'
+                       ];
+                       const customProps = Object.entries(webhook).filter(([key]) => !standardProps.includes(key));
+                       
+                       return customProps.length > 0 && (
+                         <div className="space-y-4">
+                           <h3 className="text-sm font-medium text-gray-500 border-b pb-2">Custom Properties</h3>
+                           <div className="overflow-x-auto">
+                             <table className="min-w-full divide-y divide-gray-200">
+                               <thead className="bg-gray-50">
+                                 <tr>
+                                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                     Property
+                                   </th>
+                                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                     Value
+                                   </th>
+                                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                     Type
+                                   </th>
+                                 </tr>
+                               </thead>
+                               <tbody className="bg-white divide-y divide-gray-200">
+                                 {customProps.map(([key, value]) => (
+                                   <tr key={key}>
+                                     <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                                       {key}
+                                     </td>
+                                     <td className="px-4 py-2 text-sm text-gray-900 max-w-md">
+                                       <code className="bg-gray-100 px-1 rounded text-xs break-all">
+                                         {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                       </code>
+                                     </td>
+                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                                       <Badge variant="outline" className="text-xs">
+                                         {typeof value}
+                                       </Badge>
+                                     </td>
+                                   </tr>
+                                 ))}
+                               </tbody>
+                             </table>
+                           </div>
+                         </div>
+                       );
+                     })()}
+                  </CardContent>
+                </Card>
+              </TabsContent>
             </Tabs>
           </div>
         ) : (

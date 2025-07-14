@@ -72,17 +72,10 @@ export interface ParamDefinition {
 export type JourneyActionType = 
   'call' | 
   'sms' | 
-  'sms_twilio' |
-  'sms_meera' |
   'email' | 
   'status_change' | 
   'tag_update' | 
   'webhook' | 
-  'wait_for_event' | 
-  'conditional_branch' | 
-  'lead_assignment' | 
-  'data_update' | 
-  'journey_transfer' | 
   'delay';
 
 // Journey Node Action Configuration Interfaces
@@ -99,7 +92,12 @@ export interface CommonActionConfig {
 }
 
 export interface CallActionConfig extends CommonActionConfig {
-  transferNumber: string;
+  context?: string; // New: Dialer context (e.g., BDS_Prime_Dialer)
+  ingroup?: string; // New: Ingroup (e.g., SALES, SALES_FOLLOWUP)
+  did?: string; // New: Specific DID number
+  amd?: boolean; // New: Answering Machine Detection
+  transferNumber?: string;
+  transferGroupId?: string;
   scriptId?: string;
   fallbackDID?: string;
   useLocalDID?: boolean;
@@ -109,6 +107,7 @@ export interface CallActionConfig extends CommonActionConfig {
   callerId?: string;
   variables?: Record<string, any>;
   recordCall?: boolean;
+  dialerContext?: string; // Legacy field
 }
 
 export interface SmsActionConfig extends CommonActionConfig {
@@ -162,57 +161,6 @@ export interface WebhookActionConfig extends CommonActionConfig {
   validateResponse?: boolean;
   updateLeadData?: boolean;
   dataMapping?: Record<string, string>;
-}
-
-export interface WaitForEventActionConfig extends CommonActionConfig {
-  eventType: string;
-  timeout?: {
-    days: number;
-    action: 'skip_step' | 'end_journey';
-  };
-  conditions?: Record<string, any>;
-  captureData?: boolean;
-  dataMapping?: Record<string, string>;
-}
-
-export interface ConditionalBranchConfig extends CommonActionConfig {
-  branches: Array<{
-    name?: string;
-    conditions: Record<string, any>;
-    nextStepId: number;
-  }>;
-  defaultNextStepId?: number;
-}
-
-export interface LeadAssignmentConfig extends CommonActionConfig {
-  assignmentType: 'user' | 'team';
-  assignToId: string;
-  notifyAssignee?: boolean;
-  notificationMethod?: 'email' | 'sms' | 'system';
-  assignmentNote?: string;
-  priority?: string;
-  dueDate?: {
-    days: number;
-    businessDaysOnly?: boolean;
-  };
-}
-
-export interface DataUpdateConfig extends CommonActionConfig {
-  updates: Array<{
-    field: string;
-    value: any;
-    operation?: 'set' | 'increment' | 'decrement';
-  }>;
-  conditions?: Record<string, any>;
-  recordNote?: boolean;
-}
-
-export interface JourneyTransferConfig extends CommonActionConfig {
-  targetJourneyId: number;
-  exitCurrentJourney?: boolean;
-  transferContextData?: boolean;
-  specificContextFields?: string[];
-  startAtStep?: number | null;
 }
 
 export interface DelayActionConfig extends CommonActionConfig {

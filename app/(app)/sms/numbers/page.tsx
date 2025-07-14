@@ -124,7 +124,7 @@ export default function TwilioNumbersPage() {
     try {
       // Use axios directly for upload progress tracking
       const response = await axios.post(
-        `/api/twilio-numbers/upload`,
+        `/api/sms/twilio/numbers/upload`,
         formData,
         {
           headers: {

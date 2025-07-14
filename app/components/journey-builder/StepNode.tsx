@@ -22,10 +22,6 @@ const getActionIcon = (actionType: string) => {
       return <Phone className="h-4 w-4 text-blue-500" />;
     case 'sms':
       return <MessageSquare className="h-4 w-4 text-green-500" />;
-    case 'sms_twilio':
-      return <MessageSquare className="h-4 w-4 text-purple-500" />;
-    case 'sms_meera':
-      return <MessageSquare className="h-4 w-4 text-orange-500" />;
     case 'email':
       return <Mail className="h-4 w-4 text-amber-500" />;
     case 'status_change':
@@ -34,16 +30,6 @@ const getActionIcon = (actionType: string) => {
       return <Tag className="h-4 w-4 text-indigo-500" />;
     case 'webhook':
       return <ExternalLink className="h-4 w-4 text-gray-500" />;
-    case 'wait_for_event':
-      return <Clock className="h-4 w-4 text-teal-500" />;
-    case 'conditional_branch':
-      return <ArrowRightCircle className="h-4 w-4 text-indigo-500" />;
-    case 'lead_assignment':
-      return <Users className="h-4 w-4 text-blue-400" />;
-    case 'data_update':
-      return <Database className="h-4 w-4 text-orange-500" />;
-    case 'journey_transfer':
-      return <RefreshCw className="h-4 w-4 text-red-500" />;
     case 'delay':
       return <Clock className="h-4 w-4 text-gray-500" />;
     default:
@@ -57,10 +43,6 @@ const getNodeBorderColor = (actionType: string, isStart: boolean, isEnd: boolean
       return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-blue-300';
     case 'sms':
       return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-green-300';
-    case 'sms_twilio':
-      return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-purple-300';
-    case 'sms_meera':
-      return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-orange-300';
     case 'email':
       return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-amber-300';
     case 'status_change':
@@ -69,16 +51,6 @@ const getNodeBorderColor = (actionType: string, isStart: boolean, isEnd: boolean
       return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-indigo-300';
     case 'webhook':
       return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-gray-300';
-    case 'wait_for_event':
-      return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-teal-300';
-    case 'conditional_branch':
-      return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-indigo-300';
-    case 'lead_assignment':
-      return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-blue-300';
-    case 'data_update':
-      return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-orange-300';
-    case 'journey_transfer':
-      return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-red-300';
     case 'delay':
       return isStart ? 'border-green-300' : isEnd ? 'border-red-300' : 'border-gray-300';
     default:
@@ -92,10 +64,6 @@ const getActionTypeLabel = (actionType: string, isStart: boolean, isEnd: boolean
       return isStart ? 'Start' : isEnd ? 'End' : 'Call';
     case 'sms':
       return isStart ? 'Start' : isEnd ? 'End' : 'SMS';
-    case 'sms_twilio':
-      return isStart ? 'Start' : isEnd ? 'End' : 'SMS (Twilio)';
-    case 'sms_meera':
-      return isStart ? 'Start' : isEnd ? 'End' : 'SMS (Meera)';
     case 'email':
       return isStart ? 'Start' : isEnd ? 'End' : 'Email';
     case 'status_change':
@@ -104,16 +72,6 @@ const getActionTypeLabel = (actionType: string, isStart: boolean, isEnd: boolean
       return isStart ? 'Start' : isEnd ? 'End' : 'Tag Update';
     case 'webhook':
       return isStart ? 'Start' : isEnd ? 'End' : 'Webhook';
-    case 'wait_for_event':
-      return isStart ? 'Start' : isEnd ? 'End' : 'Wait for Event';
-    case 'conditional_branch':
-      return isStart ? 'Start' : isEnd ? 'End' : 'Branch';
-    case 'lead_assignment':
-      return isStart ? 'Start' : isEnd ? 'End' : 'Assignment';
-    case 'data_update':
-      return isStart ? 'Start' : isEnd ? 'End' : 'Data Update';
-    case 'journey_transfer':
-      return isStart ? 'Start' : isEnd ? 'End' : 'Transfer';
     case 'delay':
       return isStart ? 'Start' : isEnd ? 'End' : 'Delay';
     default:
@@ -200,7 +158,24 @@ const StepNode = ({ data }: StepNodeProps) => {
            getActionIcon(step.actionType)}
         </div>
         <div className="flex-1 truncate font-medium text-gray-800 text-base">
-          {step.name}
+          <div className="flex items-center gap-2 mb-1">
+            {step.name}
+            {step.isDayStart && (
+              <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold border border-green-300">Day Start</span>
+            )}
+            {step.isDayEnd && (
+              <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-300">Day End</span>
+            )}
+          </div>
+          
+          {/* Show day assignment */}
+          {step.conditions?.leadAgeDays?.min !== undefined && step.conditions?.leadAgeDays?.max !== undefined && 
+           step.conditions.leadAgeDays.min === step.conditions.leadAgeDays.max && (
+            <div className="flex items-center gap-1 text-xs text-purple-700">
+              <span>📅</span>
+              <span>Day {step.conditions.leadAgeDays.min + 1} leads</span>
+            </div>
+          )}
         </div>
         <Badge variant="outline" className={`text-xs px-2 py-1 ${isStart ? 'bg-green-100 text-green-700' : isEnd ? 'bg-red-100 text-red-700' : ''}`}>
           {actionLabel}
@@ -211,6 +186,24 @@ const StepNode = ({ data }: StepNodeProps) => {
         {step.description || 'No description'}
       </div>
       
+      {/* Day Schedule Info */}
+      {(step.isDayStart || step.isDayEnd) && (
+        <div className="text-xs text-blue-700 mb-2 p-2 bg-blue-50 rounded border border-blue-200">
+          {step.isDayStart && (
+            <div className="flex items-center gap-1">
+              <span>🌅</span>
+              <span>Starts at: {step.dayStartTime || '09:00'}</span>
+            </div>
+          )}
+          {step.isDayEnd && (
+            <div className="flex items-center gap-1">
+              <span>🌆</span>
+              <span>Ends at: {step.dayEndTime || '17:00'}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Action-specific details */}
       <div className="text-sm text-gray-600 my-3 bg-gray-50 p-2 rounded-md border border-gray-100">
         {step.actionType === 'call' && (
@@ -249,7 +242,7 @@ const StepNode = ({ data }: StepNodeProps) => {
           </div>
         )}
         
-        {(step.actionType === 'sms' || step.actionType === 'sms_twilio' || step.actionType === 'sms_meera') && (
+        {step.actionType === 'sms' && (
           <div className="flex flex-col gap-1">
             <div className="line-clamp-2">
               {step.actionConfig?.message || step.actionConfig?.templateId || 'No message'}
@@ -258,18 +251,6 @@ const StepNode = ({ data }: StepNodeProps) => {
               <div className="flex items-center gap-1 text-xs">
                 <MessageSquare className="h-3 w-3 text-gray-400" />
                 <span className="text-gray-500">Provider: {step.actionConfig.provider}</span>
-              </div>
-            )}
-            {step.actionType === 'sms_twilio' && (
-              <div className="flex items-center gap-1 text-xs">
-                <MessageSquare className="h-3 w-3 text-purple-400" />
-                <span className="text-purple-600">Twilio</span>
-              </div>
-            )}
-            {step.actionType === 'sms_meera' && (
-              <div className="flex items-center gap-1 text-xs">
-                <MessageSquare className="h-3 w-3 text-orange-400" />
-                <span className="text-orange-600">Meera</span>
               </div>
             )}
           </div>
@@ -305,19 +286,7 @@ const StepNode = ({ data }: StepNodeProps) => {
           </div>
         )}
         
-        {step.actionType === 'conditional_branch' && (
-          <div className="flex items-center gap-2">
-            <ArrowRightCircle className="h-4 w-4 text-gray-400" />
-            <span>{step.actionConfig?.branches?.length || 0} condition(s)</span>
-          </div>
-        )}
-        
-        {step.actionType === 'wait_for_event' && (
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-gray-400" />
-            <span>Wait for: {step.actionConfig?.eventType || 'any event'}</span>
-          </div>
-        )}
+
       </div>
       
       <div className="text-sm text-gray-600 flex items-center justify-between mt-3 pt-3 border-t border-gray-200">

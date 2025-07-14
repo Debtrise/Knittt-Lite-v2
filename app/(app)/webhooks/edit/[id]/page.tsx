@@ -1,11 +1,12 @@
 'use client';
 
-import { use } from 'react';
+import React from 'react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import WebhookForm from '../../components/WebhookForm';
 
-export default function EditWebhookPage({ params }: { params: { id: string } }) {
-  const webhookId = parseInt(params.id);
+export default function EditWebhookPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = React.use(params);
+  const webhookId = parseInt(resolvedParams.id);
   if (isNaN(webhookId)) {
     return (
       <DashboardLayout>

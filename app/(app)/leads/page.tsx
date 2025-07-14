@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Upload, User, CheckCircle, XCircle, PhoneOutgoing, Filter, Trash2, Edit, AlertTriangle, Tag, Search } from 'lucide-react';
+import { Upload, User, CheckCircle, XCircle, PhoneOutgoing, Filter, Trash2, Edit, AlertTriangle, Tag, Search, Settings } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/Input';
@@ -30,9 +30,23 @@ type Lead = {
   lastAttempt: string | null;
   callDurations: number[];
   status: string;
+  stageId?: number;
+  stage?: {
+    id: number;
+    title: string;
+  };
   createdAt: string;
   updatedAt: string;
   tags?: string[];
+};
+
+type Stage = {
+  id: number;
+  title: string;
+  catalysts?: string[];
+  createdAt: string;
+  updatedAt: string;
+  leadCount?: number;
 };
 
 type UploadFormData = {
@@ -51,6 +65,7 @@ export default function LeadsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [uploadIsLoading, setUploadIsLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('');
+  const [filterStage, setFilterStage] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState({
     phone: '',
     name: '',
@@ -64,6 +79,9 @@ export default function LeadsPage() {
   const [uniqueStatuses, setUniqueStatuses] = useState<string[]>([]);
   const [selectedLeads, setSelectedLeads] = useState<Lead[]>([]);
   const [isBulkEnrichmentOpen, setIsBulkEnrichmentOpen] = useState(false);
+  const [stages, setStages] = useState<Stage[]>([]);
+  const [isAssigningStage, setIsAssigningStage] = useState(false);
+  const [selectedStageId, setSelectedStageId] = useState<number | null>(null);
 
   // Function to calculate lead age in days
   const calculateLeadAge = (createdAt: string): number => {
@@ -108,7 +126,8 @@ export default function LeadsPage() {
       const searchParams: any = {
         page,
         limit: 10,
-        ...(statusFilter ? { status: statusFilter } : {})
+        ...(statusFilter ? { status: statusFilter } : {}),
+        ...(filterStage ? { stageId: filterStage } : {})
       };
 
       // Add search fields if they have values
@@ -154,7 +173,8 @@ export default function LeadsPage() {
     }
 
     fetchLeads(currentPage);
-  }, [isAuthenticated, router, currentPage, filterStatus]);
+    fetchStages(); // Fetch stages when component mounts
+  }, [isAuthenticated, router, currentPage, filterStatus, filterStage]);
 
   useEffect(() => {
     debouncedSearch();
@@ -263,6 +283,43 @@ export default function LeadsPage() {
     setIsBulkEnrichmentOpen(true);
   };
 
+  // Fetch stages
+  const fetchStages = async () => {
+    try {
+      const response = await api.get('/stages');
+      setStages(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching stages:', error);
+      // Don't show error toast for stages as it's not critical
+    }
+  };
+
+  // Assign stage to selected leads
+  const assignStageToLeads = async () => {
+    if (!selectedStageId || selectedLeads.length === 0) {
+      toast.error('Please select a stage and leads to assign');
+      return;
+    }
+
+    setIsAssigningStage(true);
+    try {
+      const promises = selectedLeads.map(lead => 
+        api.put(`/leads/${lead.id}/stage`, { stageId: selectedStageId })
+      );
+      
+      await Promise.all(promises);
+      toast.success(`Stage assigned to ${selectedLeads.length} lead${selectedLeads.length !== 1 ? 's' : ''}`);
+      setSelectedLeads([]);
+      setSelectedStageId(null);
+      fetchLeads(currentPage); // Refresh leads to show updated stage info
+    } catch (error: any) {
+      console.error('Error assigning stage:', error);
+      toast.error(error.response?.data?.error || 'Failed to assign stage');
+    } finally {
+      setIsAssigningStage(false);
+    }
+  };
+
   if (!isAuthenticated) {
     return null;
   }
@@ -273,15 +330,43 @@ export default function LeadsPage() {
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Leads</h1>
           <div className="flex gap-2">
+            <Button onClick={() => router.push('/leads/stages')} variant="outline">
+              <Settings className="w-4 h-4 mr-2" />
+              Manage Stages
+            </Button>
             <Button onClick={() => setIsUploading(true)}>
               <Upload className="w-4 h-4 mr-2" />
               Upload Leads
             </Button>
             {selectedLeads.length > 0 && (
-              <Button onClick={handleBulkEnrichment} variant="outline">
-                <Search className="w-4 h-4 mr-2" />
-                Enrich Selected ({selectedLeads.length})
-              </Button>
+              <>
+                <Button onClick={handleBulkEnrichment} variant="outline">
+                  <Search className="w-4 h-4 mr-2" />
+                  Enrich Selected ({selectedLeads.length})
+                </Button>
+                <div className="flex items-center gap-2 border-l pl-4">
+                  <select
+                    value={selectedStageId || ''}
+                    onChange={(e) => setSelectedStageId(e.target.value ? Number(e.target.value) : null)}
+                    className="px-3 py-2 border rounded-md text-sm"
+                    placeholder="Select stage"
+                  >
+                    <option value="">Select Stage</option>
+                    {stages.map((stage) => (
+                      <option key={stage.id} value={stage.id}>
+                        {stage.title}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    onClick={assignStageToLeads}
+                    disabled={!selectedStageId || isAssigningStage}
+                    size="sm"
+                  >
+                    {isAssigningStage ? 'Assigning...' : 'Assign Stage'}
+                  </Button>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -292,7 +377,7 @@ export default function LeadsPage() {
             <CardTitle>Search & Filter</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               <div>
                 <Label htmlFor="phone">Phone</Label>
                 <Input
@@ -350,6 +435,22 @@ export default function LeadsPage() {
                   {uniqueStatuses.map((status) => (
                     <option key={status} value={status}>
                       {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="stage">Stage</Label>
+                <select
+                  id="stage"
+                  className="w-full p-2 border rounded-md"
+                  value={filterStage}
+                  onChange={(e) => setFilterStage(e.target.value)}
+                >
+                  <option value="">All Stages</option>
+                  {stages.map((stage) => (
+                    <option key={stage.id} value={stage.id}>
+                      {stage.title}
                     </option>
                   ))}
                 </select>
@@ -460,7 +561,7 @@ export default function LeadsPage() {
                               </div>
                             )}
                           </div>
-                          <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
+                          <div className="mt-2 flex items-center gap-2 text-sm text-gray-500 sm:mt-0">
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize 
                               ${lead.status === 'new' ? 'bg-brand bg-opacity-10 text-brand' : 
                                 lead.status === 'contacted' ? 'bg-brand bg-opacity-10 text-brand' :
@@ -476,6 +577,11 @@ export default function LeadsPage() {
                               ) : null}
                               {lead.status}
                             </span>
+                            {lead.stage && (
+                              <Badge variant="outline" className="text-xs">
+                                {lead.stage.title}
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -571,6 +677,165 @@ export default function LeadsPage() {
             fetchLeads(currentPage);
           }}
         />
+
+        {/* Upload Leads Modal */}
+        {isUploading && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold">Upload Leads</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsUploading(false)}
+                  disabled={uploadIsLoading}
+                >
+                  ×
+                </Button>
+              </div>
+
+              <Tabs value={uploadMethod} onValueChange={(value) => setUploadMethod(value as 'text' | 'file')}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="text">Paste CSV Text</TabsTrigger>
+                  <TabsTrigger value="file">Upload CSV File</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="text">
+                  <form onSubmit={handleSubmit(onUploadSubmit)} className="space-y-4">
+                    <div>
+                      <Label htmlFor="fileContent">CSV Content</Label>
+                      <textarea
+                        id="fileContent"
+                        {...register('fileContent', { required: 'CSV content is required' })}
+                        className="w-full h-40 p-3 border rounded-md resize-none font-mono text-sm"
+                        placeholder="Paste your CSV content here...&#10;&#10;Example:&#10;name,phone,email,brand,source&#10;John Doe,+1234567890,john@example.com,Brand A,Website&#10;Jane Smith,+0987654321,jane@example.com,Brand B,Referral"
+                      />
+                      {errors.fileContent && (
+                        <p className="text-red-500 text-sm mt-1">{errors.fileContent.message}</p>
+                      )}
+                      <p className="text-gray-500 text-sm mt-1">
+                        Expected format: name, phone, email, brand, source (header row required)
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="sortOrder">Sort Order</Label>
+                        <select
+                          id="sortOrder"
+                          {...register('sortOrder')}
+                          className="w-full p-2 border rounded-md"
+                        >
+                          <option value="oldest">Oldest First</option>
+                          <option value="fewest">Fewest Attempts First</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center space-x-2 pt-6">
+                        <input
+                          type="checkbox"
+                          id="autoDelete"
+                          {...register('autoDelete')}
+                          className="rounded border-gray-300"
+                        />
+                        <Label htmlFor="autoDelete" className="text-sm">
+                          Auto-delete duplicates
+                        </Label>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end space-x-3 pt-4 border-t">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsUploading(false)}
+                        disabled={uploadIsLoading}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={uploadIsLoading}>
+                        {uploadIsLoading ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4 mr-2" />
+                            Upload Leads
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                </TabsContent>
+
+                <TabsContent value="file">
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="file-upload">Select CSV File</Label>
+                      <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                        <div className="space-y-1 text-center">
+                          <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                          <div className="flex text-sm text-gray-600">
+                            <label
+                              htmlFor="file-upload"
+                              className="relative cursor-pointer bg-white rounded-md font-medium text-brand hover:text-brand-dark focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-brand"
+                            >
+                              <span>Upload a file</span>
+                              <input
+                                id="file-upload"
+                                name="file-upload"
+                                type="file"
+                                className="sr-only"
+                                accept=".csv"
+                                onChange={handleFileChange}
+                                ref={fileInputRef}
+                                disabled={uploadIsLoading}
+                              />
+                            </label>
+                            <p className="pl-1">or drag and drop</p>
+                          </div>
+                          <p className="text-xs text-gray-500">CSV files up to 10MB</p>
+                        </div>
+                      </div>
+                      <p className="text-gray-500 text-sm mt-2">
+                        Expected format: name, phone, email, brand, source (header row required)
+                      </p>
+                    </div>
+
+                    {uploadIsLoading && (
+                      <div className="flex items-center justify-center p-4">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand mr-3" />
+                        <span>Processing file...</span>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end space-x-3 pt-4 border-t">
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsUploading(false)}
+                        disabled={uploadIsLoading}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                <h3 className="font-medium text-blue-900 mb-2">CSV Format Requirements:</h3>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>• Header row is required: name, phone, email, brand, source</li>
+                  <li>• Phone numbers should include country code (e.g., +1234567890)</li>
+                  <li>• Email addresses should be valid format</li>
+                  <li>• Brand and source fields are optional but recommended</li>
+                  <li>• Duplicate phone numbers will be handled based on your settings</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
