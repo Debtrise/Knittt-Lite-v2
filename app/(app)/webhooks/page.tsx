@@ -151,10 +151,16 @@ export default function WebhooksPage() {
                         Brand / Source
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Endpoint Key
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Configurations
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Created
@@ -176,12 +182,31 @@ export default function WebhooksPage() {
                           <div className="text-gray-500 text-sm">{webhook.source}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge variant="outline">{webhook.webhookType}</Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
                           <code className="bg-gray-100 px-2 py-1 rounded text-sm">{webhook.endpointKey}</code>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <Badge variant={webhook.isActive ? "success" : "secondary"}>
                             {webhook.isActive ? 'Active' : 'Inactive'}
                           </Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex flex-col gap-1">
+                            {webhook.callConfig?.enabled && (
+                              <Badge variant="outline" className="w-fit">Call Config</Badge>
+                            )}
+                            {webhook.announcementConfig?.enabled && (
+                              <Badge variant="outline" className="w-fit">Announcement</Badge>
+                            )}
+                            {webhook.pauseResumeConfig?.enabled && (
+                              <Badge variant="outline" className="w-fit">Pause/Resume</Badge>
+                            )}
+                            {webhook.stopConfig?.enabled && (
+                              <Badge variant="outline" className="w-fit">Stop Config</Badge>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {new Date(webhook.createdAt).toLocaleDateString()}

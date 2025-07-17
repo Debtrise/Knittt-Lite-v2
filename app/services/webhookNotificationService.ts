@@ -72,7 +72,7 @@ interface WebhookEvent {
 interface Webhook {
   id: number;
   name: string;
-  webhookType: 'go' | 'pause' | 'stop' | 'announcement';
+  webhookType: 'go' | 'pause' | 'stop' | 'announcement' | 'call';
   brand?: string;
   source?: string;
   conditionalRules?: {
@@ -90,6 +90,7 @@ interface Webhook {
   pauseResumeConfig?: any;
   stopConfig?: any;
   announcementConfig?: any;
+  callConfig?: any;
 }
 
 class WebhookNotificationService {

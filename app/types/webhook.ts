@@ -1,6 +1,19 @@
 // Types for the Webhook API
 
-export type WebhookType = 'go' | 'pause' | 'stop' | 'announcement';
+export type WebhookType = 'go' | 'pause' | 'stop' | 'announcement' | 'call';
+
+export interface CallConfig {
+  enabled: boolean;
+  dialerContext: string;
+  transferNumber: string;
+  maxAttempts: number;
+  delayBetweenCalls: number;
+  amd: boolean;
+  playPosition: boolean;
+  skipPositionAnnouncement: boolean;
+  ivrFile?: string;
+  recordingId?: number;
+}
 
 export interface WebhookEndpoint {
   id: number;
@@ -24,6 +37,7 @@ export interface WebhookEndpoint {
   pauseResumeConfig?: PauseResumeConfig;
   stopConfig?: StopConfig;
   announcementConfig?: AnnouncementConfig;
+  callConfig?: CallConfig;
   createdAt: string;
   updatedAt: string;
 }
@@ -132,6 +146,7 @@ export interface CreateWebhookParams {
   pauseResumeConfig?: PauseResumeConfig;
   stopConfig?: StopConfig;
   announcementConfig?: AnnouncementConfig;
+  callConfig?: CallConfig;
 }
 
 export interface UpdateWebhookParams {
@@ -149,6 +164,7 @@ export interface UpdateWebhookParams {
   pauseResumeConfig?: PauseResumeConfig;
   stopConfig?: StopConfig;
   announcementConfig?: AnnouncementConfig;
+  callConfig?: CallConfig;
 }
 
 export interface WebhookDeleteResponse {

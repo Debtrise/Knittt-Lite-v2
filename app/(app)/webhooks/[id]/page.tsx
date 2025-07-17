@@ -517,6 +517,7 @@ export default function WebhookDetailPage({ params }: { params: Promise<{ id: st
                           {webhook.webhookType === 'pause' && 'Pause/resume lead processing'}
                           {webhook.webhookType === 'stop' && 'Stop lead processing permanently'}
                           {webhook.webhookType === 'announcement' && 'Generate announcements for displays'}
+                          {webhook.webhookType === 'call' && 'Initiate outbound calls to leads'}
                         </span>
                       </div>
                     </div>

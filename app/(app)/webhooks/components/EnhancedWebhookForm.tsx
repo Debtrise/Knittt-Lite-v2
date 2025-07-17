@@ -24,7 +24,7 @@ import {
 import api from '@/app/lib/api';
 import { WebhookEndpoint, CreateWebhookParams, WebhookType } from '@/app/types/webhook';
 import { toast } from 'react-hot-toast';
-import { X, Play, Pause, Square, Sparkles, Loader2, RefreshCw, CheckCircle, AlertCircle, Database, Monitor } from 'lucide-react';
+import { X, Play, Pause, Square, Sparkles, Loader2, RefreshCw, CheckCircle, AlertCircle, Database, Monitor, Phone } from 'lucide-react';
 import { Textarea } from '@/app/components/ui/textarea';
 import { Badge } from '@/app/components/ui/badge';
 import { useAuthStore } from '@/app/store/authStore';
@@ -180,6 +180,18 @@ export default function EnhancedWebhookForm({ webhookId, isEdit = false, onSucce
         tag: 'web-lead',
       },
     ],
+    callConfig: {
+      enabled: true,
+      dialerContext: '',
+      transferNumber: '',
+      maxAttempts: 3,
+      delayBetweenCalls: 300,
+      amd: false,
+      playPosition: false,
+      skipPositionAnnouncement: true,
+      ivrFile: null,
+      recordingId: null
+    }
   });
 
   // Additional state for UI
@@ -351,6 +363,18 @@ export default function EnhancedWebhookForm({ webhookId, isEdit = false, onSucce
           allowDuplicatePhone: false,
         },
         autoTagRules: webhook.autoTagRules || [],
+        callConfig: webhook.callConfig || {
+          enabled: true,
+          dialerContext: '',
+          transferNumber: '',
+          maxAttempts: 3,
+          delayBetweenCalls: 300,
+          amd: false,
+          playPosition: false,
+          skipPositionAnnouncement: true,
+          ivrFile: null,
+          recordingId: null
+        }
       });
       
       // Update selected display IDs for announcement webhooks
@@ -371,8 +395,26 @@ export default function EnhancedWebhookForm({ webhookId, isEdit = false, onSucce
   };
 
   const handleWebhookTypeChange = (type: WebhookType) => {
-    console.log('🔄 Changing webhook type to:', type);
-    setFormData(prev => ({ ...prev, webhookType: type }));
+    setFormData(prev => ({
+      ...prev,
+      webhookType: type,
+      // Reset type-specific configs when changing types
+      announcementConfig: type === 'announcement' ? prev.announcementConfig : undefined,
+      pauseResumeConfig: type === 'pause' ? prev.pauseResumeConfig : undefined,
+      stopConfig: type === 'stop' ? prev.stopConfig : undefined,
+      callConfig: type === 'call' ? {
+        enabled: true,
+        dialerContext: '',
+        transferNumber: '',
+        maxAttempts: 3,
+        delayBetweenCalls: 300,
+        amd: false,
+        playPosition: false,
+        skipPositionAnnouncement: true,
+        ivrFile: null,
+        recordingId: null
+      } : undefined
+    }));
   };
 
   const handleDisplaySelection = (displayId: string, selected: boolean) => {
@@ -488,37 +530,50 @@ export default function EnhancedWebhookForm({ webhookId, isEdit = false, onSucce
   };
 
   const generateSamplePayload = () => {
-    let samplePayload: Record<string, any> = {};
-    
+    let payload = {};
+
+    // Add mapped fields
+    Object.entries(formData.fieldMapping).forEach(([key, value]) => {
+      if (key === 'phone') {
+        payload[value] = '+1234567890';
+      } else if (key === 'name') {
+        payload[value] = 'John Doe';
+      } else if (key === 'email') {
+        payload[value] = 'john@example.com';
+      } else {
+        payload[value] = `Sample ${key}`;
+      }
+    });
+
+    // Add type-specific fields
     switch (formData.webhookType) {
-      case 'go':
-        samplePayload = {
-          phone: "+1234567890",
-          name: "John Doe",
-          email: "john@example.com",
-          brand: formData.brand || "Sample Brand",
-          source: formData.source || "Website"
+      case 'call':
+        payload = {
+          ...payload,
+          source: formData.source || 'test-call',
+          brand: formData.brand || 'test-brand',
+          dialerContext: formData.callConfig?.dialerContext || 'BDS_Prime_Dialer',
+          transferNumber: formData.callConfig?.transferNumber || '18005551234',
+          maxAttempts: formData.callConfig?.maxAttempts || 3,
+          delayBetweenCalls: formData.callConfig?.delayBetweenCalls || 300
         };
         break;
-      
       case 'announcement':
-        samplePayload = {
-          rep_name: "John Smith",
-          rep_email: "john.smith@example.com",
-          deal_amount: "$50,000",
-          company_name: "Acme Corp",
-          achievement_type: "deal_closed"
+        payload = {
+          ...payload,
+          projectId: formData.announcementConfig?.projectId || 'test-project',
+          displayIds: selectedDisplayIds,
+          variables: {
+            name: 'John Doe',
+            achievement: 'Closed Deal',
+            amount: '$50,000'
+          }
         };
         break;
-      
-      default:
-        samplePayload = {
-          phone: "+1234567890",
-          action: formData.webhookType
-        };
+      // Add other webhook type cases as needed
     }
-    
-    setTestPayload(JSON.stringify(samplePayload, null, 2));
+
+    setTestPayload(JSON.stringify(payload, null, 2));
   };
 
   const steps = [
@@ -694,7 +749,7 @@ export default function EnhancedWebhookForm({ webhookId, isEdit = false, onSucce
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           <div
             className={`p-6 rounded-lg border-2 cursor-pointer transition-all ${
               formData.webhookType === 'go'
@@ -748,6 +803,23 @@ export default function EnhancedWebhookForm({ webhookId, isEdit = false, onSucce
 
           <div
             className={`p-6 rounded-lg border-2 cursor-pointer transition-all ${
+              formData.webhookType === 'call'
+                ? 'border-primary bg-primary/5'
+                : 'border-border hover:border-primary/50'
+            }`}
+            onClick={() => handleWebhookTypeChange('call')}
+          >
+            <div className="flex items-center space-x-2 mb-2">
+              <Phone className="h-5 w-5 text-primary" />
+              <h3 className="font-medium">Call</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Configure outbound call campaigns
+            </p>
+          </div>
+
+          <div
+            className={`p-6 rounded-lg border-2 cursor-pointer transition-all ${
               formData.webhookType === 'announcement'
                 ? 'border-primary bg-primary/5'
                 : 'border-border hover:border-primary/50'
@@ -765,6 +837,129 @@ export default function EnhancedWebhookForm({ webhookId, isEdit = false, onSucce
         </div>
 
         {/* Show configuration based on webhook type */}
+        {formData.webhookType === 'call' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label>Dialer Context</Label>
+                <Input
+                  value={formData.callConfig?.dialerContext || ''}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    callConfig: {
+                      ...prev.callConfig,
+                      dialerContext: e.target.value
+                    }
+                  }))}
+                  placeholder="e.g., BDS_Prime_Dialer"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Transfer Number</Label>
+                <Input
+                  value={formData.callConfig?.transferNumber || ''}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    callConfig: {
+                      ...prev.callConfig,
+                      transferNumber: e.target.value
+                    }
+                  }))}
+                  placeholder="e.g., 18005551234"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Maximum Attempts</Label>
+                <Input
+                  type="number"
+                  value={formData.callConfig?.maxAttempts || 3}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    callConfig: {
+                      ...prev.callConfig,
+                      maxAttempts: parseInt(e.target.value) || 3
+                    }
+                  }))}
+                  min={1}
+                  max={10}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Number of times to attempt the call
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Delay Between Calls (seconds)</Label>
+                <Input
+                  type="number"
+                  value={formData.callConfig?.delayBetweenCalls || 300}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    callConfig: {
+                      ...prev.callConfig,
+                      delayBetweenCalls: parseInt(e.target.value) || 300
+                    }
+                  }))}
+                  min={60}
+                  max={3600}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Time to wait between call attempts (minimum 60 seconds)
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="amd"
+                  checked={formData.callConfig?.amd || false}
+                  onCheckedChange={(checked) => setFormData(prev => ({
+                    ...prev,
+                    callConfig: {
+                      ...prev.callConfig,
+                      amd: !!checked
+                    }
+                  }))}
+                />
+                <Label htmlFor="amd">Enable Answering Machine Detection</Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="playPosition"
+                  checked={formData.callConfig?.playPosition || false}
+                  onCheckedChange={(checked) => setFormData(prev => ({
+                    ...prev,
+                    callConfig: {
+                      ...prev.callConfig,
+                      playPosition: !!checked
+                    }
+                  }))}
+                />
+                <Label htmlFor="playPosition">Play Queue Position</Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="skipPositionAnnouncement"
+                  checked={formData.callConfig?.skipPositionAnnouncement || false}
+                  onCheckedChange={(checked) => setFormData(prev => ({
+                    ...prev,
+                    callConfig: {
+                      ...prev.callConfig,
+                      skipPositionAnnouncement: !!checked
+                    }
+                  }))}
+                />
+                <Label htmlFor="skipPositionAnnouncement">Skip Position Announcement</Label>
+              </div>
+            </div>
+          </div>
+        )}
+
         {formData.webhookType === 'announcement' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1010,29 +1205,102 @@ export default function EnhancedWebhookForm({ webhookId, isEdit = false, onSucce
   const renderReviewStep = () => (
     <Card>
       <CardHeader>
-        <CardTitle>Review & Test</CardTitle>
+        <CardTitle>Review Configuration</CardTitle>
         <CardDescription>
-          Review your webhook configuration and test it before saving.
+          Review your webhook configuration before saving.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="space-y-4">
-          <h3 className="font-medium">Configuration Summary</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="font-medium">Name:</span> {formData.name}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <h3 className="font-medium mb-2">Basic Information</h3>
+            <div className="space-y-1">
+              <p><span className="text-muted-foreground">Name:</span> {formData.name}</p>
+              <p><span className="text-muted-foreground">Type:</span> {formData.webhookType}</p>
+              <p><span className="text-muted-foreground">Brand:</span> {formData.brand}</p>
+              <p><span className="text-muted-foreground">Source:</span> {formData.source}</p>
             </div>
-            <div>
-              <span className="font-medium">Type:</span> {formData.webhookType}
-            </div>
-            <div>
-              <span className="font-medium">Brand:</span> {formData.brand}
-            </div>
-            <div>
-              <span className="font-medium">Source:</span> {formData.source}
+          </div>
+
+          <div>
+            <h3 className="font-medium mb-2">Field Mapping</h3>
+            <div className="space-y-1">
+              {Object.entries(formData.fieldMapping).map(([key, value]) => (
+                <p key={key}>
+                  <span className="text-muted-foreground">{key}:</span> {value}
+                </p>
+              ))}
             </div>
           </div>
         </div>
+
+        {formData.webhookType === 'call' && formData.callConfig && (
+          <div>
+            <h3 className="font-medium mb-2">Call Configuration</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h4 className="text-sm font-medium mb-1">Basic Settings</h4>
+                <div className="space-y-1">
+                  <p>
+                    <span className="text-muted-foreground">Dialer Context:</span>{' '}
+                    {formData.callConfig.dialerContext || 'Not set'}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Transfer Number:</span>{' '}
+                    {formData.callConfig.transferNumber || 'Not set'}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-medium mb-1">Retry Settings</h4>
+                <div className="space-y-1">
+                  <p>
+                    <span className="text-muted-foreground">Maximum Attempts:</span>{' '}
+                    {formData.callConfig.maxAttempts} times
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Delay Between Calls:</span>{' '}
+                    {formData.callConfig.delayBetweenCalls} seconds
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-medium mb-1">Advanced Features</h4>
+                <div className="space-y-1">
+                  <p>
+                    <span className="text-muted-foreground">AMD:</span>{' '}
+                    {formData.callConfig.amd ? 'Enabled' : 'Disabled'}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Play Position:</span>{' '}
+                    {formData.callConfig.playPosition ? 'Enabled' : 'Disabled'}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Skip Position Announcement:</span>{' '}
+                    {formData.callConfig.skipPositionAnnouncement ? 'Yes' : 'No'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Existing announcement config review */}
+        {formData.webhookType === 'announcement' && (
+          <div className="space-y-4">
+            <h3 className="font-medium">Announcement Configuration</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-medium">Content Project:</span> {formData.announcementConfig?.projectId || 'Not set'}
+              </div>
+              <div>
+                <span className="font-medium">Target Displays:</span> {selectedDisplayIds.length} selected
+              </div>
+            </div>
+          </div>
+        )}
 
         {isEdit && webhookId && (
           <div className="space-y-4">

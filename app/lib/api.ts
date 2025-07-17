@@ -405,20 +405,53 @@ export interface Call {
 }
 
 export const calls = {
-  make: (data: Omit<Call, 'id' | 'status' | 'createdAt' | 'updatedAt'>) => 
-    api.post<ApiResponse<Call>>('/make-call', data),
-  
-  updateStatus: (id: string, status: Call['status']) =>
-    api.put<ApiResponse<Call>>(`/calls/${id}/status`, { status }),
-  
-  get: (id: string) => api.get<ApiResponse<Call>>(`/calls/${id}`),
-  
-  list: (params: {
+  // List call logs with pagination and filters
+  list: async (params?: {
     page?: number;
     limit?: number;
     status?: string;
-    leadId?: number;
-  }) => api.get<PaginatedResponse<Call>>('/calls', { params }),
+    startDate?: string;
+    endDate?: string;
+    from?: string;
+    to?: string;
+    ingroup?: string;
+  }) => {
+    const response = await api.get('http://34.122.156.88:3001/api/call-logs', { params });
+    return {
+      calls: response.data.data,
+      totalPages: response.data.totalPages,
+      totalCount: response.data.totalCount
+    };
+  },
+
+  // Get single call log by ID
+  get: (id: string) => api.get(`http://34.122.156.88:3001/api/call-logs/${id}`),
+
+  // Get call statistics
+  getStats: (params?: {
+    period?: 'today' | 'yesterday' | 'week' | 'month' | 'custom';
+    dateFrom?: string;
+    dateTo?: string;
+  }) => api.get('http://34.122.156.88:3001/api/call-logs/stats', { params }),
+
+  // Update call status
+  updateStatus: (id: string, status: 'initiated' | 'answered' | 'transferred' | 'completed' | 'failed') =>
+    api.put(`http://34.122.156.88:3001/api/call-logs/${id}/status`, { status }),
+
+  // Make a new call
+  make: (data: {
+    to: string;
+    from: string;
+    message?: string;
+    transferNumber?: string;
+    ingroup?: string;
+    skipAgentCheck?: boolean;
+    amd?: boolean;
+    playPosition?: boolean;
+    skipPositionAnnouncement?: boolean;
+    ivrFile?: string;
+    recordingId?: string;
+  }) => api.post('http://34.122.156.88:3001/api/calls', data),
 };
 
 // DID endpoints
@@ -1200,7 +1233,7 @@ export const webhooks = {
     page?: number;
     limit?: number;
     isActive?: boolean;
-    webhookType?: 'go' | 'pause' | 'stop' | 'announcement';
+    webhookType?: 'go' | 'pause' | 'stop' | 'announcement' | 'call';
   }) => api.get<PaginatedResponse<Webhook>>('/webhooks', { params }),
   
   get: (id: string) => api.get<ApiResponse<Webhook>>(`/webhooks/${id}`),
@@ -1230,7 +1263,7 @@ export const webhooks = {
     api.post<ApiResponse<{ securityToken: string }>>(`/webhooks/${id}/regenerate-token`),
   
   // Webhook Configuration
-  getConfigOptions: (webhookType?: 'go' | 'pause' | 'stop' | 'announcement') => 
+  getConfigOptions: (webhookType?: 'go' | 'pause' | 'stop' | 'announcement' | 'call') => 
     api.get<ApiResponse<{ fields: string[]; operators: string[]; actions: string[] }>>('/webhooks/types/config-options', { params: { webhookType } }),
 
   getConditions: (id: string) => 
@@ -2278,6 +2311,96 @@ export const marketplace = {
   getStats: () => api.get('/marketplace/stats'),
 };
 
+// Call logs API endpoints
+export const callLogs = {
+  // Get overview with statistics
+  getOverview: (params?: {
+    startDate?: string;
+    endDate?: string;
+    status?: string;
+    leadId?: string;
+    didId?: string;
+    ingroup?: string;
+    context?: string;
+    callDirection?: 'inbound' | 'outbound';
+    page?: number;
+    limit?: number;
+  }) => api.get('http://34.122.156.88:3001/api/call-logs/overview', { params }),
+
+  // Get call statistics
+  getStats: (params?: {
+    period?: 'today' | 'yesterday' | 'week' | 'month' | 'custom';
+    dateFrom?: string;
+    dateTo?: string;
+  }) => api.get('http://34.122.156.88:3001/api/call-logs/stats', { params }),
+
+  // Get time-series statistics
+  getStatisticsByPeriod: (params?: {
+    period: 'hour' | 'day' | 'week' | 'month';
+    startDate?: string;
+    endDate?: string;
+  }) => api.get('http://34.122.156.88:3001/api/call-logs/statistics', { params }),
+
+  // Export call logs as CSV
+  exportLogs: (params?: {
+    startDate?: string;
+    endDate?: string;
+    status?: string;
+  }) => api.get('http://34.122.156.88:3001/api/call-logs/export', { 
+    params,
+    responseType: 'blob'
+  }),
+
+  // Get agent performance
+  getAgentPerformance: (params?: {
+    agentId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }) => api.get('http://34.122.156.88:3001/api/call-logs/agent-performance', { params }),
+
+  // Get DID performance
+  getDidPerformance: (params?: {
+    didId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }) => api.get('http://34.122.156.88:3001/api/call-logs/did-performance', { params }),
+
+  // Get active calls
+  getActiveCalls: () => api.get('http://34.122.156.88:3001/api/call-logs/active'),
+
+  // Get all call logs (paginated)
+  list: (params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    leadId?: string;
+    didId?: string;
+    search?: string;
+  }) => api.get('http://34.122.156.88:3001/api/call-logs', { params }),
+
+  // Get single call log details
+  get: (id: string) => api.get(`http://34.122.156.88:3001/api/call-logs/${id}`),
+
+  // Update call log
+  update: (id: string, data: {
+    disposition?: string;
+    notes?: string;
+    metadata?: Record<string, any>;
+  }) => api.put(`http://34.122.156.88:3001/api/call-logs/${id}`, data),
+
+  // Get call logs for specific lead
+  getLeadCallLogs: (leadId: string, params?: {
+    page?: number;
+    limit?: number;
+  }) => api.get(`http://34.122.156.88:3001/api/leads/${leadId}/call-logs`, { params }),
+
+  // Search call logs by phone number
+  searchByPhone: (phoneNumber: string) => 
+    api.get(`http://34.122.156.88:3001/api/call-logs/search/${phoneNumber}`)
+};
+
 export default {
   auth,
   users,
@@ -2304,4 +2427,5 @@ export default {
   optisigns,
   salesRepPhotos,
   marketplace,
+  callLogs,
 }; 

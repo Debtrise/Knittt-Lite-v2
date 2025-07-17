@@ -12,26 +12,35 @@ export const getActionTypeParams = (actionType: JourneyActionType): ParamDefinit
     case 'call':
       return [
         {
-          id: 'context',
-          name: 'Context',
+          id: 'transferNumber',
+          name: 'Transfer Number',
           type: 'string',
-          required: false,
-          description: 'Dialer context (e.g., BDS_Prime_Dialer) - overrides most other settings'
+          required: true,
+          description: 'Direct transfer number (e.g., 18005551234)'
+        },
+        {
+          id: 'dialerContext',
+          name: 'Dialer Context',
+          type: 'string',
+          required: true,
+          default: 'BDS_Prime_Dialer',
+          description: 'Dialer context for the call'
         },
         {
           id: 'ingroup',
           name: 'Ingroup',
           type: 'string',
-          required: false,
+          required: true,
           default: 'SALES',
-          description: 'Ingroup for the call (e.g., SALES, SALES_FOLLOWUP)'
+          description: 'Ingroup for the call'
         },
         {
-          id: 'did',
-          name: 'DID',
-          type: 'string',
+          id: 'skipAgentCheck',
+          name: 'Skip Agent Check',
+          type: 'boolean',
           required: false,
-          description: 'Specific DID number to use for the call'
+          default: false,
+          description: 'Whether to skip agent availability check'
         },
         {
           id: 'amd',
@@ -42,154 +51,20 @@ export const getActionTypeParams = (actionType: JourneyActionType): ParamDefinit
           description: 'Enable answering machine detection'
         },
         {
-          id: 'dialerContext',
-          name: 'Dialer Context (Legacy)',
-          type: 'string',
-          required: false,
-          description: 'JSON configuration for the dialer (legacy field, use Context instead)'
-        },
-        {
-          id: 'transferGroupId',
-          name: 'Transfer Group',
-          type: 'transfer_group_select',
-          required: false,
-          description: 'Select a transfer group for routing'
-        },
-        {
-          id: 'transferNumber',
-          name: 'Transfer Number',
-          type: 'string',
-          required: false,
-          description: 'Direct transfer number (leave empty to use transfer group)'
-        },
-        {
-          id: 'scriptId',
-          name: 'Call Script',
-          type: 'template_select',
-          templateType: 'script',
-          required: false,
-          description: 'Select a script template for the call'
-        },
-        {
-          id: 'fallbackDID',
-          name: 'Fallback DID',
-          type: 'string',
-          required: false,
-          description: 'Fallback DID if no DIDs available'
-        },
-        {
-          id: 'useLocalDID',
-          name: 'Use Local DID',
-          type: 'boolean',
-          required: false,
-          default: true,
-          description: 'Whether to try matching lead\'s area code'
-        },
-        {
-          id: 'maxAttempts',
-          name: 'Maximum Attempts',
-          type: 'number',
-          required: false,
-          default: 3,
-          description: 'Maximum attempts for this call'
-        },
-        {
-          id: 'voicemailDetection',
-          name: 'Voicemail Detection',
-          type: 'boolean',
-          required: false,
-          default: true,
-          description: 'Whether to detect voicemail'
-        },
-        {
-          id: 'voicemailMessage',
-          name: 'Voicemail Script',
-          type: 'template_select',
-          templateType: 'voicemail',
-          required: false,
-          description: 'Select a voicemail script template'
-        },
-        {
-          id: 'callerId',
-          name: 'Caller ID Name',
-          type: 'string',
-          required: false,
-          description: 'Custom caller ID name'
-        },
-        {
-          id: 'recordCall',
-          name: 'Record Call',
-          type: 'boolean',
-          required: false,
-          default: true,
-          description: 'Whether to record the call'
-        },
-        {
-          id: 'respectBusinessHours',
-          name: 'Respect Business Hours',
-          type: 'boolean',
-          required: false,
-          default: true,
-          description: 'Whether to respect tenant business hours'
-        },
-        {
-          id: 'ivrEnabled',
-          name: 'Enable IVR',
+          id: 'playPosition',
+          name: 'Play Position',
           type: 'boolean',
           required: false,
           default: false,
-          description: 'Enable Interactive Voice Response system'
+          description: 'Whether to play position in queue'
         },
         {
-          id: 'ivrPromptText',
-          name: 'IVR Prompt Text',
-          type: 'string',
+          id: 'skipPositionAnnouncement',
+          name: 'Skip Position Announcement',
+          type: 'boolean',
           required: false,
-          description: 'Text-to-speech prompt for IVR (e.g., "Press 1 for sales, 2 for support")'
-        },
-        {
-          id: 'ivrPromptRecordingId',
-          name: 'IVR Prompt Recording',
-          type: 'recording_select',
-          required: false,
-          description: 'Recording ID for IVR prompt (alternative to text)'
-        },
-        {
-          id: 'ivrTimeout',
-          name: 'IVR Timeout (seconds)',
-          type: 'number',
-          required: false,
-          default: 10,
-          description: 'Seconds to wait for user input'
-        },
-        {
-          id: 'ivrMaxRetries',
-          name: 'IVR Max Retries',
-          type: 'number',
-          required: false,
-          default: 3,
-          description: 'Maximum retries for invalid input'
-        },
-        {
-          id: 'ivrInvalidInputText',
-          name: 'Invalid Input Text',
-          type: 'string',
-          required: false,
-          description: 'Text-to-speech for invalid input (e.g., "Invalid selection, please try again")'
-        },
-        {
-          id: 'ivrInvalidInputRecordingId',
-          name: 'Invalid Input Recording',
-          type: 'recording_select',
-          required: false,
-          description: 'Recording ID for invalid input message'
-        },
-        {
-          id: 'ivrOptions',
-          name: 'IVR Menu Options',
-          type: 'ivr_options',
-          required: false,
-          description: 'Configure IVR menu options and actions'
+          default: true,
+          description: 'Whether to skip position announcement'
         }
       ];
       
@@ -569,24 +444,61 @@ export const getDelayTypeParams = (delayType: DelayType): ParamDefinition[] => {
  * Get default property values for a specific action type
  */
 export const getDefaultActionConfigValues = (actionType: JourneyActionType): Record<string, any> => {
-  const paramDefs = getActionTypeParams(actionType);
-  const defaultValues: Record<string, any> = {};
-  
-  paramDefs.forEach(param => {
-    if (param.default !== undefined) {
-      defaultValues[param.id] = param.default;
-    } else if (param.required) {
-      // For required fields without defaults, set reasonable empty values
-      if (param.type === 'string') defaultValues[param.id] = '';
-      else if (param.type === 'number') defaultValues[param.id] = 0;
-      else if (param.type === 'boolean') defaultValues[param.id] = false;
-      else if (param.type === 'select' && param.options && param.options.length > 0) {
-        defaultValues[param.id] = param.options[0];
-      }
-    }
-  });
-  
-  return defaultValues;
+  switch(actionType) {
+    case 'call':
+      return {
+        transferNumber: '',
+        dialerContext: 'BDS_Prime_Dialer',
+        ingroup: 'SALES',
+        skipAgentCheck: false,
+        amd: true,
+        playPosition: false,
+        skipPositionAnnouncement: true
+      };
+    
+    case 'sms':
+      return {
+        message: '',
+        templateId: '',
+        from: '',
+        trackClicks: true,
+        optOutMessage: true
+      };
+      
+    case 'email':
+      return {
+        subject: '',
+        templateId: '',
+        from: '',
+        trackOpens: true,
+        trackClicks: true
+      };
+      
+    case 'status_change':
+      return {
+        status: ''
+      };
+      
+    case 'tag_update':
+      return {
+        operation: 'add',
+        tags: []
+      };
+      
+    case 'webhook':
+      return {
+        url: '',
+        method: 'POST',
+        headers: {},
+        body: ''
+      };
+      
+    case 'delay':
+      return {};
+      
+    default:
+      return {};
+  }
 };
 
 /**

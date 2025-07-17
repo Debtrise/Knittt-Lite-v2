@@ -1,0 +1,1388 @@
+# Knittt Reporting Configuration Guide
+
+## Table of Contents
+1. [Report Builder Configuration](#report-builder-configuration)
+2. [Widget Types and Configurations](#widget-types-and-configurations)
+3. [Data Source Configurations](#data-source-configurations)
+4. [Report Template Configurations](#report-template-configurations)
+5. [Dashboard Configuration](#dashboard-configuration)
+6. [Critical Reports Parameters](#critical-reports-parameters)
+
+---
+
+## 1. Report Builder Configuration
+
+The main report configuration when creating a custom report.
+
+```json
+{
+  "name": "Sales Performance Dashboard",
+  "description": "Monthly sales metrics and KPIs",
+  
+  // Layout Configuration
+  "layout": {
+    "type": "grid",           // Options: "grid", "freeform"
+    "columns": 12,            // Number of grid columns (typically 12 or 24)
+    "rows": "auto",           // "auto" or fixed number
+    "gap": 16,                // Gap between widgets in pixels
+    "responsive": true,       // Enable responsive behavior
+    "breakpoints": {          // Optional: Custom breakpoints
+      "mobile": 768,
+      "tablet": 1024,
+      "desktop": 1440
+    }
+  },
+  
+  // Theme Configuration
+  "theme": {
+    "mode": "light",                    // "light" or "dark"
+    "primaryColor": "#3B82F6",          // Primary brand color
+    "backgroundColor": "#FFFFFF",        // Background color
+    "textColor": "#1F2937",             // Default text color
+    "borderRadius": 8,                  // Default border radius
+    "shadow": "sm",                     // Shadow size: "none", "sm", "md", "lg", "xl"
+    "fontFamily": "Inter, sans-serif",  // Optional: Custom font
+    "fontSize": {                       // Optional: Font size scale
+      "xs": 12,
+      "sm": 14,
+      "base": 16,
+      "lg": 18,
+      "xl": 20
+    }
+  },
+  
+  // Data Sources (see section 3 for details)
+  "dataSources": [...],
+  
+  // Refresh Settings
+  "refreshInterval": 300,     // Auto-refresh in seconds (0 = disabled)
+  "cacheTimeout": 3600,       // Cache duration in seconds
+  
+  // Access Control
+  "isPublic": false,          // Make report publicly accessible
+  "publicToken": "...",       // Auto-generated if public
+  "permissions": {
+    "view": ["user_id_1", "user_id_2"],     // User IDs who can view
+    "edit": ["user_id_1"],                   // User IDs who can edit
+    "delete": ["user_id_1"],                 // User IDs who can delete
+    "share": ["user_id_1"],                  // User IDs who can share
+    "export": ["*"]                          // "*" means all viewers
+  },
+  
+  // Metadata
+  "tags": ["sales", "monthly", "kpi"],       // Searchable tags
+  "category": "sales",                       // Report category
+  "version": 1,                              // Version number
+  "isTemplate": false,                       // Save as reusable template
+  
+  // Advanced Settings
+  "filters": {                               // Global filters
+    "dateRange": {
+      "enabled": true,
+      "default": "last_30_days",
+      "options": ["today", "yesterday", "last_7_days", "last_30_days", "custom"]
+    },
+    "sources": {
+      "enabled": true,
+      "multiple": true,
+      "default": ["all"]
+    }
+  },
+  
+  // Export Settings
+  "exportFormats": ["pdf", "excel", "csv"],  // Allowed export formats
+  "printLayout": {                           // Print-specific settings
+    "orientation": "landscape",              // "portrait" or "landscape"
+    "pageSize": "A4",                       // "A4", "Letter", etc.
+    "margins": {
+      "top": 20,
+      "right": 20,
+      "bottom": 20,
+      "left": 20
+    }
+  }
+}
+```
+
+---
+
+## 2. Widget Types and Configurations
+
+### 2.1 Metric Widget
+Displays a single metric value with optional comparison.
+
+```json
+{
+  "type": "metric",
+  "title": "Total Revenue",
+  "position": { "x": 0, "y": 0, "w": 3, "h": 2 },
+  
+  "config": {
+    // Display Settings
+    "format": "currency",        // "number", "currency", "percent", "decimal"
+    "decimals": 2,              // Number of decimal places
+    "prefix": "$",              // Text before value
+    "suffix": "",               // Text after value
+    "locale": "en-US",          // Locale for formatting
+    
+    // Comparison Settings
+    "comparison": {
+      "enabled": true,
+      "type": "previous_period",  // "previous_period", "target", "custom"
+      "showPercentage": true,
+      "showAbsolute": false,
+      "invertColors": false       // Red for increase, green for decrease
+    },
+    
+    // Visual Settings
+    "icon": "dollar-sign",       // Lucide icon name
+    "iconPosition": "left",      // "left", "right", "top"
+    "size": "large",            // "small", "medium", "large", "xl"
+    "align": "center",          // "left", "center", "right"
+    
+    // Conditional Formatting
+    "conditionalFormatting": [
+      {
+        "condition": "value > 100000",
+        "color": "#10B981",      // Green
+        "backgroundColor": "#D1FAE5"
+      },
+      {
+        "condition": "value < 50000",
+        "color": "#EF4444",      // Red
+        "backgroundColor": "#FEE2E2"
+      }
+    ],
+    
+    // Sparkline
+    "sparkline": {
+      "enabled": true,
+      "type": "line",           // "line", "bar"
+      "height": 40,
+      "color": "#3B82F6"
+    }
+  },
+  
+  "dataSource": {
+    "sourceId": "ds1",
+    "aggregation": "sum",       // "sum", "avg", "count", "min", "max"
+    "field": "revenue",
+    "filters": {
+      "status": {
+        "operator": "eq",
+        "value": "completed"
+      }
+    }
+  }
+}
+```
+
+### 2.2 Chart Widget
+Various chart types for data visualization.
+
+```json
+{
+  "type": "chart",
+  "title": "Revenue Trend",
+  "position": { "x": 3, "y": 0, "w": 6, "h": 4 },
+  
+  "config": {
+    // Chart Type
+    "type": "line",              // "line", "bar", "area", "pie", "donut", "scatter", "bubble", "radar", "heatmap"
+    
+    // Axes Configuration
+    "xAxis": {
+      "field": "date",
+      "label": "Date",
+      "type": "time",           // "category", "time", "linear"
+      "format": "MMM DD",       // Date format for time axis
+      "tickRotation": -45,      // Rotation angle for labels
+      "showGrid": true
+    },
+    
+    "yAxis": {
+      "field": "revenue",
+      "label": "Revenue ($)",
+      "type": "linear",
+      "format": "currency",
+      "min": 0,                 // Optional: Fixed min
+      "max": null,              // Optional: Fixed max
+      "showGrid": true,
+      "position": "left"        // "left", "right"
+    },
+    
+    // Multiple Series
+    "series": [
+      {
+        "name": "Revenue",
+        "field": "revenue",
+        "color": "#3B82F6",
+        "type": "line",         // Can mix types in same chart
+        "smooth": true,         // Smooth curves for line
+        "showPoints": true,
+        "pointSize": 4,
+        "lineWidth": 2,
+        "fillOpacity": 0.1,     // Area fill opacity
+        "stack": null           // Stack group name for stacked charts
+      },
+      {
+        "name": "Target",
+        "field": "target",
+        "color": "#EF4444",
+        "type": "line",
+        "dashStyle": "dash"     // "solid", "dash", "dot"
+      }
+    ],
+    
+    // Legend
+    "legend": {
+      "enabled": true,
+      "position": "top",        // "top", "bottom", "left", "right"
+      "align": "center",        // "start", "center", "end"
+      "layout": "horizontal"    // "horizontal", "vertical"
+    },
+    
+    // Tooltips
+    "tooltip": {
+      "enabled": true,
+      "shared": true,           // Show all series in tooltip
+      "format": "{series}: {value:,.0f}",
+      "backgroundColor": "rgba(0,0,0,0.8)",
+      "borderColor": "#333"
+    },
+    
+    // Interactions
+    "interactions": {
+      "zoom": true,             // Enable zoom
+      "pan": true,              // Enable pan
+      "brush": true,            // Enable brush selection
+      "crosshair": true,        // Show crosshair on hover
+      "dataLabels": false       // Show values on chart
+    },
+    
+    // Annotations
+    "annotations": [
+      {
+        "type": "line",
+        "yValue": 100000,
+        "label": "Target",
+        "color": "#EF4444",
+        "width": 2,
+        "dashStyle": "dash"
+      },
+      {
+        "type": "box",
+        "yMin": 0,
+        "yMax": 50000,
+        "label": "Low Performance",
+        "color": "rgba(239,68,68,0.1)"
+      }
+    ],
+    
+    // Animation
+    "animation": {
+      "enabled": true,
+      "duration": 1000,
+      "easing": "easeOutQuart"
+    }
+  },
+  
+  "dataSource": {
+    "sourceId": "ds1",
+    "groupBy": ["date"],
+    "aggregation": "sum",
+    "orderBy": [
+      { "field": "date", "direction": "ASC" }
+    ],
+    "limit": 30
+  }
+}
+```
+
+### 2.3 Table Widget
+Data table with sorting, filtering, and pagination.
+
+```json
+{
+  "type": "table",
+  "title": "Lead Details",
+  "position": { "x": 0, "y": 4, "w": 12, "h": 6 },
+  
+  "config": {
+    // Column Configuration
+    "columns": [
+      {
+        "field": "id",
+        "label": "ID",
+        "width": 80,
+        "align": "center",       // "left", "center", "right"
+        "sortable": true,
+        "frozen": true,          // Freeze column
+        "hidden": false,
+        "format": "number"
+      },
+      {
+        "field": "name",
+        "label": "Customer Name",
+        "width": 200,
+        "sortable": true,
+        "searchable": true,      // Enable column search
+        "ellipsis": true,        // Truncate long text
+        "render": "link",        // "text", "link", "badge", "progress", "custom"
+        "link": "/leads/{id}"    // Link template
+      },
+      {
+        "field": "status",
+        "label": "Status",
+        "width": 120,
+        "sortable": true,
+        "filterable": true,      // Enable column filter
+        "render": "badge",
+        "badgeColors": {
+          "new": "blue",
+          "qualified": "yellow",
+          "converted": "green",
+          "lost": "red"
+        }
+      },
+      {
+        "field": "revenue",
+        "label": "Revenue",
+        "width": 150,
+        "align": "right",
+        "sortable": true,
+        "format": "currency",
+        "summary": "sum"         // "sum", "avg", "min", "max", "count"
+      },
+      {
+        "field": "createdAt",
+        "label": "Created",
+        "width": 150,
+        "sortable": true,
+        "format": "date",
+        "dateFormat": "MMM DD, YYYY"
+      },
+      {
+        "field": "actions",
+        "label": "Actions",
+        "width": 100,
+        "align": "center",
+        "render": "actions",
+        "actions": [
+          {
+            "icon": "edit",
+            "label": "Edit",
+            "onClick": "editLead"
+          },
+          {
+            "icon": "trash",
+            "label": "Delete",
+            "onClick": "deleteLead",
+            "confirm": true
+          }
+        ]
+      }
+    ],
+    
+    // Table Settings
+    "pageSize": 25,              // Rows per page
+    "pageSizeOptions": [10, 25, 50, 100],
+    "showPagination": true,
+    "showSearch": true,          // Global search
+    "showFilters": true,         // Filter bar
+    "showExport": true,          // Export button
+    "showColumnToggle": true,    // Column visibility toggle
+    "striped": true,            // Striped rows
+    "bordered": true,           // Table borders
+    "hoverable": true,          // Hover effect
+    "compact": false,           // Compact mode
+    "stickyHeader": true,       // Sticky header on scroll
+    "virtualScroll": false,     // Virtual scrolling for large datasets
+    
+    // Row Configuration
+    "rowSelection": {
+      "enabled": true,
+      "multiple": true,
+      "showCheckbox": true
+    },
+    
+    // Expandable Rows
+    "expandable": {
+      "enabled": true,
+      "render": "details",       // "details", "custom"
+      "fields": ["notes", "tags", "customFields"]
+    },
+    
+    // Grouping
+    "groupBy": {
+      "enabled": true,
+      "field": "source",
+      "collapsible": true,
+      "showSummary": true
+    },
+    
+    // Conditional Formatting
+    "rowFormatting": [
+      {
+        "condition": "status === 'converted'",
+        "className": "bg-green-50"
+      },
+      {
+        "condition": "daysOpen > 30",
+        "className": "bg-red-50"
+      }
+    ],
+    
+    // Actions Bar
+    "bulkActions": [
+      {
+        "label": "Export Selected",
+        "icon": "download",
+        "action": "exportSelected"
+      },
+      {
+        "label": "Assign Agent",
+        "icon": "user",
+        "action": "assignAgent",
+        "requireSelection": true
+      }
+    ]
+  },
+  
+  "dataSource": {
+    "sourceId": "ds1",
+    "filters": {
+      "status": {
+        "operator": "in",
+        "value": ["new", "qualified", "converted"]
+      }
+    },
+    "orderBy": [
+      { "field": "createdAt", "direction": "DESC" }
+    ],
+    "limit": 1000
+  }
+}
+```
+
+### 2.4 Gauge Widget
+Circular or linear gauge for KPI visualization.
+
+```json
+{
+  "type": "gauge",
+  "title": "Conversion Rate",
+  "position": { "x": 9, "y": 0, "w": 3, "h": 3 },
+  
+  "config": {
+    // Gauge Type
+    "gaugeType": "circular",     // "circular", "linear", "bullet"
+    
+    // Value Configuration
+    "min": 0,
+    "max": 100,
+    "target": 75,               // Optional target line
+    "format": "percent",
+    "decimals": 1,
+    
+    // Segments/Zones
+    "segments": [
+      {
+        "from": 0,
+        "to": 50,
+        "color": "#EF4444",     // Red
+        "label": "Poor"
+      },
+      {
+        "from": 50,
+        "to": 75,
+        "color": "#F59E0B",     // Yellow
+        "label": "Average"
+      },
+      {
+        "from": 75,
+        "to": 100,
+        "color": "#10B981",     // Green
+        "label": "Good"
+      }
+    ],
+    
+    // Visual Settings
+    "showValue": true,
+    "showTarget": true,
+    "showLabels": true,
+    "thickness": 20,            // Gauge thickness
+    "startAngle": -90,          // Start angle for circular
+    "endAngle": 90,             // End angle for circular
+    
+    // Animation
+    "animation": {
+      "enabled": true,
+      "duration": 1500,
+      "easing": "easeOutElastic"
+    }
+  }
+}
+```
+
+### 2.5 Text/Markdown Widget
+Rich text content with markdown support.
+
+```json
+{
+  "type": "text",
+  "title": "Report Summary",
+  "position": { "x": 0, "y": 10, "w": 6, "h": 2 },
+  
+  "config": {
+    "content": "## Monthly Performance\n\nThis report shows...",
+    "markdown": true,           // Enable markdown parsing
+    "variables": true,          // Enable variable substitution
+    "align": "left",           // "left", "center", "right", "justify"
+    "fontSize": "base",        // "xs", "sm", "base", "lg", "xl"
+    "fontWeight": "normal",    // "normal", "medium", "semibold", "bold"
+    "color": "inherit",        // CSS color or "inherit"
+    "backgroundColor": "transparent",
+    "padding": 16,
+    "border": false,
+    "shadow": false
+  }
+}
+```
+
+### 2.6 Filter Widget
+Interactive filters for other widgets.
+
+```json
+{
+  "type": "filter",
+  "title": "Report Filters",
+  "position": { "x": 0, "y": 0, "w": 12, "h": 1 },
+  
+  "config": {
+    "filters": [
+      {
+        "id": "dateRange",
+        "type": "dateRange",     // "dateRange", "select", "multiSelect", "search", "toggle"
+        "label": "Date Range",
+        "default": "last_30_days",
+        "options": [
+          { "value": "today", "label": "Today" },
+          { "value": "last_7_days", "label": "Last 7 Days" },
+          { "value": "last_30_days", "label": "Last 30 Days" },
+          { "value": "custom", "label": "Custom Range" }
+        ],
+        "target": ["*"]          // Widget IDs to filter, "*" for all
+      },
+      {
+        "id": "source",
+        "type": "multiSelect",
+        "label": "Lead Source",
+        "placeholder": "Select sources...",
+        "options": "dynamic",    // Load from data
+        "dataSource": {
+          "sourceId": "ds1",
+          "field": "source",
+          "distinct": true
+        },
+        "default": ["all"],
+        "target": ["widget1", "widget2"]
+      },
+      {
+        "id": "status",
+        "type": "select",
+        "label": "Status",
+        "options": [
+          { "value": "all", "label": "All Statuses" },
+          { "value": "new", "label": "New" },
+          { "value": "qualified", "label": "Qualified" },
+          { "value": "converted", "label": "Converted" }
+        ],
+        "default": "all",
+        "clearable": true
+      },
+      {
+        "id": "search",
+        "type": "search",
+        "label": "Search",
+        "placeholder": "Search leads...",
+        "fields": ["name", "email", "phone"],
+        "debounce": 300
+      }
+    ],
+    
+    "layout": "horizontal",      // "horizontal", "vertical"
+    "showApplyButton": false,    // Auto-apply or manual
+    "collapsible": true,
+    "defaultCollapsed": false
+  }
+}
+```
+
+### 2.7 Map Widget
+Geographic data visualization.
+
+```json
+{
+  "type": "map",
+  "title": "Lead Distribution",
+  "position": { "x": 6, "y": 4, "w": 6, "h": 6 },
+  
+  "config": {
+    "mapType": "markers",        // "markers", "heatmap", "choropleth"
+    "center": {
+      "lat": 39.8283,
+      "lng": -98.5795            // Center of USA
+    },
+    "zoom": 4,
+    "style": "streets",          // "streets", "satellite", "dark", "light"
+    
+    // Marker Configuration
+    "markers": {
+      "field": "location",       // Field containing lat/lng
+      "clustering": true,        // Enable marker clustering
+      "clusterRadius": 50,
+      "popup": {
+        "enabled": true,
+        "template": "<b>{name}</b><br>{city}, {state}<br>Revenue: ${revenue}"
+      },
+      "icon": {
+        "type": "circle",        // "circle", "pin", "custom"
+        "size": "value",         // Fixed size or field name
+        "color": "status",       // Fixed color or field name
+        "colorMap": {
+          "new": "#3B82F6",
+          "qualified": "#F59E0B",
+          "converted": "#10B981"
+        }
+      }
+    },
+    
+    // Heatmap Configuration (if mapType is "heatmap")
+    "heatmap": {
+      "field": "value",
+      "radius": 20,
+      "blur": 15,
+      "maxIntensity": 100,
+      "gradient": {
+        "0.0": "blue",
+        "0.5": "yellow",
+        "1.0": "red"
+      }
+    },
+    
+    // Controls
+    "controls": {
+      "zoom": true,
+      "fullscreen": true,
+      "layers": true,
+      "search": true
+    }
+  }
+}
+```
+
+### 2.8 Timeline Widget
+Temporal event visualization.
+
+```json
+{
+  "type": "timeline",
+  "title": "Customer Journey Timeline",
+  "position": { "x": 0, "y": 10, "w": 12, "h": 4 },
+  
+  "config": {
+    "orientation": "horizontal",  // "horizontal", "vertical"
+    "groupBy": "leadId",         // Group events by field
+    
+    // Event Configuration
+    "events": {
+      "startField": "startDate",
+      "endField": "endDate",      // Optional for duration events
+      "titleField": "eventName",
+      "descriptionField": "description",
+      "typeField": "eventType",
+      "colorField": "status"
+    },
+    
+    // Visual Settings
+    "showToday": true,
+    "showWeekends": true,
+    "stackItems": true,
+    "itemHeight": 30,
+    "margin": {
+      "item": 10,
+      "axis": 50
+    },
+    
+    // Time Configuration
+    "timeAxis": {
+      "scale": "days",           // "hours", "days", "weeks", "months"
+      "format": "MMM DD",
+      "minZoom": 86400000,       // 1 day in ms
+      "maxZoom": 31536000000     // 1 year in ms
+    },
+    
+    // Interaction
+    "selectable": true,
+    "editable": false,
+    "zoomable": true,
+    "moveable": true,
+    
+    // Event Types
+    "eventTypes": {
+      "call": {
+        "color": "#3B82F6",
+        "icon": "phone"
+      },
+      "email": {
+        "color": "#8B5CF6",
+        "icon": "mail"
+      },
+      "meeting": {
+        "color": "#10B981",
+        "icon": "calendar"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 3. Data Source Configurations
+
+### 3.1 Table Data Source
+Direct database table access.
+
+```json
+{
+  "id": "leads_source",
+  "type": "table",
+  "name": "Leads Data",
+  
+  "config": {
+    "table": "Leads",            // Table name
+    "schema": "public",          // Optional: Database schema
+    
+    // Available Fields
+    "fields": [
+      "id",
+      "firstName",
+      "lastName",
+      "email",
+      "phone",
+      "source",
+      "status",
+      "revenue",
+      "createdAt",
+      "updatedAt"
+    ],
+    
+    // Joins Configuration
+    "joins": [
+      {
+        "type": "LEFT",          // "INNER", "LEFT", "RIGHT"
+        "table": "CallLogs",
+        "alias": "calls",
+        "on": "Leads.id = calls.leadId",
+        "fields": ["duration", "status as callStatus"]
+      },
+      {
+        "type": "LEFT",
+        "table": "LeadTags",
+        "alias": "tags",
+        "on": "Leads.id = tags.leadId",
+        "fields": ["tagName"]
+      }
+    ],
+    
+    // Default Filters
+    "filters": {
+      "isActive": {
+        "operator": "eq",
+        "value": true
+      },
+      "tenantId": {
+        "operator": "eq",
+        "value": "{context.tenantId}"  // Variable substitution
+      }
+    },
+    
+    // Calculated Fields
+    "calculatedFields": [
+      {
+        "name": "fullName",
+        "expression": "CONCAT(firstName, ' ', lastName)"
+      },
+      {
+        "name": "daysOpen",
+        "expression": "DATEDIFF(NOW(), createdAt)"
+      },
+      {
+        "name": "revenueCategory",
+        "expression": "CASE WHEN revenue > 10000 THEN 'High' WHEN revenue > 5000 THEN 'Medium' ELSE 'Low' END"
+      }
+    ],
+    
+    // Security
+    "permissions": {
+      "rowLevel": {
+        "enabled": true,
+        "field": "assignedTo",
+        "value": "{context.userId}"
+      },
+      "columnLevel": {
+        "hidden": ["ssn", "internalNotes"],
+        "masked": ["phone", "email"]  // Show partially masked
+      }
+    }
+  }
+}
+```
+
+### 3.2 Query Data Source
+Custom SQL queries.
+
+```json
+{
+  "id": "custom_metrics",
+  "type": "query",
+  "name": "Custom Metrics Query",
+  
+  "config": {
+    "sql": `
+      SELECT 
+        DATE_TRUNC('day', created_at) as date,
+        source,
+        COUNT(*) as lead_count,
+        COUNT(CASE WHEN status = 'converted' THEN 1 END) as conversions,
+        AVG(revenue) as avg_revenue,
+        SUM(revenue) as total_revenue
+      FROM leads
+      WHERE 
+        tenant_id = :tenantId
+        AND created_at BETWEEN :startDate AND :endDate
+        {{#if sources}}
+          AND source IN (:sources)
+        {{/if}}
+      GROUP BY DATE_TRUNC('day', created_at), source
+      ORDER BY date DESC
+    `,
+    
+    // Parameter Definitions
+    "parameters": [
+      {
+        "name": "tenantId",
+        "type": "string",
+        "required": true,
+        "default": "{context.tenantId}"
+      },
+      {
+        "name": "startDate",
+        "type": "date",
+        "required": true,
+        "default": "{filter.startDate}"
+      },
+      {
+        "name": "endDate",
+        "type": "date",
+        "required": true,
+        "default": "{filter.endDate}"
+      },
+      {
+        "name": "sources",
+        "type": "array",
+        "required": false,
+        "default": "{filter.sources}"
+      }
+    ],
+    
+    // Query Validation
+    "validation": {
+      "maxExecutionTime": 30000,  // 30 seconds
+      "maxRows": 10000,
+      "allowedStatements": ["SELECT"],
+      "forbiddenKeywords": ["DROP", "DELETE", "UPDATE", "INSERT"]
+    }
+  }
+}
+```
+
+### 3.3 API Data Source
+External API integration.
+
+```json
+{
+  "id": "external_api",
+  "type": "api",
+  "name": "External CRM API",
+  
+  "config": {
+    "endpoint": "https://api.example.com/v1/metrics",
+    "method": "POST",
+    
+    // Authentication
+    "auth": {
+      "type": "bearer",          // "bearer", "basic", "apikey", "oauth2"
+      "token": "{env.API_TOKEN}"
+    },
+    
+    // Headers
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Tenant-ID": "{context.tenantId}"
+    },
+    
+    // Request Body
+    "body": {
+      "startDate": "{filter.startDate}",
+      "endDate": "{filter.endDate}",
+      "metrics": ["revenue", "leads", "conversions"],
+      "groupBy": "day"
+    },
+    
+    // Response Mapping
+    "responseMapping": {
+      "data": "$.data.metrics",   // JSONPath to data array
+      "total": "$.data.total",
+      "fields": {
+        "date": "$.timestamp",
+        "revenue": "$.values.revenue",
+        "leads": "$.values.lead_count"
+      }
+    },
+    
+    // Error Handling
+    "retry": {
+      "attempts": 3,
+      "delay": 1000,
+      "backoff": "exponential"
+    },
+    
+    // Caching
+    "cache": {
+      "enabled": true,
+      "ttl": 300,                // 5 minutes
+      "key": "api_{endpoint}_{params}"
+    }
+  }
+}
+```
+
+---
+
+## 4. Report Template Configurations
+
+Pre-defined report templates with specific configurations.
+
+```json
+{
+  "name": "Weekly Sales Report",
+  "type": "agent_performance",
+  
+  "config": {
+    // Metrics to Include
+    "metrics": [
+      "totalCalls",
+      "completedCalls",
+      "avgCallDuration",
+      "conversionRate",
+      "revenue",
+      "customerSatisfaction"
+    ],
+    
+    // Grouping Options
+    "groupBy": ["agent", "team", "day"],
+    
+    // Default Filters
+    "filters": {
+      "dateRange": "last_7_days",
+      "minCalls": 10,
+      "agentStatus": "active"
+    },
+    
+    // Chart Preferences
+    "charts": {
+      "primary": {
+        "type": "line",
+        "metric": "conversionRate",
+        "comparison": "previous_week"
+      },
+      "secondary": [
+        {
+          "type": "bar",
+          "metric": "totalCalls",
+          "groupBy": "agent"
+        },
+        {
+          "type": "pie",
+          "metric": "revenue",
+          "groupBy": "source"
+        }
+      ]
+    },
+    
+    // Summary Statistics
+    "summary": {
+      "show": true,
+      "metrics": [
+        {
+          "metric": "totalCalls",
+          "aggregation": "sum",
+          "comparison": "previous_period"
+        },
+        {
+          "metric": "conversionRate",
+          "aggregation": "avg",
+          "target": 15
+        }
+      ]
+    },
+    
+    // Automated Insights
+    "insights": {
+      "enabled": true,
+      "types": [
+        "top_performers",
+        "biggest_changes",
+        "anomalies",
+        "trends",
+        "recommendations"
+      ]
+    },
+    
+    // Distribution Settings
+    "schedule": {
+      "enabled": true,
+      "frequency": "weekly",     // "daily", "weekly", "monthly"
+      "dayOfWeek": 1,           // Monday
+      "time": "09:00",
+      "timezone": "America/New_York",
+      "recipients": [
+        {
+          "email": "manager@example.com",
+          "format": "pdf",
+          "sections": ["summary", "charts"]
+        },
+        {
+          "email": "team@example.com",
+          "format": "excel",
+          "sections": ["all"]
+        }
+      ]
+    }
+  }
+}
+```
+
+---
+
+## 5. Dashboard Configuration
+
+Main dashboard layout and widget arrangement.
+
+```json
+{
+  "name": "Operations Dashboard",
+  "layout": [
+    {
+      "widgetId": "live_calls",
+      "type": "metric",
+      "position": { "x": 0, "y": 0, "w": 3, "h": 2 },
+      "config": {
+        "dataSource": "realtime",
+        "metric": "activeCalls",
+        "refreshInterval": 5
+      }
+    },
+    {
+      "widgetId": "agent_status",
+      "type": "chart",
+      "position": { "x": 3, "y": 0, "w": 6, "h": 3 },
+      "config": {
+        "type": "donut",
+        "dataSource": "realtime",
+        "metric": "agentStatus"
+      }
+    },
+    {
+      "widgetId": "call_queue",
+      "type": "table",
+      "position": { "x": 9, "y": 0, "w": 3, "h": 3 },
+      "config": {
+        "dataSource": "realtime",
+        "entity": "callQueue",
+        "columns": ["caller", "waitTime", "priority"],
+        "pageSize": 5
+      }
+    }
+  ],
+  
+  "theme": {
+    "mode": "light",
+    "primaryColor": "#3B82F6",
+    "darkMode": {
+      "auto": true,              // Follow system preference
+      "schedule": {
+        "enabled": false,
+        "start": "18:00",
+        "end": "06:00"
+      }
+    }
+  },
+  
+  "refreshInterval": 30,         // Global refresh in seconds
+  
+  "alerts": {
+    "enabled": true,
+    "rules": [
+      {
+        "id": "high_wait_time",
+        "condition": "avgWaitTime > 300",
+        "severity": "warning",
+        "message": "Average wait time exceeds 5 minutes",
+        "actions": ["notify", "email"]
+      },
+      {
+        "id": "no_agents",
+        "condition": "availableAgents === 0",
+        "severity": "critical",
+        "message": "No agents available",
+        "actions": ["notify", "sms", "email"]
+      }
+    ]
+  },
+  
+  "permissions": {
+    "viewRealtime": ["admin", "manager", "supervisor"],
+    "editLayout": ["admin", "manager"],
+    "viewFinancial": ["admin", "manager"],
+    "exportData": ["admin", "manager", "agent"]
+  }
+}
+```
+
+---
+
+## 6. Critical Reports Parameters
+
+### 6.1 Executive Dashboard Report
+```json
+{
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31",
+  
+  // Optional Parameters
+  "revenueTarget": 100000,       // For KPI calculations
+  "csat": 4.5,                  // Customer satisfaction score
+  "includeProjections": true,    // Include future projections
+  "comparePeriod": "previous",   // "previous", "year_ago", "custom"
+  
+  // Sections to Include
+  "sections": {
+    "summary": true,
+    "kpis": true,
+    "trends": true,
+    "topPerformers": true,
+    "alerts": true
+  },
+  
+  // Grouping Preferences
+  "groupBy": {
+    "revenue": "source",         // "source", "channel", "campaign"
+    "leads": "status",          // "status", "source", "agent"
+    "time": "day"               // "hour", "day", "week", "month"
+  },
+  
+  // Filters
+  "filters": {
+    "sources": ["Google Ads", "Facebook"],
+    "excludeTest": true,
+    "minRevenue": 100
+  }
+}
+```
+
+### 6.2 Lead Performance Report
+```json
+{
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31",
+  
+  // Analysis Options
+  "analysis": {
+    "funnel": true,              // Include conversion funnel
+    "cohort": true,              // Include cohort analysis
+    "attribution": true,         // Include attribution analysis
+    "segmentation": true         // Include lead segmentation
+  },
+  
+  // Funnel Configuration
+  "funnel": {
+    "stages": ["new", "contacted", "qualified", "proposal", "negotiation", "converted"],
+    "timeframe": "days",         // Track time between stages
+    "showDropoff": true,
+    "showConversionRate": true
+  },
+  
+  // Source Analysis
+  "sourceAnalysis": {
+    "metrics": ["volume", "quality", "velocity", "value"],
+    "compareEnabled": true,
+    "includeCost": true,
+    "includeROI": true
+  },
+  
+  // Response Metrics
+  "responseMetrics": {
+    "calculate": true,
+    "thresholds": {
+      "fast": 3600,              // 1 hour in seconds
+      "medium": 86400,           // 24 hours
+      "slow": 259200             // 72 hours
+    }
+  },
+  
+  // Filtering
+  "filters": {
+    "sources": [],               // Empty = all sources
+    "tags": ["hot", "warm"],
+    "assignedTo": [],
+    "customFields": {
+      "industry": ["technology", "healthcare"],
+      "company_size": ["enterprise"]
+    }
+  }
+}
+```
+
+### 6.3 Financial Performance Report
+```json
+{
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31",
+  
+  // Financial Metrics
+  "metrics": {
+    "revenue": {
+      "include": true,
+      "breakdown": ["gross", "net", "recurring", "one-time"]
+    },
+    "costs": {
+      "include": true,
+      "categories": ["marketing", "sales", "operations"]
+    },
+    "profitability": {
+      "include": true,
+      "margins": true,
+      "breakeven": true
+    }
+  },
+  
+  // ROI Calculations
+  "roi": {
+    "method": "simple",          // "simple", "complex", "attributed"
+    "includeLifetime": true,
+    "attributionWindow": 30,     // Days
+    "includeIndirect": false
+  },
+  
+  // Grouping Options
+  "groupBy": "source",           // "source", "channel", "campaign", "product"
+  "secondaryGroupBy": "month",   // Optional second dimension
+  
+  // Comparative Analysis
+  "comparison": {
+    "enabled": true,
+    "periods": [
+      {
+        "type": "previous_period",
+        "label": "Previous Month"
+      },
+      {
+        "type": "year_over_year",
+        "label": "Same Period Last Year"
+      }
+    ]
+  },
+  
+  // Forecasting
+  "forecast": {
+    "enabled": true,
+    "periods": 3,                // Number of periods to forecast
+    "method": "linear",          // "linear", "exponential", "seasonal"
+    "confidence": 0.95
+  },
+  
+  // Budget Analysis
+  "budget": {
+    "include": true,
+    "data": {
+      "marketing": 50000,
+      "sales": 30000,
+      "total": 100000
+    },
+    "trackVariance": true
+  }
+}
+```
+
+---
+
+## Variable Substitution
+
+Variables can be used in configurations using the `{variable}` syntax:
+
+### Context Variables
+- `{context.tenantId}` - Current tenant ID
+- `{context.userId}` - Current user ID
+- `{context.userRole}` - Current user role
+- `{context.timezone}` - User's timezone
+
+### Filter Variables
+- `{filter.startDate}` - Selected start date
+- `{filter.endDate}` - Selected end date
+- `{filter.dateRange}` - Selected date range preset
+- `{filter.[filterName]}` - Any custom filter value
+
+### Environment Variables
+- `{env.API_KEY}` - Environment variables
+- `{env.BASE_URL}` - Base URL configuration
+
+### System Variables
+- `{system.currentDate}` - Current date
+- `{system.currentTime}` - Current time
+- `{system.timestamp}` - Current timestamp
+
+### Widget Variables
+- `{widget.value}` - Current widget value
+- `{widget.selection}` - Selected items in widget
+
+---
+
+## Best Practices
+
+1. **Performance Optimization**
+   - Limit data queries to necessary fields
+   - Use appropriate aggregations
+   - Set reasonable limits on table widgets
+   - Enable caching for expensive queries
+
+2. **User Experience**
+   - Keep dashboards focused (5-7 widgets max)
+   - Use consistent color schemes
+   - Provide clear titles and descriptions
+   - Enable appropriate interactions
+
+3. **Data Security**
+   - Always include tenant filtering
+   - Use row-level security when needed
+   - Mask sensitive data appropriately
+   - Validate all user inputs
+
+4. **Maintenance**
+   - Version your report configurations
+   - Document custom queries
+   - Test with various data volumes
+   - Monitor query performance

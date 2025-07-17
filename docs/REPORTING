@@ -1,0 +1,503 @@
+Critical Reports
+1. Executive Dashboard Report
+Get high-level KPIs and business metrics overview.
+Endpoint: POST /reports/executive-dashboard
+Request Body:
+json{
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31",
+  "revenueTarget": 100000,  // Optional: for KPI achievement calculation
+  "csat": 4.5               // Optional: customer satisfaction score
+}
+Response:
+json{
+  "summary": {
+    "dateRange": "2024-01-01 to 2024-01-31",
+    "totalRevenue": 85000,
+    "revenueTrend": "+15.5",
+    "totalLeads": 450,
+    "leadsTrend": "+8.2",
+    "conversionRate": "12.5",
+    "avgLeadValue": 188.89,
+    "totalCalls": 1250,
+    "avgCallDuration": 245,
+    "activeJourneys": 78,
+    "journeySuccessRate": "65.4"
+  },
+  "kpis": {
+    "revenue": {
+      "current": 85000,
+      "target": 100000,
+      "achievement": 85
+    },
+    "leads": {
+      "current": 450,
+      "qualified": 180,
+      "converted": 56,
+      "conversionRate": "12.5"
+    },
+    "operations": {
+      "callsHandled": 1250,
+      "avgResponseTime": 15.5,
+      "firstCallResolution": 78,
+      "customerSatisfaction": 4.5
+    }
+  },
+  "revenueBySource": {
+    "Google Ads": 35000,
+    "Facebook": 28000,
+    "Direct": 22000
+  },
+  "leadsBySource": {
+    "Google Ads": {
+      "total": 180,
+      "qualified": 90,
+      "converted": 28
+    }
+  },
+  "topAgents": [
+    {
+      "agentId": 1,
+      "name": "John Doe",
+      "callCount": 150,
+      "avgDuration": "3.5"
+    }
+  ],
+  "dailyTrends": [
+    {
+      "date": "2024-01-01",
+      "leads": 15,
+      "conversions": 2
+    }
+  ]
+}
+2. Lead Performance Report
+Comprehensive lead funnel and source performance analysis.
+Endpoint: POST /reports/lead-performance
+Request Body:
+json{
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31",
+  "sources": ["Google Ads", "Facebook"],  // Optional: filter by sources
+  "tags": ["hot", "warm"],               // Optional: filter by tags
+  "groupBy": "source"                    // Optional: source, campaign, channel
+}
+Response:
+json{
+  "summary": {
+    "totalLeads": 450,
+    "qualifiedLeads": 180,
+    "convertedLeads": 56,
+    "conversionRate": "12.5",
+    "avgResponseTime": "2.5 hours",
+    "avgTimeToConvert": "5.2 days"
+  },
+  "funnel": [
+    {
+      "stage": "new",
+      "count": 450,
+      "percentage": "100"
+    },
+    {
+      "stage": "contacted",
+      "count": 380,
+      "percentage": "84.4"
+    },
+    {
+      "stage": "qualified",
+      "count": 180,
+      "percentage": "40"
+    },
+    {
+      "stage": "converted",
+      "count": 56,
+      "percentage": "12.5"
+    }
+  ],
+  "sourceAnalysis": [
+    {
+      "source": "Google Ads",
+      "totalLeads": 180,
+      "qualifiedLeads": 90,
+      "convertedLeads": 28,
+      "conversionRate": "15.6",
+      "roi": "325",
+      "costPerLead": "45.50"
+    }
+  ],
+  "conversionPaths": [
+    {
+      "journey": "Welcome Series",
+      "conversions": 25
+    }
+  ],
+  "responseMetrics": {
+    "avgResponseTime": "2.5 hours",
+    "avgTimeToConvert": "5.2 days"
+  },
+  "dailyTrends": [...]
+}
+3. Financial Performance Report
+Revenue, costs, and ROI analysis by source.
+Endpoint: POST /reports/financial-performance
+Request Body:
+json{
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31",
+  "groupBy": "source"  // Options: source, channel, campaign
+}
+Response:
+json{
+  "summary": {
+    "totalRevenue": 85000,
+    "totalCost": 15000,
+    "totalProfit": 70000,
+    "overallROI": "466.67",
+    "avgCustomerLifetimeValue": 850,
+    "totalLeads": 450,
+    "totalConversions": 56
+  },
+  "breakdown": [
+    {
+      "source": "Google Ads",
+      "revenue": 35000,
+      "cost": 8000,
+      "profit": 27000,
+      "roi": 337.5,
+      "leads": 180,
+      "conversions": 28,
+      "costPerLead": 44.44,
+      "revenuePerLead": 194.44,
+      "costPerConversion": 285.71,
+      "conversionRate": "15.6"
+    }
+  ],
+  "lifetimeValue": {
+    "average": "850.00",
+    "maximum": "5500.00",
+    "minimum": "125.00"
+  },
+  "dailyTrends": [...],
+  "topPerformers": [...],
+  "costAnalysis": {
+    "byChannel": [...],
+    "byCampaign": [...]
+  }
+}
+Custom Report Builder
+4. Create Custom Report
+Create a new custom report with drag-and-drop widgets.
+Endpoint: POST /report-builders
+Request Body:
+json{
+  "name": "Sales Dashboard",
+  "description": "Monthly sales performance tracking",
+  "layout": {
+    "type": "grid",
+    "columns": 12,
+    "rows": "auto",
+    "gap": 16,
+    "responsive": true
+  },
+  "theme": {
+    "primaryColor": "#3B82F6",
+    "backgroundColor": "#FFFFFF",
+    "textColor": "#1F2937"
+  },
+  "dataSources": [
+    {
+      "id": "ds1",
+      "type": "table",
+      "table": "Leads",
+      "fields": ["id", "source", "status", "createdAt"],
+      "filters": {
+        "status": {
+          "operator": "in",
+          "value": ["qualified", "converted"]
+        }
+      }
+    }
+  ],
+  "widgets": [
+    {
+      "type": "metric",
+      "title": "Total Leads",
+      "position": { "x": 0, "y": 0, "w": 3, "h": 2 },
+      "dataSource": {
+        "sourceId": "ds1",
+        "aggregation": "count",
+        "groupBy": []
+      },
+      "config": {
+        "format": "number",
+        "prefix": "",
+        "suffix": " leads"
+      }
+    },
+    {
+      "type": "chart",
+      "title": "Leads by Source",
+      "position": { "x": 3, "y": 0, "w": 6, "h": 4 },
+      "dataSource": {
+        "sourceId": "ds1",
+        "aggregation": "count",
+        "groupBy": ["source"]
+      },
+      "config": {
+        "type": "bar",
+        "xAxis": "source",
+        "yAxis": "count"
+      }
+    }
+  ],
+  "refreshInterval": 300,  // 5 minutes
+  "isPublic": false,
+  "tags": ["sales", "monthly"]
+}
+Response:
+json{
+  "id": 123,
+  "name": "Sales Dashboard",
+  "publicToken": null,
+  "widgets": [...],
+  "createdAt": "2024-01-15T10:00:00Z"
+}
+5. Execute Custom Report
+Run a custom report and get the data.
+Endpoint: POST /report-builders/{reportId}/execute
+Request Body:
+json{
+  "startDate": "2024-01-01",
+  "endDate": "2024-01-31",
+  "filters": {
+    "source": "Google Ads"
+  }
+}
+Response:
+json{
+  "id": 456,
+  "reportBuilderId": 123,
+  "status": "completed",
+  "results": {
+    "report": {
+      "id": 123,
+      "name": "Sales Dashboard",
+      "layout": {...},
+      "theme": {...}
+    },
+    "widgets": [
+      {
+        "widgetId": 1,
+        "type": "metric",
+        "title": "Total Leads",
+        "position": {...},
+        "data": {
+          "value": 180,
+          "data": { "count": 180 }
+        }
+      },
+      {
+        "widgetId": 2,
+        "type": "chart",
+        "title": "Leads by Source",
+        "data": {
+          "labels": ["Google Ads", "Facebook", "Direct"],
+          "datasets": [{
+            "label": "Leads",
+            "data": [180, 120, 150]
+          }]
+        }
+      }
+    ],
+    "executedAt": "2024-01-15T10:30:00Z"
+  },
+  "executionTime": 245
+}
+6. Add Widget to Report
+Add a new widget to an existing report.
+Endpoint: POST /report-builders/{reportId}/widgets
+Request Body:
+json{
+  "type": "table",
+  "title": "Lead Details",
+  "position": { "x": 0, "y": 4, "w": 12, "h": 6 },
+  "dataSource": {
+    "sourceId": "ds1",
+    "limit": 50,
+    "orderBy": [
+      { "field": "createdAt", "direction": "DESC" }
+    ]
+  },
+  "config": {
+    "columns": [
+      { "field": "id", "label": "ID", "width": 80 },
+      { "field": "firstName", "label": "First Name" },
+      { "field": "lastName", "label": "Last Name" },
+      { "field": "source", "label": "Source" },
+      { "field": "status", "label": "Status" }
+    ],
+    "pageSize": 10,
+    "sortable": true
+  }
+}
+Report Management
+7. List Available Reports
+Get all available reports (both templates and custom).
+Endpoint: GET /report-builders
+Response:
+json[
+  {
+    "id": 123,
+    "name": "Sales Dashboard",
+    "description": "Monthly sales tracking",
+    "tags": ["sales", "monthly"],
+    "createdAt": "2024-01-01T10:00:00Z",
+    "widgets": [...]
+  }
+]
+8. Clone Report
+Create a copy of an existing report.
+Endpoint: POST /report-builders/{reportId}/clone
+Request Body:
+json{
+  "name": "Sales Dashboard - Q2"
+}
+9. Share Report
+Share a report with specific permissions.
+Endpoint: POST /report-builders/{reportId}/share
+Request Body:
+json{
+  "sharedWith": 456,  // User ID, or null for public link
+  "permissions": {
+    "view": true,
+    "edit": false,
+    "delete": false,
+    "share": false
+  },
+  "expiresAt": "2024-02-15T00:00:00Z"  // Optional
+}
+Response:
+json{
+  "collaboration": {
+    "id": 789,
+    "shareToken": "abc123def456...",
+    "permissions": {...}
+  },
+  "shareUrl": "/reports/shared/abc123def456..."
+}
+Dashboard Management
+10. Get Live Dashboard Stats
+Get real-time dashboard statistics.
+Endpoint: GET /dashboard/live-stats
+Response:
+json{
+  "activeCalls": 5,
+  "waitingCalls": 2,
+  "availableAgents": 8,
+  "busyAgents": 5,
+  "todaysCalls": 125,
+  "todaysSms": 340,
+  "todaysLeads": 45,
+  "activeJourneys": 78,
+  "leadConversionRate": 12.5,
+  "avgResponseTime": "15.5",
+  "lastUpdated": "2024-01-15T10:30:00Z"
+}
+11. Save Dashboard Configuration
+Save user's dashboard layout and preferences.
+Endpoint: POST /dashboard/config
+Request Body:
+json{
+  "layout": [
+    {
+      "widgetId": "live-stats",
+      "position": { "x": 0, "y": 0, "w": 12, "h": 4 }
+    },
+    {
+      "widgetId": "revenue-chart",
+      "position": { "x": 0, "y": 4, "w": 6, "h": 4 }
+    }
+  ],
+  "theme": {
+    "mode": "dark",
+    "primaryColor": "#3B82F6"
+  },
+  "refreshInterval": 30
+}
+Financial Tracking
+12. Record Financial Transaction
+Record a financial transaction for ROI tracking.
+Endpoint: POST /financial/transaction
+Request Body:
+json{
+  "leadId": 123,
+  "source": "Google Ads",
+  "type": "revenue",  // Options: revenue, cost, refund, adjustment
+  "amount": 500.00,
+  "description": "Product purchase",
+  "relatedId": "ORD-12345",
+  "metadata": {
+    "product": "Premium Package",
+    "paymentMethod": "credit_card"
+  }
+}
+Export Reports
+13. Export Report Data
+Export report data in various formats.
+Endpoint: POST /reports/export
+Request Body:
+json{
+  "reportData": {
+    "summary": {...},
+    "data": [...]
+  },
+  "format": "excel",  // Options: csv, excel, pdf
+  "filename": "sales_report_jan_2024"
+}
+Response: File download
+Utility Endpoints
+14. Get Available Data Sources
+Get list of available data sources for report building.
+Endpoint: GET /report-builders/data-sources/available
+Response:
+json[
+  {
+    "id": "leads",
+    "name": "Leads",
+    "type": "table",
+    "schema": {
+      "id": { "type": "number", "label": "ID" },
+      "firstName": { "type": "string", "label": "First Name" },
+      "status": { "type": "string", "label": "Status" }
+    }
+  },
+  {
+    "id": "financial_metrics",
+    "name": "Financial Metrics",
+    "type": "table",
+    "schema": {
+      "revenue": { "type": "number", "label": "Revenue" },
+      "cost": { "type": "number", "label": "Cost" },
+      "roi": { "type": "number", "label": "ROI %" }
+    }
+  }
+]
+15. Get Critical Reports List
+Get list of available pre-built critical reports.
+Endpoint: GET /reports/critical
+Response:
+json[
+  {
+    "id": "executive-dashboard",
+    "name": "Executive Dashboard",
+    "description": "High-level KPIs and business metrics overview",
+    "category": "executive",
+    "estimatedTime": "2 min",
+    "metrics": ["Revenue", "Conversion Rate", "Active Leads", "ROI"]
+  }
+]
+Error Responses
+All endpoints return standard error responses:
+json{
+  "error": "Error message description"
+}

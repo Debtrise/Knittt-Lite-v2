@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import { DevAuthProvider } from './components/DevAuthProvider';
+import { LoadingProvider } from './providers/LoadingProvider';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -50,9 +51,11 @@ export default function RootLayout({
       </head>
       <body className={`antialiased ${inter.className}`}>
         <Toaster position="top-right" />
-        <DevAuthProvider>
-          {children}
-        </DevAuthProvider>
+        <LoadingProvider>
+          <DevAuthProvider>
+            {children}
+          </DevAuthProvider>
+        </LoadingProvider>
       </body>
     </html>
   );

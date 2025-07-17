@@ -28,9 +28,9 @@ import {
   testWebhook 
 } from '@/app/utils/api';
 import api from '@/app/lib/api';
-import { WebhookEndpoint, CreateWebhookParams, UpdateWebhookParams, AnnouncementProject, AnnouncementDisplay, WebhookType, ConditionalRules, ConditionSet, Condition, Action } from '@/app/types/webhook';
+import { WebhookEndpoint, CreateWebhookParams, UpdateWebhookParams, AnnouncementProject, AnnouncementDisplay, WebhookType, ConditionalRules, ConditionSet, Condition, Action, CallConfig } from '@/app/types/webhook';
 import { toast } from 'react-hot-toast';
-import { X, Play, Pause, Square, Sparkles, Loader2, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, Play, Pause, Square, Sparkles, Loader2, RefreshCw, CheckCircle, AlertCircle, Phone } from 'lucide-react';
 import { Textarea } from '@/app/components/ui/textarea';
 import { Badge } from '@/app/components/ui/badge';
 import { useAuthStore } from '@/app/store/authStore';
@@ -142,6 +142,18 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
         tag: 'web-lead',
       },
     ],
+    callConfig: {
+      enabled: false,
+      dialerContext: 'BDS_Prime_Dialer',
+      transferNumber: '',
+      maxAttempts: 3,
+      delayBetweenCalls: 300,
+      amd: false,
+      playPosition: false,
+      skipPositionAnnouncement: true,
+      ivrFile: '',
+      recordingId: undefined
+    },
     pauseResumeConfig: {
       enabled: false,
       resumeConditions: {
@@ -319,7 +331,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
   };
 
   // Fetch configuration options based on webhook type
-  const fetchConfigOptions = async (webhookType: 'go' | 'pause' | 'stop' | 'announcement') => {
+  const fetchConfigOptions = async (webhookType: WebhookType) => {
     try {
       const response = await getWebhookConfigOptions(webhookType);
       console.log('Config options for', webhookType, ':', response);
@@ -679,6 +691,18 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
             }
           }
         },
+        callConfig: webhook.callConfig || {
+          enabled: false,
+          dialerContext: 'BDS_Prime_Dialer',
+          transferNumber: '',
+          maxAttempts: 3,
+          delayBetweenCalls: 300,
+          amd: false,
+          playPosition: false,
+          skipPositionAnnouncement: true,
+          ivrFile: '',
+          recordingId: undefined
+        },
       });
       
       // Update field mappings for display
@@ -983,7 +1007,6 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm()) return;
     
     try {
       setSaving(true);
@@ -1030,7 +1053,8 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
                 : undefined
             }
           }
-        } : undefined
+        } : undefined,
+        callConfig: formData.webhookType === 'call' ? formData.callConfig : undefined
       };
 
       console.log('Submitting webhook with payload:', payload);
@@ -1139,6 +1163,41 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
           setCurrentStep(2);
           return false;
         }
+      }
+    }
+
+    // Validate call configuration
+    if (formData.webhookType === 'call') {
+      if (!formData.callConfig?.dialerContext) {
+        toast.error('Dialer context is required');
+        setCurrentStep(2);
+        return false;
+      }
+
+      if (!formData.callConfig?.transferNumber) {
+        toast.error('Transfer number is required');
+        setCurrentStep(2);
+        return false;
+      }
+
+      // Validate phone number format
+      const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+      if (!phoneRegex.test(formData.callConfig.transferNumber.replace(/\D/g, ''))) {
+        toast.error('Invalid transfer number format');
+        setCurrentStep(2);
+        return false;
+      }
+
+      if (formData.callConfig.maxAttempts < 1 || formData.callConfig.maxAttempts > 10) {
+        toast.error('Max attempts must be between 1 and 10');
+        setCurrentStep(2);
+        return false;
+      }
+
+      if (formData.callConfig.delayBetweenCalls < 60 || formData.callConfig.delayBetweenCalls > 3600) {
+        toast.error('Delay between calls must be between 60 and 3600 seconds');
+        setCurrentStep(2);
+        return false;
       }
     }
     
@@ -1599,7 +1658,19 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
             immediate: true
           }
         }
-      } : prev.announcementConfig
+      } : prev.announcementConfig,
+      callConfig: type === 'call' ? {
+        enabled: true,
+        dialerContext: 'BDS_Prime_Dialer',
+        transferNumber: '',
+        maxAttempts: 3,
+        delayBetweenCalls: 300,
+        amd: false,
+        playPosition: false,
+        skipPositionAnnouncement: true,
+        ivrFile: '',
+        recordingId: undefined
+      } : prev.callConfig
     }));
   };
 
@@ -1803,7 +1874,7 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div
             className={`p-6 rounded-lg border-2 cursor-pointer transition-all ${
               formData.webhookType === 'go'
@@ -1869,6 +1940,23 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
             </div>
             <p className="text-sm text-muted-foreground">
               Generate content and trigger screen takeovers
+            </p>
+          </div>
+
+          <div
+            className={`p-6 rounded-lg border-2 cursor-pointer transition-all ${
+              formData.webhookType === 'call'
+                ? 'border-primary bg-primary/5'
+                : 'border-border hover:border-primary/50'
+            }`}
+            onClick={() => handleWebhookTypeChange('call')}
+          >
+            <div className="flex items-center space-x-2 mb-2">
+              <Phone className="h-5 w-5 text-primary" />
+              <h3 className="font-medium">Call</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Initiate outbound calls to leads
             </p>
           </div>
         </div>
@@ -2921,6 +3009,190 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
             </div>
           </div>
         )}
+
+        {formData.webhookType === 'call' && (
+          <div className="mt-6 space-y-6">
+            <div className="space-y-4">
+              <h3 className="font-medium">Call Configuration</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label>Dialer Context</Label>
+                  <Input
+                    value={formData.callConfig?.dialerContext || ''}
+                    onChange={(e) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        callConfig: {
+                          ...prev.callConfig!,
+                          dialerContext: e.target.value
+                        }
+                      }))
+                    }
+                    placeholder="BDS_Prime_Dialer"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Asterisk context for call routing
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Transfer Number</Label>
+                  <Input
+                    value={formData.callConfig?.transferNumber || ''}
+                    onChange={(e) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        callConfig: {
+                          ...prev.callConfig!,
+                          transferNumber: e.target.value
+                        }
+                      }))
+                    }
+                    placeholder="18005551234"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Number to transfer calls to
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Max Call Attempts</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={formData.callConfig?.maxAttempts || 3}
+                    onChange={(e) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        callConfig: {
+                          ...prev.callConfig!,
+                          maxAttempts: parseInt(e.target.value)
+                        }
+                      }))
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Number of call attempts (1-10)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Delay Between Calls (seconds)</Label>
+                  <Input
+                    type="number"
+                    min={60}
+                    max={3600}
+                    value={formData.callConfig?.delayBetweenCalls || 300}
+                    onChange={(e) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        callConfig: {
+                          ...prev.callConfig!,
+                          delayBetweenCalls: parseInt(e.target.value)
+                        }
+                      }))
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Time to wait between attempts (1-60 minutes)
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="font-medium">Advanced Settings</h4>
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="amd"
+                      checked={formData.callConfig?.amd || false}
+                      onCheckedChange={(checked) =>
+                        setFormData(prev => ({
+                          ...prev,
+                          callConfig: {
+                            ...prev.callConfig!,
+                            amd: !!checked
+                          }
+                        }))
+                      }
+                    />
+                    <Label htmlFor="amd">Enable Answering Machine Detection</Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="playPosition"
+                      checked={formData.callConfig?.playPosition || false}
+                      onCheckedChange={(checked) =>
+                        setFormData(prev => ({
+                          ...prev,
+                          callConfig: {
+                            ...prev.callConfig!,
+                            playPosition: !!checked
+                          }
+                        }))
+                      }
+                    />
+                    <Label htmlFor="playPosition">Play Position in Queue</Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="skipPositionAnnouncement"
+                      checked={formData.callConfig?.skipPositionAnnouncement || false}
+                      onCheckedChange={(checked) =>
+                        setFormData(prev => ({
+                          ...prev,
+                          callConfig: {
+                            ...prev.callConfig!,
+                            skipPositionAnnouncement: !!checked
+                          }
+                        }))
+                      }
+                    />
+                    <Label htmlFor="skipPositionAnnouncement">Skip Position Announcement</Label>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>IVR File (Optional)</Label>
+                    <Input
+                      value={formData.callConfig?.ivrFile || ''}
+                      onChange={(e) =>
+                        setFormData(prev => ({
+                          ...prev,
+                          callConfig: {
+                            ...prev.callConfig!,
+                            ivrFile: e.target.value
+                          }
+                        }))
+                      }
+                      placeholder="custom-ivr.wav"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Recording ID (Optional)</Label>
+                    <Input
+                      type="number"
+                      value={formData.callConfig?.recordingId || ''}
+                      onChange={(e) =>
+                        setFormData(prev => ({
+                          ...prev,
+                          callConfig: {
+                            ...prev.callConfig!,
+                            recordingId: e.target.value ? parseInt(e.target.value) : undefined
+                          }
+                        }))
+                      }
+                      placeholder="12345"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -3856,6 +4128,18 @@ export default function WebhookForm({ webhookId, isEdit = false, onSuccess }: We
           deal_amount: "$50,000",
           company_name: "Acme Corp",
           achievement_type: "deal_closed"
+        };
+        break;
+
+      case 'call':
+        samplePayload = {
+          phone: "+1234567890",
+          name: "John Doe",
+          email: "john@example.com",
+          brand: formData.brand || "Sample Brand",
+          source: formData.source || "Website",
+          priority: "high",
+          callback_number: formData.callConfig?.transferNumber || "+18005551234"
         };
         break;
     }

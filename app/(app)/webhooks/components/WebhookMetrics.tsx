@@ -28,7 +28,8 @@ import {
   XCircle,
   AlertCircle,
   BarChart3,
-  Activity
+  Activity,
+  Phone
 } from 'lucide-react';
 
 interface WebhookMetricsProps {
@@ -505,6 +506,8 @@ function getWebhookTypeIcon(type: string) {
       return <Square className="h-4 w-4 text-red-500" />;
     case 'announcement':
       return <Sparkles className="h-4 w-4 text-purple-500" />;
+    case 'call':
+      return <Phone className="h-4 w-4 text-orange-500" />;
     default:
       return <Activity className="h-4 w-4" />;
   }

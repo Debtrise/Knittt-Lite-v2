@@ -6,7 +6,8 @@ import toast from 'react-hot-toast';
 import { 
   BarChart, Calendar, PhoneCall, Phone, PhoneForwarded, Clock, Route, Users, CheckCircle, RefreshCw,
   MessageSquare, TrendingUp, FileText, Settings, Download, Play, Pause, Trash2, Edit, Plus,
-  Filter, Search, ChevronDown, ChevronRight, Eye, Mail, Database, PieChart, Activity, BarChart3
+  Filter, Search, ChevronDown, ChevronRight, Eye, Mail, Database, PieChart, Activity, BarChart3,
+  Grid, Palette, Target, DollarSign
 } from 'lucide-react';
 import DashboardLayout from '@/app/components/layout/Dashboard';
 import { Button } from '@/app/components/ui/button';
@@ -68,7 +69,13 @@ import {
   DropdownMenuTrigger,
 } from "@/app/components/ui/dropdown-menu";
 
-type ReportType = 'call-summary' | 'agent-performance' | 'journey-analytics' | 'lead-source-performance' | 'lead-source-comparison' | 'lead-source-realtime' | 'templates';
+// Import new reporting components
+import CriticalReports from '@/app/components/reports/CriticalReports';
+import CustomReportsManager from '@/app/components/reports/CustomReportsManager';
+import FinancialTracker from '@/app/components/reports/FinancialTracker';
+import CustomReportBuilder from '@/app/components/reports/CustomReportBuilder';
+
+type ReportType = 'critical-reports' | 'custom-reports' | 'financial-tracker' | 'call-summary' | 'agent-performance' | 'journey-analytics' | 'lead-source-performance' | 'lead-source-comparison' | 'lead-source-realtime' | 'templates';
 
 interface ReportTemplate {
   id: string;
@@ -121,7 +128,8 @@ export default function ReportsPage() {
   const { isAuthenticated, user } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [reportType, setReportType] = useState<ReportType>('lead-source-realtime');
+  const [reportType, setReportType] = useState<ReportType>('critical-reports');
+  const [journeys, setJourneys] = useState<any[]>([]);
   
   // Dashboard data
   const [dashboardStats, setDashboardStats] = useState<any>(null);
@@ -301,12 +309,34 @@ export default function ReportsPage() {
           });
           break;
         case 'journey-analytics':
-          // ✅ Working endpoint
           data = await generateJourneyAnalyticsReport({
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
             journeyIds: filters.journeyIds
           });
+          if (data?.journeys) {
+            // Ensure each journey has the required nested objects with default values
+            const processedJourneys = data.journeys.map((journey: any) => ({
+              journey: journey.journey || {},
+              enrollments: {
+                totalEnrollments: journey.enrollments?.totalEnrollments || 0,
+                activeEnrollments: journey.enrollments?.activeEnrollments || 0,
+                completedEnrollments: journey.enrollments?.completedEnrollments || 0,
+                exitedEnrollments: journey.enrollments?.exitedEnrollments || 0
+              },
+              conversionRate: journey.conversionRate || '0',
+              conversionFunnel: {
+                uniqueLeads: journey.conversionFunnel?.uniqueLeads || 0,
+                reachedFirstStep: journey.conversionFunnel?.reachedFirstStep || 0,
+                reachedLastStep: journey.conversionFunnel?.reachedLastStep || 0,
+                completed: journey.conversionFunnel?.completed || 0
+              },
+              stepPerformance: journey.stepPerformance || {}
+            }));
+            setJourneys(processedJourneys);
+          } else {
+            setJourneys([]);
+          }
           break;
         case 'lead-source-performance':
           // ⚠️ Known Issue: PostgreSQL date_format compatibility problem
@@ -398,6 +428,7 @@ export default function ReportsPage() {
     } catch (error) {
       console.error('Error generating report:', error);
       toast.error('Failed to generate report');
+      setJourneys([]); // Reset journeys on error
     } finally {
       setIsLoading(false);
     }
@@ -457,6 +488,19 @@ export default function ReportsPage() {
           <DropdownMenuContent className="w-56">
             <DropdownMenuLabel>Report Types</DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleReportTypeChange('critical-reports')}>
+              <Target className="mr-2 h-4 w-4 text-brand" />
+              <span>Critical Reports</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleReportTypeChange('custom-reports')}>
+              <Grid className="mr-2 h-4 w-4 text-brand" />
+              <span>Custom Reports</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleReportTypeChange('financial-tracker')}>
+              <DollarSign className="mr-2 h-4 w-4 text-brand" />
+              <span>Financial Tracker</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => handleReportTypeChange('call-summary')}>
               <PhoneCall className="mr-2 h-4 w-4 text-brand" />
               <span>Call Summary</span>
@@ -486,7 +530,7 @@ export default function ReportsPage() {
           </DropdownMenuContent>
         </DropdownMenu>
         
-        {reportType !== 'templates' && reportType !== 'lead-source-realtime' && (
+        {reportType !== 'templates' && reportType !== 'lead-source-realtime' && reportType !== 'critical-reports' && reportType !== 'custom-reports' && reportType !== 'financial-tracker' && (
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
@@ -554,6 +598,9 @@ export default function ReportsPage() {
   // Helper function to get the label for the selected report type
   const getReportTypeLabel = (type: ReportType): string => {
     switch (type) {
+      case 'critical-reports': return 'Critical Reports';
+      case 'custom-reports': return 'Custom Reports';
+      case 'financial-tracker': return 'Financial Tracker';
       case 'call-summary': return 'Call Summary';
       case 'agent-performance': return 'Agent Performance';
       case 'journey-analytics': return 'Journey Analytics';
@@ -1042,7 +1089,7 @@ export default function ReportsPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Calls</p>
-                <p className="text-2xl font-semibold text-gray-900">{summary.totalCalls.toLocaleString()}</p>
+                <p className="text-2xl font-semibold text-gray-900">{(summary.totalCalls || 0).toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -1054,7 +1101,7 @@ export default function ReportsPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Answered Calls</p>
-                <p className="text-2xl font-semibold text-gray-900">{summary.answeredCalls.toLocaleString()}</p>
+                <p className="text-2xl font-semibold text-gray-900">{(summary.answeredCalls || 0).toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -1066,7 +1113,7 @@ export default function ReportsPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Transferred</p>
-                <p className="text-2xl font-semibold text-gray-900">{summary.transferredCalls.toLocaleString()}</p>
+                <p className="text-2xl font-semibold text-gray-900">{(summary.transferredCalls || 0).toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -1088,12 +1135,12 @@ export default function ReportsPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="text-center">
-              <div className="text-3xl font-bold text-brand">{summary.connectionRate}%</div>
+              <div className="text-3xl font-bold text-brand">{summary.connectionRate || 0}%</div>
               <div className="text-sm text-gray-600 mt-1">Connection Rate</div>
               <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
                 <div 
                   className="bg-brand h-2 rounded-full" 
-                  style={{ width: `${Math.min(parseFloat(summary.connectionRate), 100)}%` }}
+                  style={{ width: `${Math.min(parseFloat(summary.connectionRate || '0'), 100)}%` }}
                 ></div>
               </div>
             </div>
@@ -1101,12 +1148,12 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="text-center">
-              <div className="text-3xl font-bold text-brand">{summary.transferRate}%</div>
+              <div className="text-3xl font-bold text-brand">{summary.transferRate || 0}%</div>
               <div className="text-sm text-gray-600 mt-1">Transfer Rate</div>
               <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
                 <div 
                   className="bg-brand h-2 rounded-full" 
-                  style={{ width: `${Math.min(summary.transferRate, 100)}%` }}
+                  style={{ width: `${Math.min(summary.transferRate || 0, 100)}%` }}
                 ></div>
               </div>
             </div>
@@ -1114,10 +1161,10 @@ export default function ReportsPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="text-center">
-              <div className="text-3xl font-bold text-brand">{summary.uniqueLeads.toLocaleString()}</div>
+              <div className="text-3xl font-bold text-brand">{(summary.uniqueLeads || 0).toLocaleString()}</div>
               <div className="text-sm text-gray-600 mt-1">Unique Leads</div>
               <div className="text-sm text-gray-500 mt-2">
-                {summary.totalCalls > 0 ? (summary.uniqueLeads / summary.totalCalls * 100).toFixed(1) : 0}% of total calls
+                {summary.totalCalls > 0 ? ((summary.uniqueLeads || 0) / summary.totalCalls * 100).toFixed(1) : 0}% of total calls
               </div>
             </div>
           </div>
@@ -1131,24 +1178,24 @@ export default function ReportsPage() {
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="text-center p-4 bg-brand bg-opacity-10 rounded-lg">
-                <div className="text-2xl font-bold text-brand">{summary.answeredCalls}</div>
+                <div className="text-2xl font-bold text-brand">{summary.answeredCalls || 0}</div>
                 <div className="text-sm text-brand">Answered</div>
                 <div className="text-xs text-gray-500 mt-1">
-                  {summary.totalCalls > 0 ? ((summary.answeredCalls / summary.totalCalls) * 100).toFixed(1) : 0}%
+                  {summary.totalCalls > 0 ? (((summary.answeredCalls || 0) / summary.totalCalls) * 100).toFixed(1) : 0}%
                 </div>
               </div>
               <div className="text-center p-4 bg-brand bg-opacity-10 rounded-lg">
-                <div className="text-2xl font-bold text-brand">{summary.failedCalls}</div>
+                <div className="text-2xl font-bold text-brand">{summary.failedCalls || 0}</div>
                 <div className="text-sm text-brand">Failed</div>
                 <div className="text-xs text-gray-500 mt-1">
-                  {summary.totalCalls > 0 ? ((summary.failedCalls / summary.totalCalls) * 100).toFixed(1) : 0}%
+                  {summary.totalCalls > 0 ? (((summary.failedCalls || 0) / summary.totalCalls) * 100).toFixed(1) : 0}%
                 </div>
               </div>
               <div className="text-center p-4 bg-brand bg-opacity-10 rounded-lg">
-                <div className="text-2xl font-bold text-brand">{summary.transferredCalls}</div>
+                <div className="text-2xl font-bold text-brand">{summary.transferredCalls || 0}</div>
                 <div className="text-sm text-brand">Transferred</div>
                 <div className="text-xs text-gray-500 mt-1">
-                  {summary.totalCalls > 0 ? ((summary.transferredCalls / summary.totalCalls) * 100).toFixed(1) : 0}%
+                  {summary.totalCalls > 0 ? (((summary.transferredCalls || 0) / summary.totalCalls) * 100).toFixed(1) : 0}%
                 </div>
               </div>
             </div>
@@ -1275,6 +1322,30 @@ export default function ReportsPage() {
   const renderJourneyAnalyticsVisualization = () => {
     const journeys = reportData.journeys || [];
     
+    // Ensure each journey has the expected structure with default values
+    const processedJourneys = journeys.map((journey: any) => ({
+      journey: {
+        id: journey?.journey?.id || 'unknown',
+        name: journey?.journey?.name || 'Untitled Journey',
+        description: journey?.journey?.description || '',
+        stepCount: journey?.journey?.stepCount || 0
+      },
+      enrollments: {
+        totalEnrollments: journey?.enrollments?.totalEnrollments || 0,
+        activeEnrollments: journey?.enrollments?.activeEnrollments || 0,
+        completedEnrollments: journey?.enrollments?.completedEnrollments || 0,
+        exitedEnrollments: journey?.enrollments?.exitedEnrollments || 0
+      },
+      conversionRate: journey?.conversionRate || '0',
+      conversionFunnel: {
+        uniqueLeads: journey?.conversionFunnel?.uniqueLeads || 0,
+        reachedFirstStep: journey?.conversionFunnel?.reachedFirstStep || 0,
+        reachedLastStep: journey?.conversionFunnel?.reachedLastStep || 0,
+        completed: journey?.conversionFunnel?.completed || 0
+      },
+      stepPerformance: journey?.stepPerformance || {}
+    }));
+    
     return (
       <div className="space-y-6">
         {/* Export Controls */}
@@ -1321,7 +1392,7 @@ export default function ReportsPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Journeys</p>
-                <p className="text-2xl font-semibold text-gray-900">{journeys.length}</p>
+                <p className="text-2xl font-semibold text-gray-900">{processedJourneys.length}</p>
               </div>
             </div>
           </div>
@@ -1334,7 +1405,7 @@ export default function ReportsPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Enrollments</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {journeys.reduce((sum: number, j: any) => sum + j.enrollments.totalEnrollments, 0)}
+                  {processedJourneys.reduce((sum: number, j: any) => sum + j.enrollments.totalEnrollments, 0)}
                 </p>
               </div>
             </div>
@@ -1348,7 +1419,7 @@ export default function ReportsPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Completed</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {journeys.reduce((sum: number, j: any) => sum + j.enrollments.completedEnrollments, 0)}
+                  {processedJourneys.reduce((sum: number, j: any) => sum + j.enrollments.completedEnrollments, 0)}
                 </p>
               </div>
             </div>
@@ -1362,8 +1433,8 @@ export default function ReportsPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Avg Conversion Rate</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {journeys.length > 0 
-                    ? (journeys.reduce((sum: number, j: any) => sum + parseFloat(j.conversionRate || '0'), 0) / journeys.length).toFixed(1)
+                  {processedJourneys.length > 0 
+                    ? (processedJourneys.reduce((sum: number, j: any) => sum + parseFloat(j.conversionRate), 0) / processedJourneys.length).toFixed(1)
                     : '0'
                   }%
                 </p>
@@ -1392,7 +1463,7 @@ export default function ReportsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {journeys.map((journey: any, index: number) => (
+                  {processedJourneys.map((journey: any, index: number) => (
                     <tr key={journey.journey.id} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
                       <td className="py-3 px-4">
                         <div>
@@ -1408,18 +1479,18 @@ export default function ReportsPage() {
                       <td className="py-3 px-4 text-gray-900">{journey.enrollments.completedEnrollments}</td>
                       <td className="py-3 px-4">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          parseFloat(journey.conversionRate || '0') >= 80 ? 'bg-brand bg-opacity-10 text-brand' :
-                          parseFloat(journey.conversionRate || '0') >= 60 ? 'bg-brand-light bg-opacity-10 text-brand-light' :
+                          parseFloat(journey.conversionRate) >= 80 ? 'bg-brand bg-opacity-10 text-brand' :
+                          parseFloat(journey.conversionRate) >= 60 ? 'bg-brand-light bg-opacity-10 text-brand-light' :
                           'bg-brand-dark bg-opacity-10 text-brand-dark'
                         }`}>
-                          {journey.conversionRate || '0'}%
+                          {journey.conversionRate}%
                         </span>
                       </td>
                       <td className="py-3 px-4">
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div 
                             className="bg-brand h-2 rounded-full" 
-                            style={{ width: `${Math.min(parseFloat(journey.conversionRate || '0'), 100)}%` }}
+                            style={{ width: `${Math.min(parseFloat(journey.conversionRate), 100)}%` }}
                           ></div>
                         </div>
                       </td>
@@ -1432,7 +1503,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Individual Journey Details */}
-        {journeys.map((journey: any) => (
+        {processedJourneys.map((journey: any) => (
           <div key={journey.journey.id} className="bg-white rounded-lg shadow">
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex justify-between items-center">
@@ -1522,13 +1593,13 @@ export default function ReportsPage() {
                 <h4 className="text-md font-medium text-gray-900 mb-3">Step Performance</h4>
                 <div className="space-y-3">
                   {Object.entries(journey.stepPerformance).map(([stepId, step]: [string, any]) => {
-                    const successRate = parseFloat(step.successRate?.toString() || '0');
+                    const successRate = parseFloat(step?.successRate?.toString() || '0');
                     return (
                       <div key={stepId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div className="flex-1">
-                          <div className="font-medium text-gray-900">{step.stepName}</div>
+                          <div className="font-medium text-gray-900">{step?.stepName || 'Unknown Step'}</div>
                           <div className="text-sm text-gray-600">
-                            {step.completedExecutions} / {step.totalExecutions} executions
+                            {step?.completedExecutions || 0} / {step?.totalExecutions || 0} executions
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
@@ -2100,6 +2171,33 @@ export default function ReportsPage() {
     );
   };
 
+  if (showReportBuilder) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col bg-gradient-to-br from-gray-100/90 to-blue-100/80 backdrop-blur-xl animate-fade-in">
+        <div className="flex items-center justify-between px-8 py-6 bg-white/80 shadow-lg rounded-b-2xl border-b border-blue-200">
+          <h1 className="text-2xl font-bold text-blue-900 drop-shadow-sm tracking-tight">Custom Report Builder</h1>
+          <button
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold shadow hover:bg-blue-700 transition-all"
+            onClick={() => setShowReportBuilder(false)}
+          >
+            Exit Builder
+          </button>
+        </div>
+        <div className="flex-1 flex min-h-0">
+          <CustomReportBuilder
+            isOpen={true}
+            onClose={() => setShowReportBuilder(false)}
+            report={selectedReport}
+            onSave={() => {
+              setShowReportBuilder(false);
+              // Optionally refresh custom reports list here
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="container mx-auto px-4 py-8">
@@ -2135,13 +2233,30 @@ export default function ReportsPage() {
         
         {renderReportTypeSelector()}
         
-        {reportType !== 'templates' && reportType !== 'lead-source-realtime' && (
+        {reportType !== 'templates' && reportType !== 'lead-source-realtime' && reportType !== 'critical-reports' && reportType !== 'custom-reports' && reportType !== 'financial-tracker' && (
           renderDateRangeSelector()
         )}
         
         {renderFilters()}
         
-        {/* Report Results or Empty State */}
+        {/* New Reporting System */}
+        {reportType === 'critical-reports' && (
+          <CriticalReports />
+        )}
+        
+        {reportType === 'custom-reports' && (
+          <CustomReportsManager onRefresh={() => {
+            // Refresh any necessary data
+          }} />
+        )}
+        
+        {reportType === 'financial-tracker' && (
+          <FinancialTracker onTransactionAdded={() => {
+            // Refresh financial data if needed
+          }} />
+        )}
+        
+        {/* Legacy Report Results or Empty State */}
         {(reportType === 'call-summary' || reportType === 'agent-performance' || reportType === 'journey-analytics' || reportType === 'lead-source-performance' || reportType === 'lead-source-comparison' || reportType === 'lead-source-realtime') && (
           <>
             {reportData ? (

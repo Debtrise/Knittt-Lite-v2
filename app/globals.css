@@ -225,3 +225,123 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* Fun, bouncy animation for cards */
+@keyframes fun-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  20% { transform: translateY(-8px) scale(1.04); }
+  40% { transform: translateY(4px) scale(0.98); }
+  60% { transform: translateY(-4px) scale(1.02); }
+  80% { transform: translateY(2px) scale(0.99); }
+}
+
+.animate-fun-bounce {
+  animation: fun-bounce 1.2s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+}
+
+/* Fun, playful gradient background for login */
+.fun-gradient-bg {
+  background: linear-gradient(135deg, #3a84af 0%, #79b6db 50%, #9b6a89 100%);
+  background-size: 200% 200%;
+  animation: gradient 8s ease-in-out infinite;
+}
+
+/* Modern Login Card Style */
+.login-card {
+  background: #393d3f;
+  color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px 0 rgba(0,0,0,0.25), 0 1.5px 8px 0 rgba(58,132,175,0.10);
+  border: 1px solid #55585a;
+  padding: 2.5rem 2.5rem 2rem 2.5rem;
+  max-width: 400px;
+  width: 100%;
+  margin: 0 auto;
+  transition: box-shadow 0.3s, transform 0.3s;
+  display: block;
+  position: relative;
+  z-index: 2;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.login-card:hover {
+  box-shadow: 0 16px 40px 0 rgba(58, 132, 175, 0.18), 0 2px 16px 0 rgba(0,0,0,0.18);
+  transform: translateY(-2px);
+}
+
+.login-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #55585a;
+  border-radius: 8px;
+  background: #23272a;
+  color: #fff;
+  font-size: 1rem;
+  margin-bottom: 1.25rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-shadow: none;
+}
+.login-input:focus {
+  border-color: #3a84af;
+  box-shadow: 0 0 0 2px #3a84af33;
+  outline: none;
+  background: #23272a;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #236084;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background 0.2s, transform 0.2s;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.01em;
+}
+.login-btn:hover {
+  background: #3a84af;
+  transform: translateY(-1px);
+}
+.login-btn:active {
+  background: #2d6a8c;
+  transform: translateY(0);
+}
+
+.login-link {
+  color: #3a84af;
+  font-weight: 500;
+  transition: color 0.2s;
+  text-decoration: none;
+}
+.login-link:hover {
+  color: #5199c3;
+  text-decoration: underline;
+}
+
+/* Remove old fun/glassmorphism styles if present */
+.login-glass-card, .fun-btn, .fun-input, .fun-gradient-bg, .animate-fun-bounce {
+  all: unset;
+}
+
+.login-bg {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: linear-gradient(120deg, #3a4d5c, #4a5e73, #3a7ca5, #3a4d5c);
+  background-size: 200% 200%;
+  animation: login-gradient-move 8s ease-in-out infinite;
+}
+
+@keyframes login-gradient-move {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}

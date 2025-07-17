@@ -558,6 +558,7 @@ export default function WebhookReviewPage({ params }: { params: Promise<{ id: st
                       <SelectItem value="pause">Pause</SelectItem>
                       <SelectItem value="stop">Stop</SelectItem>
                       <SelectItem value="announcement">Announcement</SelectItem>
+                      <SelectItem value="call">Call</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

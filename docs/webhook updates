@@ -1,0 +1,282 @@
+Front-End Changes Required
+1. Update Webhook Type Dropdown
+The webhook creation/edit form needs to include "call" as an option:
+javascript// Update webhook type options
+const webhookTypes = [
+  { value: 'go', label: 'Go - Create Leads' },
+  { value: 'pause', label: 'Pause - Pause Leads' },
+  { value: 'stop', label: 'Stop - Stop Leads' },
+  { value: 'announcement', label: 'Announcement - Display Content' },
+  { value: 'call', label: 'Call - Initiate Calls' } // NEW
+];
+2. Add Call Configuration Section
+When "call" type is selected, show a new configuration panel:
+javascript// Call configuration fields to display
+{webhookType === 'call' && (
+  <CallConfigSection>
+    <FormField
+      label="Dialer Context"
+      name="callConfig.dialerContext"
+      type="text"
+      required
+      defaultValue="BDS_Prime_Dialer"
+      helperText="Asterisk context for call routing"
+    />
+    
+    <FormField
+      label="Transfer Number"
+      name="callConfig.transferNumber"
+      type="tel"
+      required
+      placeholder="18005551234"
+      helperText="Number to transfer calls to"
+    />
+    
+    <FormField
+      label="Max Call Attempts"
+      name="callConfig.maxAttempts"
+      type="number"
+      min={1}
+      max={10}
+      defaultValue={3}
+      helperText="Number of call attempts (1-10)"
+    />
+    
+    <FormField
+      label="Delay Between Calls (seconds)"
+      name="callConfig.delayBetweenCalls"
+      type="number"
+      min={60}
+      max={3600}
+      defaultValue={300}
+      helperText="Time to wait between attempts (1-60 minutes)"
+    />
+    
+    <AdvancedSettings>
+      <Checkbox
+        label="Enable Answering Machine Detection"
+        name="callConfig.amd"
+        defaultChecked={false}
+      />
+      
+      <Checkbox
+        label="Play Position in Queue"
+        name="callConfig.playPosition"
+        defaultChecked={false}
+      />
+      
+      <Checkbox
+        label="Skip Position Announcement"
+        name="callConfig.skipPositionAnnouncement"
+        defaultChecked={true}
+      />
+      
+      <FormField
+        label="IVR File (Optional)"
+        name="callConfig.ivrFile"
+        type="text"
+        placeholder="custom-ivr.wav"
+      />
+      
+      <FormField
+        label="Recording ID (Optional)"
+        name="callConfig.recordingId"
+        type="number"
+        placeholder="12345"
+      />
+    </AdvancedSettings>
+  </CallConfigSection>
+)}
+3. Update API Calls
+Update the webhook creation/update API calls to include callConfig:
+javascript// Creating a call webhook
+const createCallWebhook = async (formData) => {
+  const payload = {
+    name: formData.name,
+    description: formData.description,
+    webhookType: 'call',
+    fieldMapping: formData.fieldMapping,
+    validationRules: formData.validationRules,
+    callConfig: {
+      enabled: true,
+      dialerContext: formData.callConfig.dialerContext,
+      transferNumber: formData.callConfig.transferNumber,
+      maxAttempts: formData.callConfig.maxAttempts,
+      delayBetweenCalls: formData.callConfig.delayBetweenCalls,
+      amd: formData.callConfig.amd,
+      playPosition: formData.callConfig.playPosition,
+      skipPositionAnnouncement: formData.callConfig.skipPositionAnnouncement,
+      ivrFile: formData.callConfig.ivrFile,
+      recordingId: formData.callConfig.recordingId
+    },
+    brand: formData.brand,
+    source: formData.source,
+    securityToken: formData.securityToken
+  };
+  
+  return await api.post('/api/webhooks', payload);
+};
+4. Add Call-Specific Status/Monitoring Views
+Create new UI components for monitoring call webhooks:
+javascript// Call webhook status component
+const CallWebhookStatus = ({ webhookId }) => {
+  const [status, setStatus] = useState(null);
+  
+  useEffect(() => {
+    fetchCallStatus();
+  }, [webhookId]);
+  
+  const fetchCallStatus = async () => {
+    const response = await api.get(`/api/webhooks/${webhookId}/call-status`);
+    setStatus(response.data);
+  };
+  
+  return (
+    <StatusCard>
+      <h3>Call Performance</h3>
+      <MetricGrid>
+        <Metric label="Total Events" value={status?.stats.totalEvents} />
+        <Metric label="Successful" value={status?.stats.successfulEvents} />
+        <Metric label="Failed" value={status?.stats.failedEvents} />
+        <Metric label="Calls Initiated" value={status?.stats.totalCallsInitiated} />
+        <Metric label="Avg Attempts/Lead" value={status?.stats.averageAttemptsPerLead.toFixed(1)} />
+      </MetricGrid>
+      
+      <RecentEvents>
+        <h4>Recent Call Events</h4>
+        {status?.recentEvents.map(event => (
+          <EventRow key={event.id}>
+            <Status type={event.status} />
+            <Time>{formatDate(event.receivedAt)}</Time>
+            <Info>
+              {event.callsInitiated} calls, {event.attempts} attempts
+              {event.errors.length > 0 && (
+                <Errors>{event.errors.join(', ')}</Errors>
+              )}
+            </Info>
+          </EventRow>
+        ))}
+      </RecentEvents>
+    </StatusCard>
+  );
+};
+5. Add Test Call Feature
+Add a test button for call webhooks:
+javascriptconst TestCallWebhook = ({ webhookId }) => {
+  const [testing, setTesting] = useState(false);
+  const [result, setResult] = useState(null);
+  
+  const testWebhook = async () => {
+    setTesting(true);
+    try {
+      const response = await api.post(`/api/webhooks/${webhookId}/test-call`, {
+        phone_number: '5555551234',
+        full_name: 'Test Lead',
+        email_address: 'test@example.com'
+      });
+      setResult(response.data);
+    } catch (error) {
+      setResult({ error: error.message });
+    }
+    setTesting(false);
+  };
+  
+  return (
+    <TestSection>
+      <Button onClick={testWebhook} disabled={testing}>
+        {testing ? 'Testing...' : 'Test Call Webhook'}
+      </Button>
+      
+      {result && (
+        <TestResult success={result.success}>
+          {result.error ? (
+            <ErrorMessage>{result.error}</ErrorMessage>
+          ) : (
+            <SuccessMessage>
+              Created {result.result.leadsCreated} leads,
+              Initiated {result.result.callsInitiated} calls
+            </SuccessMessage>
+          )}
+        </TestResult>
+      )}
+    </TestSection>
+  );
+};
+6. Update Webhook List View
+Show call-specific information in the webhook list:
+javascript// In webhook list/table component
+{webhook.webhookType === 'call' && (
+  <CallInfo>
+    <Icon name="phone" />
+    <span>{webhook.callConfig.maxAttempts} attempts</span>
+    <span>→ {webhook.callConfig.transferNumber}</span>
+  </CallInfo>
+)}
+7. Form Validation Updates
+Add validation for call-specific fields:
+javascriptconst validateCallWebhook = (formData) => {
+  const errors = {};
+  
+  if (formData.webhookType === 'call') {
+    if (!formData.callConfig?.dialerContext) {
+      errors['callConfig.dialerContext'] = 'Dialer context is required';
+    }
+    
+    if (!formData.callConfig?.transferNumber) {
+      errors['callConfig.transferNumber'] = 'Transfer number is required';
+    } else if (!/^\d{10,}$/.test(formData.callConfig.transferNumber.replace(/\D/g, ''))) {
+      errors['callConfig.transferNumber'] = 'Invalid phone number format';
+    }
+    
+    if (formData.callConfig?.delayBetweenCalls < 60) {
+      errors['callConfig.delayBetweenCalls'] = 'Minimum delay is 60 seconds';
+    }
+  }
+  
+  return errors;
+};
+8. Help/Documentation Updates
+Add help text and examples for call webhooks:
+javascriptconst CallWebhookHelp = () => (
+  <HelpSection>
+    <h4>Call Webhook Overview</h4>
+    <p>Call webhooks automatically initiate outbound calls to leads when they are received.</p>
+    
+    <h5>How it works:</h5>
+    <ol>
+      <li>Webhook receives lead data (phone, name, etc.)</li>
+      <li>System creates or updates the lead</li>
+      <li>Initiates first call attempt using a random DID</li>
+      <li>If no answer, waits the configured delay</li>
+      <li>Attempts additional calls up to max attempts</li>
+    </ol>
+    
+    <h5>Example Payload:</h5>
+    <CodeBlock>
+      {JSON.stringify({
+        phone_number: "5551234567",
+        full_name: "John Doe",
+        email_address: "john@example.com"
+      }, null, 2)}
+    </CodeBlock>
+  </HelpSection>
+);
+9. State Management Updates
+If using Redux/Context, update the store to handle call webhook data:
+javascript// Add to webhook reducer/actions
+case 'SET_WEBHOOK_CALL_CONFIG':
+  return {
+    ...state,
+    currentWebhook: {
+      ...state.currentWebhook,
+      callConfig: action.payload
+    }
+  };
+
+// Action creator
+export const setCallConfig = (config) => ({
+  type: 'SET_WEBHOOK_CALL_CONFIG',
+  payload: config
+});
+10. Visual Indicators
+Add visual elements to distinguish call webhooks:

@@ -1673,7 +1673,7 @@ export const regenerateWebhookToken = async (webhookId: number) => {
 };
 
 // Webhook Configuration APIs
-export const getWebhookConfigOptions = async (webhookType?: 'go' | 'pause' | 'stop' | 'announcement') => {
+export const getWebhookConfigOptions = async (webhookType?: WebhookType) => {
   const response = await api.get('/webhooks/types/config-options', { 
     params: { webhookType } 
   });
@@ -2849,4 +2849,194 @@ export const getSingleSourcePerformance = async (source: string, params: {
 };
 
 export default api;
+
+// New Reporting API Functions
+export const generateExecutiveDashboardReport = async (data: {
+  startDate: string;
+  endDate: string;
+  revenueTarget?: number;
+  csat?: number;
+}) => {
+  const response = await api.post('/reports/executive-dashboard', data);
+  return response.data;
+};
+
+export const generateLeadPerformanceReport = async (data: {
+  startDate: string;
+  endDate: string;
+  sources?: string[];
+  tags?: string[];
+  groupBy?: 'source' | 'campaign' | 'channel';
+}) => {
+  const response = await api.post('/reports/lead-performance', data);
+  return response.data;
+};
+
+export const generateFinancialPerformanceReport = async (data: {
+  startDate: string;
+  endDate: string;
+  groupBy?: 'source' | 'channel' | 'campaign';
+}) => {
+  const response = await api.post('/reports/financial-performance', data);
+  return response.data;
+};
+
+// Custom Report Builder APIs
+export const createReportBuilder = async (data: {
+  name: string;
+  description: string;
+  layout: {
+    type: 'grid';
+    columns: number;
+    rows?: string;
+    gap?: number;
+    responsive?: boolean;
+  };
+  theme?: {
+    primaryColor?: string;
+    backgroundColor?: string;
+    textColor?: string;
+  };
+  dataSources: Array<{
+    id: string;
+    type: string;
+    table?: string;
+    fields?: string[];
+    filters?: Record<string, any>;
+  }>;
+  widgets: Array<{
+    type: string;
+    title: string;
+    position: { x: number; y: number; w: number; h: number };
+    dataSource: {
+      sourceId: string;
+      aggregation?: string;
+      groupBy?: string[];
+    };
+    config?: Record<string, any>;
+  }>;
+  refreshInterval?: number;
+  isPublic?: boolean;
+  tags?: string[];
+}) => {
+  const response = await api.post('/report-builders', data);
+  return response.data;
+};
+
+export const executeReportBuilder = async (reportId: string, data: {
+  startDate: string;
+  endDate: string;
+  filters?: Record<string, any>;
+}) => {
+  const response = await api.post(`/report-builders/${reportId}/execute`, data);
+  return response.data;
+};
+
+export const addWidgetToReportBuilder = async (reportId: string, widget: {
+  type: string;
+  title: string;
+  position: { x: number; y: number; w: number; h: number };
+  dataSource: {
+    sourceId: string;
+    limit?: number;
+    orderBy?: Array<{ field: string; direction: 'ASC' | 'DESC' }>;
+  };
+  config?: Record<string, any>;
+}) => {
+  const response = await api.post(`/report-builders/${reportId}/widgets`, widget);
+  return response.data;
+};
+
+export const listReportBuilders = async () => {
+  const response = await api.get('/report-builders');
+  return response.data;
+};
+
+export const getReportBuilder = async (reportId: string) => {
+  const response = await api.get(`/report-builders/${reportId}`);
+  return response.data;
+};
+
+export const updateReportBuilder = async (reportId: string, data: any) => {
+  const response = await api.put(`/report-builders/${reportId}`, data);
+  return response.data;
+};
+
+export const deleteReportBuilder = async (reportId: string) => {
+  const response = await api.delete(`/report-builders/${reportId}`);
+  return response.data;
+};
+
+export const cloneReportBuilder = async (reportId: string, data: { name: string }) => {
+  const response = await api.post(`/report-builders/${reportId}/clone`, data);
+  return response.data;
+};
+
+export const shareReportBuilder = async (reportId: string, data: {
+  sharedWith?: number;
+  permissions: {
+    view: boolean;
+    edit: boolean;
+    delete: boolean;
+    share: boolean;
+  };
+  expiresAt?: string;
+}) => {
+  const response = await api.post(`/report-builders/${reportId}/share`, data);
+  return response.data;
+};
+
+
+
+export const saveDashboardConfiguration = async (config: {
+  layout: Array<{
+    widgetId: string;
+    position: { x: number; y: number; w: number; h: number };
+  }>;
+  theme: {
+    mode: 'light' | 'dark';
+    primaryColor: string;
+  };
+  refreshInterval: number;
+}) => {
+  const response = await api.post('/dashboard/config', config);
+  return response.data;
+};
+
+// Financial Tracking APIs
+export const recordFinancialTransaction = async (data: {
+  leadId?: number;
+  source: string;
+  type: 'revenue' | 'cost' | 'refund' | 'adjustment';
+  amount: number;
+  description: string;
+  relatedId?: string;
+  metadata?: Record<string, any>;
+}) => {
+  const response = await api.post('/financial/transaction', data);
+  return response.data;
+};
+
+// Export Reports API
+export const exportReportData = async (data: {
+  reportData: Record<string, any>;
+  format: 'csv' | 'excel' | 'pdf';
+  filename: string;
+}) => {
+  const response = await api.post('/reports/export', data, {
+    responseType: 'blob'
+  });
+  return response.data;
+};
+
+// Utility APIs
+export const getAvailableDataSourcesForReports = async () => {
+  const response = await api.get('/report-builders/data-sources/available');
+  return response.data;
+};
+
+export const getCriticalReportsList = async () => {
+  const response = await api.get('/reports/critical');
+  return response.data;
+};
 
